@@ -16,6 +16,18 @@ import StoreList from './pages/StoreList';
 import { StoreInfo, GlobalState } from './types';
 import { INITIAL_STATE, EMPTY_STATE } from './constants';
 
+// ✅ Import do SafeChartContainer
+import { SafeChartContainer } from './components/SafeChartContainer';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from 'recharts';
+
 interface AppContentProps {
   onLogout: () => void;
   toggleTheme: () => void;
@@ -24,6 +36,13 @@ interface AppContentProps {
 
 const AppContent: React.FC<AppContentProps> = ({ onLogout, toggleTheme, isDark }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // ✅ Exemplo de dados para o gráfico
+  const chartData = [
+    { x: 'Jan', y: 400 },
+    { x: 'Feb', y: 300 },
+    { x: 'Mar', y: 500 },
+  ];
 
   const renderContent = () => {
     switch (activeTab) {
@@ -46,6 +65,21 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, toggleTheme, isDark }
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} toggleTheme={toggleTheme} isDark={isDark} />
       <main className="flex-1 ml-64 p-8">
         {renderContent()}
+
+        {/* ✅ Gráfico seguro */}
+        <div className="mt-8">
+          <SafeChartContainer height={320}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="x" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="y" stroke="#3b82f6" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </SafeChartContainer>
+        </div>
 
         {/* ✅ Botão para testar Firebase */}
         <div className="mt-8">
