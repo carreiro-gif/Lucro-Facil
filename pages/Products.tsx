@@ -5,7 +5,7 @@ import {
   getProducts,
   updateProductFB,
   deleteProductFB,
-} from '../firebase/firebase-products';
+} from '../src/firebase/firebase-products'; // ✅ Corrigido caminho do import
 
 interface Product {
   id?: string;
