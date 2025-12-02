@@ -7,7 +7,7 @@
     <title>Lucro Fácil</title>
 
     <!-- Tailwind CSS -->
-    <script src="ailwindcss.com
+    https://cdn.tailwindcss.com</script>
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -21,18 +21,6 @@
                 light: '#EDF2F4'
               }
             }
-          }
-        }
-      }
-    </script>
-
-    <style>
-      :root {
-        color-scheme: light dark;
-      }
-      body {
-        background-color: #F9FAFB; /* gray-50 */
-        color: #111827; /* gray-900 */
         transition: background-color 0.3s, color 0.3s;
       }
       .dark body {
@@ -77,9 +65,9 @@
     }
     </script>
 
-    <link rel="stylesheet" href="/index.css->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2.js</script>
-    <script src="https://www.gstatic.com/firebasejsbase-firestore.js</script>
+    <link rel="stylesheet" Firebase via CDN (compat) -->
+    https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
+    https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js
 
     <script>
       // Configuração do Firebase
@@ -92,7 +80,7 @@
         appId: "1:568743117540:web:a1bc0e38ee9807207622f1"
       };
 
-      // Inicializa Firebase
+      // Inicializa Firebase (compat expõe 'firebase' global)
       const app = firebase.initializeApp(firebaseConfig);
       const db = firebase.firestore();
 
@@ -103,13 +91,16 @@
             nome: "Alexandre",
             criadoEm: new Date()
           });
-          console.log("Documento salvo com ID:", docRef.id);
+          console.log("✅ Documento salvo com ID:", docRef.id);
         } catch (e) {
-          console.error("Erro ao salvar:", e);
+          console.error("❌ Erro ao salvar:", e);
         }
       };
+
+      console.log('Firebase inicializado. testeFirebase:', typeof window.testeFirebase);
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.ts>
+    <script type="module" srcody>
+</html>
