@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { GlobalState, Ingredient } from "../types";
+import { GlobalState, Ingredient } from "../tipos";
 import {
   saveIngredient as addIngredientFB,
   getIngredients,
   updateIngredientFB,
-  deleteIngredientFB,
-} from "../firebase/firebase-ingredients.ts";
-import { EMPTY_STATE } from "../constants";
+  deleteIngredientFB
+} from "../src/firebase/firebase-ingredients.ts";
+import { EMPTY_STATE } from "../constantes";
 
 // ------------------------------------------------------
 // CONTEXTO
@@ -51,14 +51,12 @@ export const AppProvider: React.FC<Props> = ({
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
 
   // ------------------------------------------------------------------
-  // 🔥 LISTA INGREDIENTES DO FIRESTORE (carregamento inicial)
+  // 🔥 Carrega ingredientes do Firestore
   // ------------------------------------------------------------------
   useEffect(() => {
     async function load() {
       console.log("📡 Buscando ingredientes no Firestore...");
-
       const items = await getIngredients();
-
       console.log("🔥 Ingredientes carregados:", items);
 
       setIngredients(items);
