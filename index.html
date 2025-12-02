@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lucro Fácil</title>
 
-    <!-- Tailwind -->
+    <!-- Tailwind (OK para desenvolvimento, depois trocaremos para build local) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <script>
@@ -26,7 +26,7 @@
       };
     </script>
 
-    <!-- Importmap -->
+    <!-- Importmap para React do Google IA Studio -->
     <script type="importmap">
     {
       "imports": {
@@ -37,47 +37,15 @@
       }
     }
     </script>
-
-    <!-- Firebase compat -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
-    <!-- Script Firebase -->
-    <script>
-      console.log("🔥 Bloco Firebase carregou no HTML");
-
-      const firebaseConfig = {
-        apiKey: "AIzaSyA7SgFJ35FFZ6uLN1776DeRNV6KyUJ2k",
-        authDomain: "lucro-facil-28aaf.firebaseapp.com",
-        projectId: "lucro-facil-28aaf",
-        storageBucket: "lucro-facil-28aaf.appspot.com",
-        messagingSenderId: "568743117540",
-        appId: "1:568743117540:web:a1bc0e38ee9807207622f1"
-      };
-
-      const app = firebase.initializeApp(firebaseConfig);
-      const db = firebase.firestore();
-
-      window.testeFirebase = async function () {
-        try {
-          const docRef = await db.collection("teste").add({
-            nome: "Alexandre",
-            criadoEm: new Date()
-          });
-          console.log("🔥 Documento salvo com sucesso:", docRef.id);
-        } catch (e) {
-          console.error("❌ Erro ao salvar:", e);
-        }
-      };
-
-      console.log("🔥 testeFirebase definida:", typeof window.testeFirebase);
-    </script>
   </head>
 
   <body>
     <div id="root"></div>
 
-    <!-- Vite bundle -->
+    <!-- Firebase carregado como módulo separado -->
+    <script type="module" src="/src/firebase.ts"></script>
+
+    <!-- Vite bundle (IMPORTANTE: agora existe o main.tsx) -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
