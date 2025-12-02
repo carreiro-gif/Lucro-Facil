@@ -17,7 +17,7 @@ import { StoreInfo, GlobalState } from './types';
 import { INITIAL_STATE, EMPTY_STATE } from './constants';
 
 // ✅ Import do SafeChartContainer
-import { SafeChartContainer } from './components/SafeChartContainer';
+import { SafeChartContainer } from './src/components/SafeChartContainer';
 import {
   ResponsiveContainer,
   LineChart,
