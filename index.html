@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lucro Fácil</title>
 
-    <!-- Tailwind CSS via CDN -->
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <script>
       tailwind.config = {
         darkMode: "class",
@@ -17,69 +18,33 @@
                 red: "#D90429",
                 dark: "#161616",
                 gray: "#2B2D42",
-                light: "#EDF2F4",
-              },
-            },
-          },
-        },
+                light: "#EDF2F4"
+              }
+            }
+          }
+        }
       };
     </script>
 
-    <style>
-      :root {
-        color-scheme: light dark;
-      }
-      body {
-        background-color: #f9fafb;
-        color: #111827;
-      }
-      .dark body {
-        background-color: #161616;
-        color: #edf2f4;
-      }
-
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f3f4f6;
-      }
-      .dark ::-webkit-scrollbar-track {
-        background: #161616;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #d1d5db;
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #2b2d42;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #d90429;
-      }
-    </style>
-
-    <!-- Importmap para React e libs -->
+    <!-- Importmap -->
     <script type="importmap">
-      {
-        "imports": {
-          "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
-          "react/": "https://aistudiocdn.com/react@^19.2.0/",
-          "react": "https://aistudiocdn.com/react@^19.2.0",
-          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-          "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
-          "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
-        }
+    {
+      "imports": {
+        "react": "https://aistudiocdn.com/react@19.2.0",
+        "react-dom": "https://aistudiocdn.com/react-dom@19.2.0",
+        "recharts": "https://aistudiocdn.com/recharts@3.4.1",
+        "lucide-react": "https://aistudiocdn.com/lucide-react@0.554.0"
       }
+    }
     </script>
 
-    <!-- Firebase compat CDN -->
+    <!-- Firebase compat -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-    <!-- Inicialização Firebase + funções globais -->
+    <!-- Script Firebase -->
     <script>
-      alert("Bloco do Firebase carregado!");
+      console.log("🔥 Bloco Firebase carregou no HTML");
 
       const firebaseConfig = {
         apiKey: "AIzaSyA7SgFJ35FFZ6uLN1776DeRNV6KyUJ2k",
@@ -87,7 +52,7 @@
         projectId: "lucro-facil-28aaf",
         storageBucket: "lucro-facil-28aaf.appspot.com",
         messagingSenderId: "568743117540",
-        appId: "1:568743117540:web:a1bc0e38ee9807207622f1",
+        appId: "1:568743117540:web:a1bc0e38ee9807207622f1"
       };
 
       const app = firebase.initializeApp(firebaseConfig);
@@ -97,22 +62,22 @@
         try {
           const docRef = await db.collection("teste").add({
             nome: "Alexandre",
-            criadoEm: new Date(),
+            criadoEm: new Date()
           });
-          console.log("✅ Documento salvo com ID:", docRef.id);
+          console.log("🔥 Documento salvo com sucesso:", docRef.id);
         } catch (e) {
           console.error("❌ Erro ao salvar:", e);
         }
       };
 
-      console.log("Firebase inicializado. testeFirebase =", typeof window.testeFirebase);
+      console.log("🔥 testeFirebase definida:", typeof window.testeFirebase);
     </script>
   </head>
 
   <body>
     <div id="root"></div>
 
-    <!-- Entrada do React/Vite -->
+    <!-- Vite bundle -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
