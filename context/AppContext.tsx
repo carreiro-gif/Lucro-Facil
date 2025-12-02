@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { GlobalState, Ingredient } from "../types";
 import {
-  listenIngredients,
-  addIngredientFB,
+  saveIngredient as addIngredientFB,
+  getIngredients,
   updateIngredientFB,
   deleteIngredientFB,
-} from "../firebase/firebase-ingredients";
+} from "../firebase/firebase-ingredients.ts";
 import { EMPTY_STATE } from "../constants";
 
 // ------------------------------------------------------
@@ -51,20 +51,21 @@ export const AppProvider: React.FC<Props> = ({
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
 
   // ------------------------------------------------------------------
-  // 🔥 INTEGRAÇÃO FIRESTORE — LISTENER EM TEMPO REAL (INGREDIENTS)
+  // 🔥 LISTA INGREDIENTES DO FIRESTORE (carregamento inicial)
   // ------------------------------------------------------------------
   useEffect(() => {
-    if (!storeId) return;
+    async function load() {
+      console.log("📡 Buscando ingredientes no Firestore...");
 
-    console.log("📡 Escutando ingredientes da loja:", storeId);
+      const items = await getIngredients();
 
-    const unsub = listenIngredients(storeId, (items) => {
-      console.log("🔥 Ingredientes recebidos do Firestore:", items);
+      console.log("🔥 Ingredientes carregados:", items);
+
       setIngredients(items);
       setState((prev) => ({ ...prev, ingredients: items }));
-    });
+    }
 
-    return () => unsub();
+    load();
   }, [storeId]);
 
   // ------------------------------------------------------------------
@@ -72,17 +73,23 @@ export const AppProvider: React.FC<Props> = ({
   // ------------------------------------------------------------------
   const addIngredient = async (data: Ingredient) => {
     console.log("➕ Adicionando ingrediente:", data);
-    await addIngredientFB(storeId, data);
+    await addIngredientFB(data);
+    const updated = await getIngredients();
+    setIngredients(updated);
   };
 
   const updateIngredient = async (id: string, data: Partial<Ingredient>) => {
     console.log("✏ Atualizando ingrediente:", id, data);
-    await updateIngredientFB(storeId, id, data);
+    await updateIngredientFB(id, data);
+    const updated = await getIngredients();
+    setIngredients(updated);
   };
 
   const deleteIngredient = async (id: string) => {
     console.log("🗑 Removendo ingrediente:", id);
-    await deleteIngredientFB(storeId, id);
+    await deleteIngredientFB(id);
+    const updated = await getIngredients();
+    setIngredients(updated);
   };
 
   // ------------------------------------------------------------------
