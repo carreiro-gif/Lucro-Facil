@@ -1,305 +1,133 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { Product } from '../types';
-import { Plus, Trash, Edit2, Search, FileText, X, ChefHat } from 'lucide-react';
+
+import React, { useEffect, useState } from 'react';
+import {
+  saveProduct,
+  getProducts,
+  updateProductFB,
+  deleteProductFB,
+} from '../firebase/firebase-products';
+
+interface Product {
+  id?: string;
+  name: string;
+  price: number;
+}
 
 const Products: React.FC = () => {
-  const { products, ingredients, addProduct, updateProduct, deleteProduct, getProductCMV, getIngredientRealCost } = useApp();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [newProduct, setNewProduct] = useState<Product>({ name: '', price: 0 });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Form State for Modal
-  const [prodName, setProdName] = useState('');
-  const [prodCategory, setProdCategory] = useState('');
+  // ✅ Carregar produtos ao montar
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
-  const openNewProductModal = () => {
-    setEditingProduct(null);
-    setProdName('');
-    setProdCategory('Geral');
-    setIsModalOpen(true);
-  };
+  async function loadProducts() {
+    const data = await getProducts();
+    setProducts(data as Product[]);
+  }
 
-  const openRecipeModal = (prod: Product) => {
-    setEditingProduct(prod);
-    setProdName(prod.name);
-    setProdCategory(prod.category);
-    setIsModalOpen(true);
-  };
-
-  const handleSaveProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingProduct) {
-      updateProduct(editingProduct.id, { name: prodName, category: prodCategory });
-    } else {
-      addProduct({
-        id: Date.now().toString(),
-        name: prodName,
-        category: prodCategory,
-        ingredients: []
-      });
-      setIsModalOpen(false); // Close if new, keep open if editing recipe
+  async function handleAdd() {
+    if (!newProduct.name || newProduct.price <= 0) {
+      alert('Preencha nome e preço!');
+      return;
     }
-  };
+    await saveProduct(newProduct);
+    setNewProduct({ name: '', price: 0 });
+    loadProducts();
+  }
 
-  const handleDeleteProduct = (id: string, name: string) => {
-    if (window.confirm(`Tem certeza que deseja excluir "${name}" do cardápio?`)) {
-        deleteProduct(id);
+  async function handleUpdate(id: string) {
+    if (!newProduct.name || newProduct.price <= 0) {
+      alert('Preencha nome e preço!');
+      return;
     }
-  };
+    await updateProductFB(id, newProduct);
+    setEditingId(null);
+    setNewProduct({ name: '', price: 0 });
+    loadProducts();
+  }
 
-  const addIngredientToProduct = (ingredientId: string) => {
-    if (!editingProduct) return;
-    const currentIngs = editingProduct.ingredients || [];
-    const newIngs = [...currentIngs, { ingredientId, quantity: 1 }];
-    updateProduct(editingProduct.id, { ingredients: newIngs });
-    // Update local state to reflect changes immediately in modal
-    setEditingProduct({ ...editingProduct, ingredients: newIngs });
-  };
-
-  const updateProductIngredientQty = (index: number, newQty: number) => {
-    if (!editingProduct) return;
-    const newIngs = [...editingProduct.ingredients];
-    newIngs[index].quantity = newQty;
-    updateProduct(editingProduct.id, { ingredients: newIngs });
-    setEditingProduct({ ...editingProduct, ingredients: newIngs });
-  };
-
-  const removeProductIngredient = (index: number) => {
-    if (!editingProduct) return;
-    const newIngs = editingProduct.ingredients.filter((_, i) => i !== index);
-    updateProduct(editingProduct.id, { ingredients: newIngs });
-    setEditingProduct({ ...editingProduct, ingredients: newIngs });
-  };
-
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  async function handleDelete(id: string) {
+    if (window.confirm('Excluir produto?')) {
+      await deleteProductFB(id);
+      loadProducts();
+    }
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-3xl font-bold text-white uppercase">Itens do Cardápio</h2>
-            <p className="text-gray-400">Gerencie seus produtos e acesse as fichas técnicas detalhadas.</p>
-          </div>
-          
-          <div className="flex items-center gap-4 w-full md:w-auto">
-             <div className="relative flex-1 md:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Buscar produto..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-800 text-white rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-brand-red outline-none"
-                />
-            </div>
-            <button 
-              onClick={openNewProductModal}
-              className="bg-brand-red hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition shadow-lg shadow-red-900/20"
-            >
-              <Plus size={18} /> <span className="hidden sm:inline">NOVO ITEM</span>
-            </button>
-          </div>
-       </div>
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-4">Produtos</h2>
 
-       {/* PRODUCT LIST TABLE */}
-       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-             <table className="w-full text-left">
-                <thead className="bg-[#0f111a] text-gray-400 text-xs uppercase font-bold tracking-wider">
-                   <tr>
-                      <th className="px-6 py-4">Nome do Produto</th>
-                      <th className="px-6 py-4">Categoria</th>
-                      <th className="px-6 py-4 text-center">Insumos</th>
-                      <th className="px-6 py-4 text-right">CMV (R$)</th>
-                      <th className="px-6 py-4 text-right">Ação</th>
-                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800 text-sm">
-                   {filteredProducts.map(prod => {
-                      const cmv = getProductCMV(prod);
-                      return (
-                         <tr key={prod.id} className="hover:bg-gray-800/50 transition group">
-                            <td className="px-6 py-4 font-bold text-white text-base">{prod.name}</td>
-                            <td className="px-6 py-4 text-gray-400">
-                               <span className="bg-gray-800 px-2 py-1 rounded text-xs border border-gray-700">{prod.category || 'Geral'}</span>
-                            </td>
-                            <td className="px-6 py-4 text-center text-gray-500">{prod.ingredients.length}</td>
-                            <td className="px-6 py-4 text-right font-mono font-bold text-brand-red">R$ {cmv.toFixed(2)}</td>
-                            <td className="px-6 py-4">
-                               <div className="flex justify-end items-center gap-2">
-                                  <button 
-                                    onClick={() => openRecipeModal(prod)}
-                                    className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold transition"
-                                  >
-                                     <FileText size={14} /> Ficha Técnica
-                                  </button>
-                                  <button
-                                     onClick={() => handleDeleteProduct(prod.id, prod.name)}
-                                     className="bg-red-900/20 hover:bg-red-900/40 text-red-500 px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold transition border border-red-900/30"
-                                     title="Excluir Produto"
-                                  >
-                                     <Trash size={14} />
-                                  </button>
-                               </div>
-                            </td>
-                         </tr>
-                      );
-                   })}
-                </tbody>
-             </table>
-          </div>
-       </div>
+      {/* Formulário */}
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Nome"
+          value={newProduct.name}
+          onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <input
+          type="number"
+          placeholder="Preço"
+          value={newProduct.price}
+          onChange={e => setNewProduct({ ...newProduct, price: Number(e.target.value) })}
+          className="border p-2 rounded"
+        />
+        {editingId ? (
+          <button
+            onClick={() => handleUpdate(editingId)}
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Atualizar
+          </button>
+        ) : (
+          <button
+            onClick={handleAdd}
+            className="bg-green-500 text-white px-4 py-2 rounded"
+          >
+            Adicionar
+          </button>
+        )}
+      </div>
 
-       {/* RECIPE CARD MODAL (Ficha Técnica) */}
-       {isModalOpen && (
-         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-900 w-full max-w-4xl h-[90vh] rounded-xl border border-gray-800 shadow-2xl animate-fade-in flex flex-col">
-               
-               {/* Header */}
-               <div className="p-6 border-b border-gray-800 flex justify-between items-start">
-                  <div>
-                     <h3 className="text-xl font-bold text-white flex items-center gap-2 uppercase">
-                        <ChefHat size={24} className="text-brand-red" />
-                        {editingProduct ? 'Ficha Técnica' : 'Novo Produto'}
-                     </h3>
-                     <p className="text-gray-400 text-sm mt-1">
-                        {editingProduct ? `Editando composição de: ${editingProduct.name}` : 'Cadastre um novo item no cardápio'}
-                     </p>
-                  </div>
-                  <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
-               </div>
-
-               {/* Body */}
-               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                  
-                  {/* Basic Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-950 p-4 rounded-xl border border-gray-800">
-                     <div>
-                        <label className="text-xs text-gray-500 uppercase font-bold mb-1 block">Nome do Produto</label>
-                        <input 
-                           type="text" 
-                           value={prodName}
-                           onChange={e => setProdName(e.target.value)}
-                           className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-brand-red outline-none"
-                           placeholder="Ex: X-Salada"
-                        />
-                     </div>
-                     <div>
-                        <label className="text-xs text-gray-500 uppercase font-bold mb-1 block">Categoria</label>
-                        <input 
-                           type="text" 
-                           value={prodCategory}
-                           onChange={e => setProdCategory(e.target.value)}
-                           className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-brand-red outline-none"
-                           placeholder="Ex: Hambúrguer"
-                        />
-                     </div>
-                  </div>
-
-                  {editingProduct && (
-                     <>
-                        <div className="flex items-center justify-between">
-                           <h4 className="text-white font-bold uppercase flex items-center gap-2 text-sm">
-                              <FileText size={16} className="text-gray-500" /> Composição (Insumos)
-                           </h4>
-                           <select 
-                              className="bg-gray-800 text-white text-xs p-2 rounded border border-gray-700 outline-none focus:border-brand-red"
-                              onChange={(e) => {
-                                 if(e.target.value) {
-                                    addIngredientToProduct(e.target.value);
-                                    e.target.value = "";
-                                 }
-                              }}
-                           >
-                              <option value="">+ Adicionar Insumo</option>
-                              {ingredients
-                                .sort((a,b) => a.name.localeCompare(b.name))
-                                .map(i => (
-                                 <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
-                              ))}
-                           </select>
-                        </div>
-
-                        {/* Ingredients List */}
-                        <div className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                           <table className="w-full text-left">
-                              <thead className="bg-gray-900 text-gray-500 text-[10px] uppercase font-bold">
-                                 <tr>
-                                    <th className="px-4 py-2">Insumo</th>
-                                    <th className="px-4 py-2 text-center">Unidade</th>
-                                    <th className="px-4 py-2 text-center">Qtd. Receita</th>
-                                    <th className="px-4 py-2 text-right">Custo Unit.</th>
-                                    <th className="px-4 py-2 text-right">Subtotal</th>
-                                    <th className="px-4 py-2 w-10"></th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-800 text-sm">
-                                 {editingProduct.ingredients.length === 0 && (
-                                    <tr>
-                                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500 italic">
-                                          Nenhum insumo adicionado a esta ficha técnica.
-                                       </td>
-                                    </tr>
-                                 )}
-                                 {editingProduct.ingredients.map((item, idx) => {
-                                    const ingInfo = ingredients.find(i => i.id === item.ingredientId);
-                                    if(!ingInfo) return null;
-                                    const unitCost = getIngredientRealCost(ingInfo);
-                                    const totalLineCost = unitCost * item.quantity;
-
-                                    return (
-                                       <tr key={idx} className="hover:bg-gray-900/50">
-                                          <td className="px-4 py-2 font-medium text-white">{ingInfo.name}</td>
-                                          <td className="px-4 py-2 text-center text-gray-500 text-xs">{ingInfo.unit}</td>
-                                          <td className="px-4 py-2 text-center">
-                                             <input 
-                                                type="number" 
-                                                step="0.001"
-                                                value={item.quantity}
-                                                onChange={(e) => updateProductIngredientQty(idx, parseFloat(e.target.value))}
-                                                className="bg-gray-900 border border-gray-700 text-white w-20 text-center rounded p-1 text-sm focus:border-brand-red outline-none"
-                                             />
-                                          </td>
-                                          <td className="px-4 py-2 text-right text-gray-500 font-mono text-xs">R$ {unitCost.toFixed(4)}</td>
-                                          <td className="px-4 py-2 text-right font-bold text-white font-mono">R$ {totalLineCost.toFixed(2)}</td>
-                                          <td className="px-4 py-2 text-right">
-                                             <button onClick={() => removeProductIngredient(idx)} className="text-gray-600 hover:text-red-500">
-                                                <Trash size={14} />
-                                             </button>
-                                          </td>
-                                       </tr>
-                                    );
-                                 })}
-                              </tbody>
-                           </table>
-                        </div>
-                     </>
-                  )}
-               </div>
-
-               {/* Footer */}
-               <div className="p-6 border-t border-gray-800 bg-gray-900 flex justify-between items-center rounded-b-xl">
-                  {editingProduct ? (
-                     <div className="flex flex-col">
-                        <span className="text-xs text-gray-500 uppercase font-bold">Custo Total (CMV)</span>
-                        <span className="text-2xl font-bold text-brand-red">R$ {getProductCMV(editingProduct).toFixed(2)}</span>
-                     </div>
-                  ) : <div></div>}
-                  
-                  <div className="flex gap-3">
-                     <button onClick={() => setIsModalOpen(false)} className="px-6 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white font-bold">Fechar</button>
-                     <button onClick={handleSaveProduct} className="px-6 py-2 rounded-lg bg-brand-red hover:bg-red-700 text-white font-bold shadow-lg shadow-red-900/20">
-                        {editingProduct ? 'Salvar Alterações' : 'Criar Produto'}
-                     </button>
-                  </div>
-               </div>
-
-            </div>
-         </div>
-       )}
+      {/* Lista */}
+      <table className="w-full border">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2">Nome</th>
+            <th className="border p-2">Preço</th>
+            <th className="border p-2">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.map(prod => (
+            <tr key={prod.id}>
+              <td className="border p-2">{prod.name}</td>
+              <td className="border p-2">R$ {prod.price.toFixed(2)}</td>
+              <td className="border p-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditingId(prod.id!);
+                    setNewProduct({ name: prod.name, price: prod.price });
+                  }}
+                  className="bg-yellow-500 text-white px-2 py-1 rounded"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(prod.id!)}
+                  className="bg-red-500 text-white px-2 py-1 rounded"
+                >
+                  Excluir
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
