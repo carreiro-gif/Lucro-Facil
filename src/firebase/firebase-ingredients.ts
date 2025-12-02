@@ -1,98 +1,46 @@
-// firebase-ingredients.ts
-// CRUD profissional para ingredientes usando Firestore (compat)
-// Estrutura: stores/{storeId}/ingredients/{ingredientId}
+// src/firebase/firebase-ingredients.ts
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "./firebase";
+import { Ingredient } from "../types";
 
-console.log("🔥 firebase-ingredients.ts carregado");
+// Caminho: stores/{storeId}/ingredients
+export const getIngredientsRef = (storeId: string) =>
+  collection(db, "stores", storeId, "ingredients");
 
-// Garante que firebase.ts já carregou
-if (!window.firebase || !window.db) {
-  console.error("❌ Firebase ainda não carregou. Verifique firebase.ts");
-}
-
-// =====================
-// ➕ Criar ingrediente
-// =====================
-window.addIngrediente = async function (storeId, data) {
-  try {
-    const ref = window.db
-      .collection("stores")
-      .doc(storeId)
-      .collection("ingredients");
-
-    const doc = await ref.add({
-      ...data,
-      criadoEm: new Date(),
-    });
-
-    console.log("🔥 Ingrediente criado:", doc.id);
-    return doc.id;
-  } catch (e) {
-    console.error("❌ Erro ao adicionar ingrediente:", e);
-    throw e;
-  }
+export const listenIngredients = (
+  storeId: string,
+  callback: (data: Ingredient[]) => void
+) => {
+  return onSnapshot(getIngredientsRef(storeId), (snapshot) => {
+    const list: Ingredient[] = [];
+    snapshot.forEach((doc) =>
+      list.push({ ...(doc.data() as Ingredient), id: doc.id })
+    );
+    callback(list);
+  });
 };
 
-// =====================
-// 📄 Listar ingredientes
-// =====================
-window.getIngredientes = async function (storeId) {
-  try {
-    const ref = window.db
-      .collection("stores")
-      .doc(storeId)
-      .collection("ingredients");
-
-    const snap = await ref.get();
-
-    const lista = [];
-    snap.forEach((doc) => {
-      lista.push({ id: doc.id, ...doc.data() });
-    });
-
-    console.log("📄 Ingredientes carregados:", lista);
-    return lista;
-  } catch (e) {
-    console.error("❌ Erro ao listar ingredientes:", e);
-    throw e;
-  }
+export const addIngredientFB = async (storeId: string, data: Ingredient) => {
+  await addDoc(getIngredientsRef(storeId), data);
 };
 
-// =====================
-// ✏️ Atualizar ingrediente
-// =====================
-window.updateIngrediente = async function (storeId, id, data) {
-  try {
-    await window.db
-      .collection("stores")
-      .doc(storeId)
-      .collection("ingredients")
-      .doc(id)
-      .update(data);
-
-    console.log("✏️ Ingrediente atualizado:", id);
-    return true;
-  } catch (e) {
-    console.error("❌ Erro ao atualizar ingrediente:", e);
-    throw e;
-  }
+export const updateIngredientFB = async (
+  storeId: string,
+  id: string,
+  data: Partial<Ingredient>
+) => {
+  const ref = doc(db, "stores", storeId, "ingredients", id);
+  await updateDoc(ref, data);
 };
 
-// =====================
-// 🗑 Excluir ingrediente
-// =====================
-window.deleteIngrediente = async function (storeId, id) {
-  try {
-    await window.db
-      .collection("stores")
-      .doc(storeId)
-      .collection("ingredients")
-      .doc(id)
-      .delete();
-
-    console.log("🗑 Ingrediente deletado:", id);
-    return true;
-  } catch (e) {
-    console.error("❌ Erro ao deletar ingrediente:", e);
-    throw e;
-  }
+export const deleteIngredientFB = async (storeId: string, id: string) => {
+  const ref = doc(db, "stores", storeId, "ingredients", id);
+  await deleteDoc(ref);
 };
