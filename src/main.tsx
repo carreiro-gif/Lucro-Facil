@@ -1,8 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
 
-// 🔥 Importa Firebase principal (firebase.ts)
+// IMPORTA O App.tsx QUE ESTÁ NA RAIZ DO PROJETO
+import App from "../App";
+
+// 🔥 Importa Firebase principal
 import "./firebase/firebase.ts";
 
 // 🔥 Importa o CRUD de ingredientes
