@@ -1,18 +1,18 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
-// 🔥 IMPORTS AJUSTADOS PARA "src/pages/"
-import Dashboard from "./src/pages/Dashboard";
-import Billing from "./src/pages/Billing";
-import Expenses from "./src/pages/Expenses";
-import Products from "./src/pages/Products";
-import Ingredients from "./src/pages/Ingredients";
-import Pricing from "./src/pages/Pricing";
-import Profit from "./src/pages/Profit";
-import StoreList from "./src/pages/StoreList";
-import FinancialCategories from "./src/pages/FinancialCategories";
-import Dna from "./src/pages/Dna";
-import Combos from "./src/pages/Combos";
+// ✔ IMPORTS CORRETOS
+import Dashboard from "./pages/Dashboard";
+import Billing from "./pages/Billing";
+import Expenses from "./pages/Expenses";
+import Products from "./pages/Products";
+import Ingredients from "./pages/Ingredients";
+import Pricing from "./pages/Pricing";
+import Profit from "./pages/Profit";
+import StoreList from "./pages/StoreList";
+import FinancialCategories from "./pages/FinancialCategories";
+import Dna from "./pages/Dna";
+import Combos from "./pages/Combos";
 
 function App() {
   return (
