@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from "../../context/AppContext";
 import { Info, Settings2, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 
 const Dna: React.FC = () => {
