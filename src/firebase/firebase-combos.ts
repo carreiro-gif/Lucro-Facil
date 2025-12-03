@@ -1,13 +1,11 @@
-
 // ------------------------------------------------------
 // CRUD de COMBOS usando Firebase compat via CDN
 // ------------------------------------------------------
 
-const firebaseApp = (window as any).firebase?.app();
 const db = (window as any).firebase?.firestore();
 
-if (!firebaseApp || !db) {
-  console.error("❌ Firebase não carregou! Verifique os scripts no index.html");
+if (!db) {
+  console.error("❌ Firebase não carregou! Verifique o index.html");
 }
 
 // SALVAR COMBO
@@ -26,11 +24,10 @@ export async function saveCombo(data: any) {
 export async function getCombos() {
   try {
     const snapshot = await db.collection("combos").get();
-    const list: any[] = [];
-    snapshot.forEach((doc: any) => {
-      list.push({ id: doc.id, ...doc.data() });
-    });
-    return list;
+    return snapshot.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
   } catch (e) {
     console.error("❌ Erro ao listar combos:", e);
     return [];
