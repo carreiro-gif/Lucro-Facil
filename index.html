@@ -5,28 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lucro Fácil</title>
 
-    <!-- Tailwind (OK para desenvolvimento, depois trocaremos para build local) -->
+    <!-- Tailwind (OK para desenvolvimento) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <script>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                red: "#D90429",
-                dark: "#161616",
-                gray: "#2B2D42",
-                light: "#EDF2F4"
-              }
-            }
-          }
-        }
-      };
-    </script>
-
-    <!-- Importmap para React do Google IA Studio -->
+    <!-- React / Recharts do Google IA Studio -->
     <script type="importmap">
     {
       "imports": {
@@ -37,15 +19,32 @@
       }
     }
     </script>
+
+    <!-- FIREBASE COMPAT CDN (NECESSÁRIO PARA firebase-combos.ts) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- 🔥 CONFIGURAÇÃO DO FIREBASE -->
+    <script>
+      const firebaseConfig = {
+        apiKey: "<?= SUA API KEY ?>",
+        authDomain: "<?= SUA authDomain ?>",
+        projectId: "<?= SEU projectId ?>",
+        storageBucket: "<?= SEU storageBucket ?>",
+        messagingSenderId: "<?= SEU senderId ?>",
+        appId: "<?= SEU appId ?>"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      console.log("🔥 Firebase carregado via CDN");
+    </script>
+
   </head>
 
   <body>
     <div id="root"></div>
 
-    <!-- Firebase carregado como módulo separado -->
-    <script type="module" src="/src/firebase.ts"></script>
-
-    <!-- Vite bundle (IMPORTANTE: agora existe o main.tsx) -->
+    <!-- Vite bundle -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
