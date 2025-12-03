@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from "../../context/AppContext";
 import { Trash2, Plus, Users, Tags } from 'lucide-react';
 
 const FinancialCategories: React.FC = () => {
