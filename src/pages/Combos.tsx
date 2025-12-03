@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import {
-  saveCombo,
   getCombos,
+  saveCombo,
   updateComboFB,
-  deleteComboFB,
-} from "../firebase/firebase-combos"; // <-- Caminho 100% correto
+  deleteComboFB
+} from "../firebase/firebase-combos";
 
 interface Combo {
   id?: string;
@@ -17,18 +17,15 @@ const Combos: React.FC = () => {
   const [newCombo, setNewCombo] = useState<Combo>({ name: "", price: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Carregar combos ao abrir a página
   useEffect(() => {
     loadCombos();
   }, []);
 
-  // Função para carregar combos do Firestore
   async function loadCombos() {
     const data = await getCombos();
-    setCombos(data as Combo[]);
+    setCombos(data);
   }
 
-  // Criar novo combo
   async function handleAdd() {
     if (!newCombo.name || newCombo.price <= 0) {
       alert("Preencha nome e preço!");
@@ -40,7 +37,6 @@ const Combos: React.FC = () => {
     loadCombos();
   }
 
-  // Atualizar combo existente
   async function handleUpdate(id: string) {
     if (!newCombo.name || newCombo.price <= 0) {
       alert("Preencha nome e preço!");
@@ -53,7 +49,6 @@ const Combos: React.FC = () => {
     loadCombos();
   }
 
-  // Remover combo
   async function handleDelete(id: string) {
     if (window.confirm("Excluir combo?")) {
       await deleteComboFB(id);
@@ -71,7 +66,9 @@ const Combos: React.FC = () => {
           type="text"
           placeholder="Nome"
           value={newCombo.name}
-          onChange={(e) => setNewCombo({ ...newCombo, name: e.target.value })}
+          onChange={(e) =>
+            setNewCombo({ ...newCombo, name: e.target.value })
+          }
           className="border p-2 rounded"
         />
 
@@ -117,7 +114,6 @@ const Combos: React.FC = () => {
             <tr key={combo.id}>
               <td className="border p-2">{combo.name}</td>
               <td className="border p-2">R$ {combo.price.toFixed(2)}</td>
-
               <td className="border p-2 flex gap-2">
                 <button
                   onClick={() => {
