@@ -1,10 +1,13 @@
-
 import React, { useState, useEffect } from "react";
-import { useApp } from "../../context/AppContext";
-import { Trash2, Plus, Edit2, Search } from "lucide-react";
+import { Trash2, Plus, Edit2 } from "lucide-react";
 
-// 🔥 IMPORTAÇÃO CORRETA DO FIREBASE
-import "../firebase/firebase-products"; // ✅ Corrigido caminho do import
+// 🔥 IMPORTA O CRUD CORRETO
+import {
+  getProducts,
+  saveProduct,
+  updateProductFB,
+  deleteProductFB
+} from "../firebase/firebase-products";
 
 interface Product {
   id?: string;
@@ -14,42 +17,44 @@ interface Product {
 
 const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [newProduct, setNewProduct] = useState<Product>({ name: '', price: 0 });
+  const [newProduct, setNewProduct] = useState<Product>({ name: "", price: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // ✅ Carregar produtos ao montar
+  // 🔥 Carrega produtos ao iniciar
   useEffect(() => {
     loadProducts();
   }, []);
 
   async function loadProducts() {
     const data = await getProducts();
-    setProducts(data as Product[]);
+    setProducts(data);
   }
 
   async function handleAdd() {
     if (!newProduct.name || newProduct.price <= 0) {
-      alert('Preencha nome e preço!');
+      alert("Preencha nome e preço!");
       return;
     }
+
     await saveProduct(newProduct);
-    setNewProduct({ name: '', price: 0 });
+    setNewProduct({ name: "", price: 0 });
     loadProducts();
   }
 
   async function handleUpdate(id: string) {
     if (!newProduct.name || newProduct.price <= 0) {
-      alert('Preencha nome e preço!');
+      alert("Preencha nome e preço!");
       return;
     }
+
     await updateProductFB(id, newProduct);
     setEditingId(null);
-    setNewProduct({ name: '', price: 0 });
+    setNewProduct({ name: "", price: 0 });
     loadProducts();
   }
 
   async function handleDelete(id: string) {
-    if (window.confirm('Excluir produto?')) {
+    if (window.confirm("Excluir produto?")) {
       await deleteProductFB(id);
       loadProducts();
     }
@@ -63,21 +68,27 @@ const Products: React.FC = () => {
       <div className="flex gap-2 mb-4">
         <input
           type="text"
-          placeholder="Nome"
+          placeholder="Nome do produto"
           value={newProduct.name}
-          onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, name: e.target.value })
+          }
           className="border p-2 rounded"
         />
+
         <input
           type="number"
           placeholder="Preço"
           value={newProduct.price}
-          onChange={e => setNewProduct({ ...newProduct, price: Number(e.target.value) })}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, price: Number(e.target.value) })
+          }
           className="border p-2 rounded"
         />
+
         {editingId ? (
           <button
-            onClick={() => handleUpdate(editingId)}
+            onClick={() => handleUpdate(editingId!)}
             className="bg-blue-500 text-white px-4 py-2 rounded"
           >
             Atualizar
@@ -101,8 +112,9 @@ const Products: React.FC = () => {
             <th className="border p-2">Ações</th>
           </tr>
         </thead>
+
         <tbody>
-          {products.map(prod => (
+          {products.map((prod) => (
             <tr key={prod.id}>
               <td className="border p-2">{prod.name}</td>
               <td className="border p-2">R$ {prod.price.toFixed(2)}</td>
@@ -110,12 +122,16 @@ const Products: React.FC = () => {
                 <button
                   onClick={() => {
                     setEditingId(prod.id!);
-                    setNewProduct({ name: prod.name, price: prod.price });
+                    setNewProduct({
+                      name: prod.name,
+                      price: prod.price,
+                    });
                   }}
                   className="bg-yellow-500 text-white px-2 py-1 rounded"
                 >
                   Editar
                 </button>
+
                 <button
                   onClick={() => handleDelete(prod.id!)}
                   className="bg-red-500 text-white px-2 py-1 rounded"
