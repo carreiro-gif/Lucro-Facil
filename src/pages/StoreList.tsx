@@ -1,65 +1,55 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
 
-import Dashboard from "./src/pages/Dashboard";
-import Billing from "./src/pages/Billing";
-import Expenses from "./src/pages/Expenses";
-import Products from "./src/pages/Products";
-import Ingredients from "./src/pages/Ingredients";
-import Pricing from "./src/pages/Pricing";
-import Profit from "./src/pages/Profit";
-import StoreList from "./src/pages/StoreList";
-import FinancialCategories from "./src/pages/FinancialCategories";
-import Dna from "./src/pages/Dna";
-import Combos from "./src/pages/Combos";
+export default function StoreList() {
+  const navigate = useNavigate();
 
-import { useApp } from "./src/context/AppContext";
-
-function App() {
   const {
     stores,
-    selectStore,
-    addStore,
-    updateStore,
-    deleteStore,
-    replicateData,
-    toggleTheme,
-    isDark,
+    selectedStoreId,
+    setSelectedStoreId,
+    addLoja,
+    deleteLoja,
   } = useApp();
 
+  const [newStore, setNewStore] = useState({
+    name: "",
+    address: "",
+  });
+
+  // Redireciona automaticamente se já existe loja selecionada
+  useEffect(() => {
+    if (selectedStoreId) {
+      navigate("/dashboard");
+    }
+  }, [selectedStoreId]);
+
+  async function handleAdd() {
+    if (!newStore.name.trim()) {
+      alert("Digite o nome da loja");
+      return;
+    }
+
+    await addLoja(newStore);
+    setNewStore({ name: "", address: "" });
+  }
+
+  async function handleSelect(id: string) {
+    setSelectedStoreId(id);
+    navigate("/dashboard");
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Excluir esta loja?")) return;
+    await deleteLoja(id);
+  }
+
   return (
-    <Router>
-      <Routes>
-        {/* 👉 AGORA PASSANDO TODAS AS PROPS OBRIGATÓRIAS */}
-        <Route
-          path="/"
-          element={
-            <StoreList
-              stores={stores}
-              onSelectStore={selectStore}
-              onAddStore={addStore}
-              onUpdateStore={updateStore}
-              onDeleteStore={deleteStore}
-              onReplicate={replicateData}
-              toggleTheme={toggleTheme}
-              isDark={isDark}
-            />
-          }
-        />
+    <div className="p-6 max-w-xl mx-auto">
+      <h1 className="text-3xl font-bold mb-4 text-center">Selecionar Loja</h1>
 
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/billing" element={<Billing />} />
-        <Route path="/expenses" element={<Expenses />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/ingredients" element={<Ingredients />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/profit" element={<Profit />} />
-        <Route path="/financial-categories" element={<FinancialCategories />} />
-        <Route path="/dna" element={<Dna />} />
-        <Route path="/combos" element={<Combos />} />
-      </Routes>
-    </Router>
-  );
-}
-
-export default App;
+      {/* Lista de lojas */}
+      <div className="bg-white shadow rounded p-4 mb-6">
+        {stores.length === 0 && (
+          <p className="text-gray-500 text-center">N
