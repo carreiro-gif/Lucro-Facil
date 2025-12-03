@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MeasureUnit, Ingredient } from '../types';
 import { Trash2, Plus, Edit2, Search } from 'lucide-react';
-import { useApp } from '../context/AppContext'; // apenas para pegar selectedStoreId e calcular custo real
+import { useApp } from "../../context/AppContext"; // apenas para pegar selectedStoreId e calcular custo real
 
 const Ingredients: React.FC = () => {
 
