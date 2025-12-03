@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from "../../context/AppContext";
 import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock } from 'lucide-react';
 import { Expense } from '../types';
 
