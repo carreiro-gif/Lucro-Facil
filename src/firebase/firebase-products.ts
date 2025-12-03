@@ -1,4 +1,3 @@
-
 // ------------------------------------------------------
 // CRUD de PRODUTOS usando Firebase compat via CDN
 // ------------------------------------------------------
@@ -13,7 +12,7 @@ if (!firebaseApp || !db) {
 // ------------------------------------------------------
 // SALVAR PRODUTO
 // ------------------------------------------------------
-export async function saveProduct(data: any) {
+async function saveProduct(data: any) {
   try {
     const docRef = await db.collection("products").add(data);
     console.log("🔥 Produto salvo:", docRef.id);
@@ -27,7 +26,7 @@ export async function saveProduct(data: any) {
 // ------------------------------------------------------
 // LISTAR PRODUTOS
 // ------------------------------------------------------
-export async function getProducts() {
+async function getProducts() {
   try {
     const snapshot = await db.collection("products").get();
     const list: any[] = [];
@@ -44,7 +43,7 @@ export async function getProducts() {
 // ------------------------------------------------------
 // ATUALIZAR PRODUTO
 // ------------------------------------------------------
-export async function updateProductFB(id: string, data: any) {
+async function updateProductFB(id: string, data: any) {
   try {
     await db.collection("products").doc(id).update(data);
     console.log("🔥 Produto atualizado:", id);
@@ -58,7 +57,7 @@ export async function updateProductFB(id: string, data: any) {
 // ------------------------------------------------------
 // DELETAR PRODUTO
 // ------------------------------------------------------
-export async function deleteProductFB(id: string) {
+async function deleteProductFB(id: string) {
   try {
     await db.collection("products").doc(id).delete();
     console.log("🔥 Produto deletado:", id);
@@ -68,3 +67,19 @@ export async function deleteProductFB(id: string) {
     return false;
   }
 }
+
+// ------------------------------------------------------
+// 🔥 EXPOR PARA O SISTEMA (IMPORTANTE!)
+// ------------------------------------------------------
+(window as any).saveProduct = saveProduct;
+(window as any).getProducts = getProducts;
+(window as any).updateProduct = updateProductFB;
+(window as any).deleteProduct = deleteProductFB;
+
+// Também exporta, caso queira usar via import
+export {
+  saveProduct,
+  getProducts,
+  updateProductFB,
+  deleteProductFB
+};
