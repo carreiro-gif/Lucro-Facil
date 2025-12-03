@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from "../../context/AppContext";
 import { Calculator, AlertTriangle } from 'lucide-react';
 import { Product } from '../types';
 
