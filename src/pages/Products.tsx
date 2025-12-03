@@ -1,11 +1,10 @@
 
-import React, { useEffect, useState } from 'react';
-import {
-  saveProduct,
-  getProducts,
-  updateProductFB,
-  deleteProductFB,
-} from '../src/firebase/firebase-products'; // ✅ Corrigido caminho do import
+import React, { useState, useEffect } from "react";
+import { useApp } from "../../context/AppContext";
+import { Trash2, Plus, Edit2, Search } from "lucide-react";
+
+// 🔥 IMPORTAÇÃO CORRETA DO FIREBASE
+import "../firebase/firebase-products"; // ✅ Corrigido caminho do import
 
 interface Product {
   id?: string;
