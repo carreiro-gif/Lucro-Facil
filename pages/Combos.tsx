@@ -1,11 +1,10 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   saveCombo,
   getCombos,
   updateComboFB,
   deleteComboFB,
-} from '../src/firebase/firebase-combos'; // ✅ Corrigido caminho
+} from "../firebase/firebase-combos"; // <-- Caminho 100% correto
 
 interface Combo {
   id?: string;
@@ -15,41 +14,48 @@ interface Combo {
 
 const Combos: React.FC = () => {
   const [combos, setCombos] = useState<Combo[]>([]);
-  const [newCombo, setNewCombo] = useState<Combo>({ name: '', price: 0 });
+  const [newCombo, setNewCombo] = useState<Combo>({ name: "", price: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Carregar combos ao abrir a página
   useEffect(() => {
     loadCombos();
   }, []);
 
+  // Função para carregar combos do Firestore
   async function loadCombos() {
     const data = await getCombos();
     setCombos(data as Combo[]);
   }
 
+  // Criar novo combo
   async function handleAdd() {
     if (!newCombo.name || newCombo.price <= 0) {
-      alert('Preencha nome e preço!');
+      alert("Preencha nome e preço!");
       return;
     }
+
     await saveCombo(newCombo);
-    setNewCombo({ name: '', price: 0 });
+    setNewCombo({ name: "", price: 0 });
     loadCombos();
   }
 
+  // Atualizar combo existente
   async function handleUpdate(id: string) {
     if (!newCombo.name || newCombo.price <= 0) {
-      alert('Preencha nome e preço!');
+      alert("Preencha nome e preço!");
       return;
     }
+
     await updateComboFB(id, newCombo);
     setEditingId(null);
-    setNewCombo({ name: '', price: 0 });
+    setNewCombo({ name: "", price: 0 });
     loadCombos();
   }
 
+  // Remover combo
   async function handleDelete(id: string) {
-    if (window.confirm('Excluir combo?')) {
+    if (window.confirm("Excluir combo?")) {
       await deleteComboFB(id);
       loadCombos();
     }
@@ -65,16 +71,20 @@ const Combos: React.FC = () => {
           type="text"
           placeholder="Nome"
           value={newCombo.name}
-          onChange={e => setNewCombo({ ...newCombo, name: e.target.value })}
+          onChange={(e) => setNewCombo({ ...newCombo, name: e.target.value })}
           className="border p-2 rounded"
         />
+
         <input
           type="number"
           placeholder="Preço"
           value={newCombo.price}
-          onChange={e => setNewCombo({ ...newCombo, price: Number(e.target.value) })}
+          onChange={(e) =>
+            setNewCombo({ ...newCombo, price: Number(e.target.value) })
+          }
           className="border p-2 rounded"
         />
+
         {editingId ? (
           <button
             onClick={() => handleUpdate(editingId)}
@@ -101,21 +111,27 @@ const Combos: React.FC = () => {
             <th className="border p-2">Ações</th>
           </tr>
         </thead>
+
         <tbody>
-          {combos.map(combo => (
+          {combos.map((combo) => (
             <tr key={combo.id}>
               <td className="border p-2">{combo.name}</td>
               <td className="border p-2">R$ {combo.price.toFixed(2)}</td>
+
               <td className="border p-2 flex gap-2">
                 <button
                   onClick={() => {
                     setEditingId(combo.id!);
-                    setNewCombo({ name: combo.name, price: combo.price });
+                    setNewCombo({
+                      name: combo.name,
+                      price: combo.price,
+                    });
                   }}
                   className="bg-yellow-500 text-white px-2 py-1 rounded"
                 >
                   Editar
                 </button>
+
                 <button
                   onClick={() => handleDelete(combo.id!)}
                   className="bg-red-500 text-white px-2 py-1 rounded"
