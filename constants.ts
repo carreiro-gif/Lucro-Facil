@@ -4,6 +4,20 @@ import { GlobalState, MeasureUnit, Category, Product } from './types';
 // Helper to generate IDs
 const id = () => Math.random().toString(36).substr(2, 9);
 
+export const BACKGROUND_PALETTE = [
+  // TONS CLAROS (Modo Light Ativo - Padrão)
+  { name: 'Neve (Padrão)', color: '#f3f4f6', mode: 'light' },   // Gray 100
+  { name: 'Papel', color: '#fefce8', mode: 'light' },           // Yellow 50
+  { name: 'Nuvem', color: '#f0f9ff', mode: 'light' },           // Sky 50
+  { name: 'Lavanda', color: '#faf5ff', mode: 'light' },         // Purple 50
+
+  // TONS ESCUROS (Modo Dark Ativo) - Cores ajustadas para maior distinção
+  { name: 'Cinza Escuro', color: '#111827', mode: 'dark' },    // Gray 900 (Padrão)
+  { name: 'Preto Absoluto', color: '#000000', mode: 'dark' },    // Black
+  { name: 'Azul Profundo', color: '#172554', mode: 'dark' },     // Blue 950 (Mais azulado que antes)
+  { name: 'Verde Floresta', color: '#064e3b', mode: 'dark' },    // Emerald 900 (Mais verde que antes)
+];
+
 const DEFAULT_CATEGORIES_LIST = [
   'Aluguel',
   'Comissões/Gorjetas',
