@@ -34,48 +34,40 @@
     </script>
     <style>
       :root {
-        --app-bg: #111827; /* Default */
+        --app-bg: #111827;
       }
       
       body {
         background-color: var(--app-bg) !important;
-        /* Default Text Color for Light Mode */
         color: #111827; 
         transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         min-height: 100vh;
       }
 
-      /* Text Color when Dark Mode is active */
       .dark body {
         color: #EDF2F4;
       }
       
-      /* Ensure modal backdrops are visible */
-      .backdrop-blur-sm {
-        backdrop-filter: blur(4px);
+      .backdrop-blur-md {
+        backdrop-filter: blur(12px);
       }
 
-      /* Custom Scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
       }
       ::-webkit-scrollbar-track {
         background: rgba(0,0,0,0.1);
       }
-      
       ::-webkit-scrollbar-thumb {
         background: #9CA3AF; 
         border-radius: 4px;
       }
-      
       .dark ::-webkit-scrollbar-track {
         background: rgba(0,0,0,0.2);
       }
-      
       .dark ::-webkit-scrollbar-thumb {
         background: #374151; 
       }
-      
       ::-webkit-scrollbar-thumb:hover {
         background: #D90429; 
       }

@@ -20,8 +20,8 @@ const Pricing: React.FC = () => {
   const variableCostsPct = avgCardRate + cfi.tax + cfi.royalties + cfi.marketing + cfi.voucherTax;
   const totalCfiCost = fixedCostPct + variableCostsPct;
 
-  // Use the sorted list from context
-  const sortedProducts = useMemo(() => getSortedProducts(), [getSortedProducts]);
+  // Use the sorted list from context with Guard
+  const sortedProducts = useMemo(() => getSortedProducts() || [], [getSortedProducts]);
 
   const calculateStorePrice = (cmv: number, profitMargin: number) => {
     const totalDeductions = (totalCfiCost + profitMargin) / 100;

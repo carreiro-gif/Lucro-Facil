@@ -13,7 +13,8 @@ const Profit: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false);
 
   const totalCfiPercent = calculateTotalCfiPercent();
-  const sortedProducts = useMemo(() => getSortedProducts(), [getSortedProducts]);
+  // Guard: Ensure array
+  const sortedProducts = useMemo(() => getSortedProducts() || [], [getSortedProducts]);
 
   const handleValueChange = (productId: string, field: 'price' | 'delivery', value: string) => {
     const numValue = parseFloat(value) || 0;

@@ -14,6 +14,8 @@ import Profit from './pages/Profit';
 import Combos from './pages/Combos';
 import StoreList from './pages/StoreList';
 import Help from './pages/Help';
+import ShoppingList from './pages/ShoppingList';
+import BreakEven from './pages/BreakEven';
 import { StoreInfo, GlobalState } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE } from './constants';
 
@@ -56,7 +58,9 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'pricing': return <Pricing />;
       case 'profit': return <Profit />;
       case 'combos': return <Combos />;
+      case 'break-even': return <BreakEven />;
       case 'help': return <Help />;
+      case 'shopping-list': return <ShoppingList />;
       default: return <Dashboard />;
     }
   };

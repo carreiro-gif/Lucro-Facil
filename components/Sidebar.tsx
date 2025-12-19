@@ -24,7 +24,9 @@ import {
   CheckCircle,
   HardDrive,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  ShoppingCart,
+  Target
 } from 'lucide-react';
 import { BACKGROUND_PALETTE } from '../constants';
 
@@ -50,6 +52,8 @@ const MENU_ITEMS = [
   { id: 'pricing', label: 'Preço de Venda', icon: Calculator },
   { id: 'profit', label: 'Lucro Atual', icon: ScrollText },
   { id: 'combos', label: 'Combos', icon: ShoppingBag },
+  { id: 'break-even', label: 'Ponto de Equilíbrio', icon: Target },
+  { id: 'shopping-list', label: 'Lista de Compras', icon: ShoppingCart },
   { id: 'help', label: 'Central de Ajuda', icon: HelpCircle },
 ];
 
@@ -68,14 +72,12 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [lastSaved, setLastSaved] = useState<string>('');
   
-  // Local state for editing
   const [editName, setEditName] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editLogo, setEditLogo] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
 
-  // Fake auto-save timer update
   useEffect(() => {
     const interval = setInterval(() => {
         const now = new Date();
@@ -121,7 +123,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     setIsSettingsOpen(false);
   };
 
-  // --- BACKUP SEMAPHORE LOGIC ---
   const getBackupStatus = () => {
     if (!lastBackupDate) return { 
         status: 'critical', 
@@ -206,8 +207,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-800 space-y-3">
-            
-            {/* BACKUP STATUS CARD (NEW) */}
             <div className={`rounded-xl p-3 border ${backupStatus.bg} transition-colors duration-300 relative group`}>
                 <div className="flex items-center justify-between mb-2">
                     <span className={`text-[10px] font-extrabold uppercase flex items-center gap-1.5 ${backupStatus.color}`}>
@@ -231,7 +230,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             </div>
 
-          {/* Background Color Picker */}
           <div className="px-2">
              <div className="flex items-center justify-between mb-2 cursor-pointer group" onClick={() => setIsPaletteOpen(!isPaletteOpen)}>
                 <span className="text-xs font-bold text-gray-400 dark:text-gray-500 group-hover:text-brand-red uppercase flex items-center gap-2 transition-colors"><Palette size={12}/> Cor Fundo</span>
@@ -274,7 +272,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Settings Modal */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-md animate-fade-in flex flex-col">

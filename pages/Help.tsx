@@ -4,7 +4,7 @@ import {
   Search, HelpCircle, ChevronDown, ChevronUp, LayoutDashboard, 
   Receipt, Tags, DollarSign, Dna, Beef, UtensilsCrossed, Calculator, 
   ScrollText, ShoppingBag, X, Store, AlertTriangle, ShieldCheck, 
-  Copy, Zap, TrendingUp, Info, Truck, MessageCircleQuestion, ShoppingCart
+  Copy, Zap, TrendingUp, Info, Truck, MessageCircleQuestion, ShoppingCart, Target
 } from 'lucide-react';
 
 const Help: React.FC = () => {
@@ -500,7 +500,7 @@ const Help: React.FC = () => {
           </div>
 
           <div class="bg-white/50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10">
-             <strong class="text-gray-900 dark:text-white text-xs uppercase mb-1 block">A Importância da Precificação</strong>
+             <strong class="text-gray-900 dark:text-white text-sm uppercase mb-1 block">A Importância da Precificação</strong>
              <ul class="list-disc list-inside text-xs space-y-1">
                 <li><strong>Cálculo de Margem:</strong> Antes de ativar, use o sistema para garantir lucro mesmo descontando os R$ 5,00.</li>
                 <li><strong>Lucro Real vs Venda Bruta:</strong> Não troque volume de pedidos por prejuízo.</li>
@@ -539,7 +539,7 @@ const Help: React.FC = () => {
 
           <div class="bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-100 dark:border-red-900/30">
              <strong class="text-red-800 dark:text-red-300 text-xs uppercase block mb-1">O Risco de Ignorar</strong>
-             <p class="text-xs">Se você precificar só pelo CMV, paga para trabalhar. No sistema, alimente os campos com as taxas reais e nós fazemos o cálculo reverso.</p>
+             <p class="text-xs">Se você precificar só pelo CMV, paga para trabalhar. No sistema, alimente os campos with the taxas reais e nós fazemos o cálculo reverso.</p>
           </div>
         </div>
       `
@@ -611,40 +611,35 @@ const Help: React.FC = () => {
     },
     {
       id: 'step17',
-      title: '17. Funcionalidade Bônus: Lista de Compras',
+      title: '17. Lista de Compras',
       icon: ShoppingCart,
       color: 'text-emerald-600 dark:text-emerald-400',
       content: `
         <div class="space-y-4 text-gray-600 dark:text-gray-300 font-sans">
           <p class="font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide text-xs">Organize suas Compras com Precisão</p>
-          <p class="text-sm leading-relaxed">Agora o sistema conta com uma opção para criar uma Lista de Compras baseada nos insumos cadastrados, facilitando sua reposição de estoque.</p>
+          <p class="text-sm leading-relaxed">A funcionalidade <strong>Lista de Compras</strong> agora está disponível diretamente na barra lateral esquerda.</p>
           
           <div class="bg-white/50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10">
-             <strong class="text-gray-900 dark:text-white text-sm uppercase mb-1 block">Como funciona:</strong>
+             <strong class="text-gray-900 dark:text-white text-sm uppercase mb-1 block">Como acessar:</strong>
              <ol class="list-decimal list-inside text-xs space-y-1">
-                <li>Acesse a aba <strong>Cadastro de Insumos</strong>.</li>
-                <li>Clique no botão verde <strong>LISTA DE COMPRAS</strong>.</li>
-                <li>Use o campo de busca para localizar insumos digitando parte do nome.</li>
-                <li>Clique no insumo desejado e informe a quantidade de <strong>embalagens</strong> (caixas/pacotes).</li>
+                <li>Clique em <strong>Lista de Compras</strong> na barra lateral esquerda.</li>
+                <li>A tela abrirá em modo completo, igual às demais abas (Dashboard, Despesas Fixas, etc.).</li>
              </ol>
           </div>
 
           <div class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-500/30">
-             <strong class="text-emerald-800 dark:text-emerald-300 text-xs uppercase block mb-1">Cálculo Automático</strong>
+             <strong class="text-emerald-800 dark:text-emerald-300 text-xs uppercase block mb-1">Como funciona (Sem mudanças):</strong>
              <ul class="list-disc list-inside text-xs space-y-1">
-                <li><strong>Subtotal (R$):</strong> Quantidade de embalagens × Preço do pacote.</li>
-                <li><strong>Conteúdo Total:</strong> Quantidade de embalagens × Peso/Qtd do insumo.</li>
+                <li>Use o campo de busca para localizar insumos digitando parte do nome.</li>
+                <li>Clique no insumo desejado e informe a quantidade de <strong>embalagens</strong> (caixas/pacotes).</li>
+                <li>O sistema calcula automaticamente o <strong>Subtotal</strong> e o <strong>Conteúdo Total</strong> (unidades, gramas ou ml).</li>
              </ul>
-             <p class="text-xs mt-2 italic bg-white/50 dark:bg-black/20 p-2 rounded">
-                Exemplo: Hambúrguer Frisa → cada caixa tem 48 unidades. <br/>
-                Se você informar 3 caixas, o sistema mostrará: <strong>144 unidades</strong> e o valor total somado.
-             </p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div class="bg-white/50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10">
                 <strong class="text-gray-900 dark:text-white text-xs uppercase mb-1 block">Visualização & Ações</strong>
-                <p class="text-xs mb-2">A lista exibe: Nome, Qtd Embalagens, Conteúdo Total, Preço Unit. e Subtotal.</p>
+                <p class="text-xs mb-2">A lista exibe: Nome, Qtd Embalagens, Conteúdo Total, Preço do Pacote e Subtotal.</p>
                 <p class="text-xs font-bold text-gray-900 dark:text-white mb-2">Total Geral (R$) disponível no rodapé.</p>
                 <div class="flex gap-2">
                     <span class="bg-gray-100 dark:bg-white/10 px-2 py-1 rounded text-[10px] font-bold">Imprimir Lista</span>
@@ -656,10 +651,43 @@ const Help: React.FC = () => {
                 <strong class="text-amber-800 dark:text-amber-300 text-xs uppercase block mb-1 flex items-center gap-1"><AlertTriangle size={14}/> Observações Importantes</strong>
                 <ul class="list-disc list-inside text-xs space-y-1">
                     <li>Insumos sem preço ou quantidade cadastrada não podem ser adicionados.</li>
-                    <li>Esta funcionalidade não altera cálculos do sistema, apenas gera uma estimativa para compras.</li>
+                    <li>Esta funcionalidade não altera cálculos globais; serve apenas para estimar gastos de compras.</li>
                 </ul>
              </div>
           </div>
+        </div>
+      `
+    },
+    {
+      id: 'step18',
+      title: '18. Ponto de Equilíbrio',
+      icon: Target,
+      color: 'text-brand-red',
+      content: `
+        <div class="space-y-4 text-gray-600 dark:text-gray-300 font-sans">
+          <p class="font-bold text-brand-red uppercase tracking-wide text-xs">A Meta que Salva seu Negócio</p>
+          <p class="text-sm leading-relaxed">O painel "Ponto de Equilíbrio" ajuda você a entender exatamente quanto precisa vender para cobrir todos os custos fixos e variáveis.</p>
+          
+          <div class="bg-white/50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10">
+             <strong class="text-gray-900 dark:text-white text-sm uppercase mb-1 block">Como funciona:</strong>
+             <ol class="list-decimal list-inside text-xs space-y-1">
+                <li>Selecione o mês desejado.</li>
+                <li>O sistema preenche automaticamente os valores de Faturamento, Custos Fixos e Taxas Base (DNA).</li>
+                <li>Informe o <strong>Ticket Médio</strong> ou use o calculador via número de pedidos.</li>
+                <li>Lance eventuais custos variáveis extras (compras avulsas, taxas de entrega reais) na tabela local.</li>
+             </ol>
+          </div>
+
+          <div class="bg-brand-red/5 dark:bg-brand-red/10 p-4 rounded-xl border border-brand-red/20">
+             <strong class="text-brand-red text-xs uppercase block mb-1">Principais Resultados:</strong>
+             <ul class="list-disc list-inside text-xs space-y-1">
+                <li><strong>Receita de Equilíbrio:</strong> O valor em reais (R$) necessário para "zerar" as contas.</li>
+                <li><strong>Equilíbrio em Pedidos:</strong> A quantidade física de itens vendidos baseada no seu ticket.</li>
+                <li><strong>MC% (Margem de Contribuição):</strong> Quanto sobra de cada real vendido após pagar os custos variáveis.</li>
+             </ul>
+          </div>
+          
+          <p class="text-xs text-center italic mt-2 opacity-70">"Este painel é uma ferramenta de simulação estratégica e não altera seus dados permanentes no banco."</p>
         </div>
       `
     }

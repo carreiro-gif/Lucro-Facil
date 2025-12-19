@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock, HelpCircle } from 'lucide-react';
+import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock, HelpCircle, Info } from 'lucide-react';
 import { Expense } from '../types';
 
 const MONTHS = [
@@ -221,26 +222,12 @@ const Expenses: React.FC = () => {
                 <button 
                     onClick={() => setShowHelp(!showHelp)} 
                     className="text-gray-400 hover:text-brand-red transition-colors"
-                    title="Ajuda"
+                    title="Nesta aba você deve registrar todas as despesas que sua loja tem independente de vender ou não."
                 >
                     <HelpCircle size={20} />
                 </button>
             </div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Gerencie seus custos mensais e acompanhe a média anual.</p>
-            
-            {showHelp && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in mt-4 xl:absolute xl:z-50 xl:w-[500px] xl:bg-[#0f111a] xl:shadow-2xl">
-                    <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
-                    <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-2"><HelpCircle size={16}/> O que lançar aqui?</h4>
-                    <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                        Nesta aba você deve registrar todas as despesas que sua loja tem <strong>independente de vender ou não</strong>.
-                        <br/><br/>
-                        Exemplos: Aluguel, Salários, Internet, Contador, Pró-labore, Sistemas, etc.
-                        <br/><br/>
-                        <strong>Importante:</strong> NÃO lance compras de insumos (carne, pão) aqui. Insumos são custos variáveis e já estão no cálculo do CMV. O objetivo desta aba é calcular quanto custa para sua loja existir.
-                    </p>
-                </div>
-            )}
          </div>
          
          <div className="flex flex-col sm:flex-row items-center gap-4 bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -271,6 +258,23 @@ const Expenses: React.FC = () => {
             </div>
          </div>
        </div>
+
+       {/* Standardized Help Panel */}
+       {showHelp && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in shadow-sm max-w-4xl no-print">
+            <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
+            <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-3 flex items-center gap-2"><HelpCircle size={18} /> O que lançar aqui?</h4>
+            <div className="text-sm text-blue-800 dark:text-blue-200 space-y-4 leading-relaxed">
+                <p>Nesta aba você deve registrar todas as despesas que sua loja tem <strong>independente de vender ou não</strong>.</p>
+                <p>Exemplos: Aluguel, Salários, Internet, Contador, Pró-labore, Sistemas, etc.</p>
+                
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800/50 text-xs">
+                    <p className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1"><Info size={14} /> Importante:</p>
+                    <p>NÃO lance compras de insumos (carne, pão) aqui. Insumos são custos variáveis e já estão no cálculo do CMV. O objetivo desta aba é calcular quanto custa para sua loja existir.</p>
+                </div>
+            </div>
+        </div>
+       )}
 
        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
          

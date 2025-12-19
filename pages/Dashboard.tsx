@@ -1,25 +1,39 @@
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, DollarSign, AlertTriangle, Dna, HelpCircle, X } from 'lucide-react';
+import { TrendingUp, DollarSign, AlertTriangle, Dna, HelpCircle, X, Target } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
-  const { monthlyRevenue, calculateFixedCostPercent, calculateTotalCfiPercent } = useApp();
+  const { monthlyRevenue, calculateFixedCostPercent, calculateTotalCfiPercent, expenses, cfi } = useApp();
   const [showHelp, setShowHelp] = useState(false);
   
   const fixedCostPct = calculateFixedCostPercent();
+  const totalCfiPercent = calculateTotalCfiPercent();
 
   const activeRevenueMonths = monthlyRevenue.filter(m => m.revenue > 0);
   const avgRevenue = activeRevenueMonths.length 
     ? activeRevenueMonths.reduce((a, b) => a + b.revenue, 0) / activeRevenueMonths.length 
     : 0;
 
-  const totalCfiPercent = calculateTotalCfiPercent();
+  // Break-even Logic for latest month
+  const latestMonthKey = activeRevenueMonths.length > 0 
+    ? activeRevenueMonths[activeRevenueMonths.length - 1].month 
+    : new Date().toISOString().slice(0, 7);
 
-  // Pie Data (Fixed vs Variable rough estimate for visual)
+  const monthRevenue = monthlyRevenue.find(r => r.month === latestMonthKey)?.revenue || 0;
+  const monthFixedCosts = expenses.filter(e => e.month === latestMonthKey).reduce((s, e) => s + e.value, 0);
+  
+  // Contribution Margin % (Estimated using CFI variables)
+  const avgCardRate = (cfi.debitTax + cfi.creditTax) / 2;
+  const varPctTotal = avgCardRate + cfi.tax + cfi.royalties + cfi.marketing + cfi.voucherTax + 35; // 35% estimate for CMV if not specified
+  const mcPct = 1 - (varPctTotal / 100);
+  const breakEvenR$ = mcPct > 0 ? monthFixedCosts / mcPct : 0;
+  const gapToBe = Math.max(0, breakEvenR$ - monthRevenue);
+
   const pieData = [
     { name: 'Custo Fixo', value: fixedCostPct },
-    { name: 'Custo Variável (Est.)', value: Math.max(0, 100 - fixedCostPct - 20) }, // Estimate remaining based on 20% profit target
+    { name: 'Custo Variável (Est.)', value: Math.max(0, 100 - fixedCostPct - 20) },
     { name: 'Lucro (Meta)', value: 20 },
   ];
 
@@ -35,12 +49,13 @@ const Dashboard: React.FC = () => {
       borderColor: 'border-emerald-200 dark:border-emerald-500/20'
     },
     { 
-      title: 'Lucro (Meta)', 
-      value: `20.00%`, 
-      icon: TrendingUp, 
+      title: 'Ponto Equilíbrio (R$)', 
+      value: `R$ ${breakEvenR$.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, 
+      icon: Target, 
       color: 'text-blue-600 dark:text-blue-500',
       bgColor: 'bg-blue-50 dark:bg-blue-500/10',
-      borderColor: 'border-blue-200 dark:border-blue-500/20'
+      borderColor: 'border-blue-200 dark:border-blue-500/20',
+      subtitle: gapToBe > 0 ? `Falta R$ ${gapToBe.toLocaleString('pt-BR', {maximumFractionDigits: 0})}` : 'Meta Batida'
     },
     { 
       title: 'CFI da Empresa', 
@@ -60,7 +75,6 @@ const Dashboard: React.FC = () => {
     }
   ];
 
-  // Chart Data
   const chartData = monthlyRevenue.map(m => ({
     name: m.month,
     revenue: m.revenue
@@ -94,16 +108,15 @@ const Dashboard: React.FC = () => {
                     <br/><br/>
                     <strong>Indicadores Principais:</strong>
                     <ul className="list-disc list-inside mt-1 ml-2 space-y-1">
-                        <li><strong>Faturamento Médio:</strong> Média das suas vendas mensais cadastradas.</li>
-                        <li><strong>CFI da Empresa:</strong> A soma de todos os custos que "mordem" seu preço de venda (Custo Fixo + Impostos + Taxas).</li>
-                        <li><strong>Custo Fixo (Mês):</strong> Quanto do seu faturamento está comprometido apenas para pagar as contas fixas.</li>
+                        <li><strong>Ponto de Equilíbrio:</strong> Quanto você precisa vender no mês para não ter prejuízo.</li>
+                        <li><strong>CFI da Empresa:</strong> A soma de todos os custos que "mordem" seu preço de venda.</li>
+                        <li><strong>Custo Fixo (Mês):</strong> % do faturamento comprometido com contas fixas.</li>
                     </ul>
                 </p>
             </div>
         )}
       </div>
 
-      {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {kpiData.map((kpi, idx) => {
           const Icon = kpi.icon;
@@ -113,11 +126,9 @@ const Dashboard: React.FC = () => {
                 <div className={`p-3 rounded-xl bg-white dark:bg-gray-900 shadow-sm ${kpi.color}`}>
                   <Icon size={24} />
                 </div>
-                {idx === 2 && ( // CFI Card logic for status
-                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full bg-white dark:bg-gray-900 ${
-                     parseFloat(kpi.value) <= 33 ? 'text-emerald-500' : parseFloat(kpi.value) <= 40 ? 'text-amber-500' : 'text-red-500'
-                   }`}>
-                     {parseFloat(kpi.value) <= 33 ? 'OK' : parseFloat(kpi.value) <= 40 ? 'ALERTA' : 'CRÍTICO'}
+                {(idx === 1 && kpi.subtitle) && (
+                   <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase ${gapToBe > 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                     {kpi.subtitle}
                    </span>
                 )}
               </div>
@@ -129,10 +140,9 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Chart */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
            <h3 className="font-bold text-gray-900 dark:text-white uppercase text-sm mb-6">Faturamento Mensal</h3>
-           <div className="h-80">
+           <div className="h-80" style={{ minHeight: '320px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#9CA3AF" vertical={false} opacity={0.2} />
@@ -142,7 +152,7 @@ const Dashboard: React.FC = () => {
                     tick={{fontSize: 12}} 
                     axisLine={false} 
                     tickLine={false}
-                    tickFormatter={(val) => val.split('-')[1]} // Show only month number
+                    tickFormatter={(val) => val.split('-')[1]}
                   />
                   <YAxis 
                     stroke="#9CA3AF" 
@@ -167,7 +177,6 @@ const Dashboard: React.FC = () => {
            </div>
         </div>
 
-        {/* Pie Chart */}
         <div className="lg:col-span-1 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
             <h3 className="font-bold text-gray-900 dark:text-white uppercase text-sm mb-6">Distribuição Estimada</h3>
             <div className="h-60 relative">
@@ -193,7 +202,6 @@ const Dashboard: React.FC = () => {
                     />
                   </PieChart>
                </ResponsiveContainer>
-               {/* Center Text */}
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-3xl font-bold text-gray-900 dark:text-white">{fixedCostPct.toFixed(0)}%</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold">Custo Fixo</span>

@@ -56,7 +56,28 @@ export const AppProvider: React.FC<{
 }> = ({ children, storeId, initialData, onStateChange }) => {
   
   const [state, setState] = useState<GlobalState>(() => {
-    if (initialData) return initialData;
+    if (initialData) {
+        // DATA GUARD: Ensure all arrays are initialized even if missing in initialData (localStorage/Backup issues)
+        return {
+            ...EMPTY_STATE, // Base defaults
+            ...initialData, // User data overwrites
+            ingredients: initialData.ingredients || [],
+            products: initialData.products || [],
+            menuCategories: initialData.menuCategories || [],
+            combos: initialData.combos || [],
+            expenses: initialData.expenses || [],
+            monthlyRevenue: initialData.monthlyRevenue || [],
+            categories: initialData.categories || [],
+            suppliers: initialData.suppliers || [],
+            // Deep merge objects if necessary, but shallow merge for config objects usually suffices if they exist
+            cfi: { ...EMPTY_STATE.cfi, ...(initialData.cfi || {}) },
+            platformConfig: { 
+                ifood: { ...EMPTY_STATE.platformConfig.ifood, ...(initialData.platformConfig?.ifood || {}) },
+                food99: { ...EMPTY_STATE.platformConfig.food99, ...(initialData.platformConfig?.food99 || {}) },
+                keeta: { ...EMPTY_STATE.platformConfig.keeta, ...(initialData.platformConfig?.keeta || {}) },
+            }
+        };
+    }
     return storeId === '1' ? INITIAL_STATE : EMPTY_STATE;
   });
 
@@ -231,23 +252,27 @@ export const AppProvider: React.FC<{
   };
 
   const calculateFixedCostPercent = (currentMonth?: string) => {
+    // Ensure arrays are present before reducing
+    const safeExpenses = state.expenses || [];
+    const safeRevenue = state.monthlyRevenue || [];
+
     if (state.fixedCostMode === 'AVERAGE') {
-       const expenseMonths = state.expenses.map(e => e.month);
-       const revenueMonths = state.monthlyRevenue.filter(r => r.revenue > 0).map(r => r.month);
+       const expenseMonths = safeExpenses.map(e => e.month);
+       const revenueMonths = safeRevenue.filter(r => r.revenue > 0).map(r => r.month);
        const allMonths = Array.from(new Set([...expenseMonths, ...revenueMonths])).sort();
        const last12 = allMonths.slice(-12);
        let totalCost = 0, totalRev = 0;
        last12.forEach(m => {
-          const exp = state.expenses.filter(e => e.month === m).reduce((s, e) => s + e.value, 0);
-          const rev = state.monthlyRevenue.find(r => r.month === m)?.revenue || 0;
+          const exp = safeExpenses.filter(e => e.month === m).reduce((s, e) => s + e.value, 0);
+          const rev = safeRevenue.find(r => r.month === m)?.revenue || 0;
           if (exp > 0 || rev > 0) { totalCost += exp; if(rev > 0) totalRev += rev; }
        });
        if (totalRev === 0) return 0;
        return (totalCost / totalRev) * 100;
     } else {
         const targetMonth = currentMonth || new Date().toISOString().slice(0, 7);
-        const totalCost = state.expenses.filter(e => e.month === targetMonth).reduce((s, e) => s + e.value, 0);
-        const revenue = state.monthlyRevenue.find(r => r.month === targetMonth)?.revenue || 0;
+        const totalCost = safeExpenses.filter(e => e.month === targetMonth).reduce((s, e) => s + e.value, 0);
+        const revenue = safeRevenue.find(r => r.month === targetMonth)?.revenue || 0;
         if (revenue === 0) return 0;
         return (totalCost / revenue) * 100;
     }
@@ -261,9 +286,9 @@ export const AppProvider: React.FC<{
 
   const getSortedProducts = () => {
       const catOrderMap: Record<string, number> = {};
-      state.menuCategories.forEach(c => catOrderMap[c.name] = c.order);
+      (state.menuCategories || []).forEach(c => catOrderMap[c.name] = c.order);
 
-      return [...state.products].sort((a, b) => {
+      return [...(state.products || [])].sort((a, b) => {
           const orderA = catOrderMap[a.category] ?? 999;
           const orderB = catOrderMap[b.category] ?? 999;
           if (orderA !== orderB) return orderA - orderB;

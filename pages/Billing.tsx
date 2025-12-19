@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ChevronLeft, ChevronRight, DollarSign, TrendingUp, AlertCircle, HelpCircle, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, DollarSign, TrendingUp, AlertCircle, HelpCircle, X, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const MONTHS = [
@@ -91,26 +92,12 @@ const Billing: React.FC = () => {
                 <button 
                     onClick={() => setShowHelp(!showHelp)} 
                     className="text-gray-400 hover:text-brand-red transition-colors"
-                    title="Ajuda"
+                    title="Histórico de entradas para cálculo de ponto de equilíbrio e metas."
                 >
                     <HelpCircle size={20} />
                 </button>
             </div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Histórico de entradas para cálculo de ponto de equilíbrio e metas.</p>
-
-            {showHelp && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in mt-4 xl:absolute xl:z-50 xl:w-[500px] xl:bg-[#0f111a] xl:shadow-2xl">
-                    <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
-                    <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-2"><HelpCircle size={16}/> Por que preencher isso?</h4>
-                    <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                        Este é o histórico do quanto sua loja vendeu (faturamento bruto).
-                        <br/><br/>
-                        Ele é usado para calcular a média de faturamento, que por sua vez é o divisor usado para encontrar o percentual do Custo Fixo (CFI).
-                        <br/><br/>
-                        <em>Ex: Se você tem 5 mil de custo fixo e fatura 20 mil, seu custo fixo é 25%. Se você não preencher o faturamento, não saberemos esse percentual!</em>
-                    </p>
-                </div>
-            )}
          </div>
 
          <div className="flex items-center gap-4 bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -122,6 +109,24 @@ const Billing: React.FC = () => {
              <button onClick={() => handleYearChange(1)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500 dark:text-gray-400 transition"><ChevronRight size={20}/></button>
          </div>
       </div>
+
+      {/* Standardized Help Panel */}
+      {showHelp && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in shadow-sm max-w-4xl no-print">
+            <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
+            <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-3 flex items-center gap-2"><HelpCircle size={18} /> Por que preencher isso?</h4>
+            <div className="text-sm text-blue-800 dark:text-blue-200 space-y-4 leading-relaxed">
+                <p>Este é o histórico do quanto sua loja vendeu (faturamento bruto).</p>
+                <p>Ele é usado para calcular a média de faturamento, que por sua vez é o divisor usado para encontrar o percentual do Custo Fixo (CFI).</p>
+                <p><em>Ex: Se você tem 5 mil de custo fixo e fatura 20 mil, seu custo fixo é 25%. Se você não preencher o faturamento, não saberemos esse percentual!</em></p>
+                
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800/50 text-xs">
+                    <p className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1"><Info size={14} /> Importante:</p>
+                    <p>O faturamento preenchido aqui impacta diretamente no cálculo do % de Custo Fixo, que é fundamental para a precificação correta dos seus produtos.</p>
+                </div>
+            </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
