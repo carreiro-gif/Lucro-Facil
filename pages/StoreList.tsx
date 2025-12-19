@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Plus, Store, ArrowRight, MapPin, Edit2, Upload, X, Copy, CheckCircle, Trash2, AlertTriangle, Tags, TrendingUp } from 'lucide-react';
 import { StoreInfo } from '../types';
@@ -131,7 +132,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
   };
 
   return (
-    <div className="min-h-screen bg-[var(--app-bg)] flex flex-col items-center justify-center p-8 animate-fade-in relative overflow-hidden transition-colors duration-500">
+    <div className="flex flex-col items-center justify-center p-8 animate-fade-in relative overflow-hidden transition-colors duration-500">
       
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
@@ -143,14 +144,10 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
         
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 relative">
-            {/* Center Content */}
             <div className="w-full flex flex-col items-center justify-center text-center space-y-6">
-                
-                {/* Logo Representation */}
                 <div className="relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 to-green-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
                     <div className="relative w-24 h-24 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 flex items-center justify-center shadow-2xl overflow-hidden">
-                         {/* Using Icons to mimic the logo concept if image fails or isn't provided via URL */}
                         <div className="relative">
                             <Tags size={56} className="text-yellow-500 transform -rotate-12" strokeWidth={1.5} fill="rgba(234, 179, 8, 0.1)"/>
                             <TrendingUp size={32} className="text-emerald-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -ml-1 -mt-1" strokeWidth={3} />
@@ -168,7 +165,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 </div>
             </div>
 
-            {/* Replicate Button - Absolute Top Right */}
             <div className="absolute top-0 right-0 hidden md:flex items-center gap-3">
                 {onReplicate && (
                     <button 
@@ -180,7 +176,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 )}
             </div>
 
-            {/* Mobile Controls */}
             <div className="md:hidden mt-6 flex gap-3 justify-center">
                 {onReplicate && (
                     <button 
@@ -194,7 +189,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {/* Existing Stores Cards */}
             {stores.map(store => (
                 <div 
                     key={store.id}
@@ -248,7 +242,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 </div>
             ))}
 
-            {/* Add New Store Button */}
             <button 
                 onClick={() => handleOpenModal()}
                 className="bg-gray-50 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-800 border-dashed p-6 rounded-2xl flex flex-col items-center justify-center gap-4 text-gray-500 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white hover:border-brand-red/50 hover:bg-white dark:hover:bg-gray-900 transition-all duration-300 group min-h-[200px]"
@@ -261,13 +254,8 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 </div>
             </button>
         </div>
-        
-        <div className="text-center pt-8 border-t border-gray-200 dark:border-gray-800/50">
-            <p className="text-xs text-gray-500 dark:text-gray-600">Lucro Fácil © 2025 • v1.4.1</p>
-        </div>
       </div>
 
-      {/* Edit/Add Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-md animate-fade-in flex flex-col">
@@ -336,7 +324,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {storeToDelete && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-900 border border-red-500/30 rounded-xl shadow-2xl w-full max-w-md animate-fade-in flex flex-col overflow-hidden">
@@ -376,7 +363,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
           </div>
       )}
 
-      {/* Replication Modal */}
       {isReplicateOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl w-full max-w-lg animate-fade-in flex flex-col">
@@ -452,7 +438,6 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
               </div>
           </div>
       )}
-
     </div>
   );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { AppProvider } from './context/AppContext';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -29,6 +29,17 @@ interface AppContentProps {
   onRestore: (file: File) => void;
   lastBackupDate: string | null;
 }
+
+const GlobalFooter: React.FC = () => (
+  <div className="w-full py-5 flex flex-col items-center justify-center space-y-1 border-t border-gray-200/30 dark:border-gray-800/30 mt-5">
+    <div className="text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+      ⚡ Carreiro | Apps
+    </div>
+    <div className="text-[8px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-tighter opacity-60">
+      PRO Gestão
+    </div>
+  </div>
+);
 
 const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorChange, onBackup, onRestore, lastBackupDate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -62,8 +73,11 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
         onRestore={onRestore}
         lastBackupDate={lastBackupDate}
       />
-      <main className="flex-1 ml-64 p-8">
-        {renderContent()}
+      <main className="flex-1 ml-64 p-8 flex flex-col">
+        <div className="flex-1">
+          {renderContent()}
+        </div>
+        <GlobalFooter />
       </main>
     </div>
   );
@@ -72,7 +86,6 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
 const App: React.FC = () => {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   
-  // Custom Background Management
   const [bgColor, setBgColor] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('app_bg_color') || BACKGROUND_PALETTE[0].color;
@@ -80,7 +93,6 @@ const App: React.FC = () => {
     return BACKGROUND_PALETTE[0].color;
   });
 
-  // Backup Date Tracking
   const [lastBackupDate, setLastBackupDate] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(STORAGE_KEY_LAST_BACKUP);
@@ -106,8 +118,6 @@ const App: React.FC = () => {
     setBgColor(color);
   };
 
-  // -- STATE INITIALIZATION WITH PERSISTENCE --
-  
   const [stores, setStores] = useState<StoreInfo[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STORES);
@@ -133,7 +143,6 @@ const App: React.FC = () => {
     };
   });
 
-  // -- AUTO SAVE EFFECT --
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_STORES, JSON.stringify(stores));
@@ -142,8 +151,6 @@ const App: React.FC = () => {
       console.error('Failed to auto-save to local storage', e);
     }
   }, [stores, storesData]);
-
-  // -- BACKUP & RESTORE FUNCTIONS --
 
   const handleBackup = () => {
     const backupData = {
@@ -164,7 +171,6 @@ const App: React.FC = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    // Update Last Backup Date
     const nowISO = new Date().toISOString();
     setLastBackupDate(nowISO);
     localStorage.setItem(STORAGE_KEY_LAST_BACKUP, nowISO);
@@ -183,12 +189,11 @@ const App: React.FC = () => {
             setStoresData(parsed.storesData);
             alert('Dados restaurados com sucesso!');
             
-            // Update backup date on restore too, assuming the restored data is now the "safe" point
             const nowISO = new Date().toISOString();
             setLastBackupDate(nowISO);
             localStorage.setItem(STORAGE_KEY_LAST_BACKUP, nowISO);
             
-            window.location.reload(); // Reload to ensure clean state
+            window.location.reload();
           }
         } else {
           alert('Arquivo de backup inválido.');
@@ -199,8 +204,6 @@ const App: React.FC = () => {
     };
     reader.readAsText(file);
   };
-
-  // -- STORE MANAGEMENT HANDLERS --
 
   const handleAddStore = (store: StoreInfo) => {
     const newId = Date.now().toString();
@@ -232,14 +235,14 @@ const App: React.FC = () => {
     });
   };
 
-  const handleStateChange = (newState: GlobalState) => {
+  const handleStateChange = useCallback((newState: GlobalState) => {
     if (selectedStoreId) {
       setStoresData(prev => ({
         ...prev,
         [selectedStoreId]: newState
       }));
     }
-  };
+  }, [selectedStoreId]);
 
   const handleReplicate = (sourceId: string, targetId: string, type: string) => {
     const source = storesData[sourceId];
@@ -280,14 +283,21 @@ const App: React.FC = () => {
 
   if (!selectedStoreId) {
     return (
-      <StoreList 
-        stores={stores}
-        onSelectStore={(id) => setSelectedStoreId(id)} 
-        onAddStore={handleAddStore}
-        onUpdateStore={handleUpdateStore}
-        onDeleteStore={handleDeleteStore}
-        onReplicate={handleReplicate}
-      />
+      <div className="flex flex-col min-h-screen">
+        <div className="flex-1">
+          <StoreList 
+            stores={stores}
+            onSelectStore={(id) => setSelectedStoreId(id)} 
+            onAddStore={handleAddStore}
+            onUpdateStore={handleUpdateStore}
+            onDeleteStore={handleDeleteStore}
+            onReplicate={handleReplicate}
+          />
+        </div>
+        <div className="bg-[var(--app-bg)] transition-colors duration-500">
+          <GlobalFooter />
+        </div>
+      </div>
     );
   }
 

@@ -46,7 +46,7 @@ const MENU_ITEMS = [
   { id: 'billing', label: 'Faturamento', icon: DollarSign },
   { id: 'dna', label: 'CFI da Empresa', icon: Dna },
   { id: 'ingredients', label: 'Insumos', icon: Beef },
-  { id: 'products', label: 'Ficha Técnica (CMV)', icon: UtensilsCrossed },
+  { id: 'products', label: 'Itens do Cardápio / Ficha Técnica (CMV)', icon: UtensilsCrossed },
   { id: 'pricing', label: 'Preço de Venda', icon: Calculator },
   { id: 'profit', label: 'Lucro Atual', icon: ScrollText },
   { id: 'combos', label: 'Combos', icon: ShoppingBag },

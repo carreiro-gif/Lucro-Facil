@@ -1,5 +1,6 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, FixedCostMode, Combo, StoreInfo } from '../types';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory } from '../types';
 import { INITIAL_STATE, EMPTY_STATE } from '../constants';
 
 interface AppContextType extends GlobalState {
@@ -10,6 +11,12 @@ interface AppContextType extends GlobalState {
   addProduct: (prod: Product) => void;
   updateProduct: (id: string, prod: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  reorderProduct: (id: string, direction: 'up' | 'down') => void;
+
+  addMenuCategory: (name: string) => void;
+  updateMenuCategory: (id: string, name: string) => void;
+  deleteMenuCategory: (id: string) => void;
+  reorderMenuCategory: (id: string, direction: 'up' | 'down') => void;
 
   addCombo: (combo: Combo) => void;
   updateCombo: (id: string, combo: Partial<Combo>) => void;
@@ -32,11 +39,11 @@ interface AppContextType extends GlobalState {
   
   setFixedCostMode: (mode: FixedCostMode) => void;
   
-  // Calculations
   getIngredientRealCost: (ing: Ingredient) => number;
   getProductCMV: (prod: Product) => number;
   calculateFixedCostPercent: (currentMonth?: string) => number;
   calculateTotalCfiPercent: () => number;
+  getSortedProducts: () => Product[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -48,148 +55,164 @@ export const AppProvider: React.FC<{
   onStateChange?: (newState: GlobalState) => void;
 }> = ({ children, storeId, initialData, onStateChange }) => {
   
-  // Initialize state: Priority to initialData passed from App.tsx (the central "database")
   const [state, setState] = useState<GlobalState>(() => {
     if (initialData) return initialData;
     return storeId === '1' ? INITIAL_STATE : EMPTY_STATE;
   });
 
-  // Sync state back to parent (App.tsx) whenever it changes
-  // We use a ref to avoid infinite loops if onStateChange changes identity, 
-  // though typically it should be stable.
   const isFirstRender = useRef(true);
-
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    if (onStateChange) {
-      onStateChange(state);
-    }
+    if (onStateChange) onStateChange(state);
   }, [state, onStateChange]);
 
-  // --- Actions ---
+  // --- ACTIONS ---
 
-  // Ingredients
   const addIngredient = (ing: Ingredient) => setState(s => ({ ...s, ingredients: [...s.ingredients, ing] }));
   const updateIngredient = (id: string, data: Partial<Ingredient>) => {
-    setState(s => ({
-      ...s,
-      ingredients: s.ingredients.map(i => i.id === id ? { ...i, ...data } : i)
-    }));
+    setState(s => ({ ...s, ingredients: s.ingredients.map(i => i.id === id ? { ...i, ...data } : i) }));
   };
   const deleteIngredient = (id: string) => setState(s => ({ ...s, ingredients: s.ingredients.filter(i => i.id !== id) }));
 
   // Products
-  const addProduct = (prod: Product) => setState(s => ({ ...s, products: [...s.products, prod] }));
+  const addProduct = (prod: Product) => setState(s => {
+      const sameCat = s.products.filter(p => p.category === prod.category);
+      const maxOrder = sameCat.length > 0 ? Math.max(...sameCat.map(p => p.order)) : -1;
+      return { ...s, products: [...s.products, { ...prod, order: maxOrder + 1 }] };
+  });
+
   const updateProduct = (id: string, data: Partial<Product>) => {
-    setState(s => ({
-      ...s,
-      products: s.products.map(p => p.id === id ? { ...p, ...data } : p)
-    }));
+    setState(s => ({ ...s, products: s.products.map(p => p.id === id ? { ...p, ...data } : p) }));
   };
+
   const deleteProduct = (id: string) => setState(s => ({ ...s, products: s.products.filter(p => p.id !== id) }));
 
-  // Combos
+  const reorderProduct = (id: string, direction: 'up' | 'down') => {
+    setState(s => {
+      const product = s.products.find(p => p.id === id);
+      if (!product) return s;
+      
+      const sameCat = s.products
+        .filter(p => p.category === product.category)
+        .sort((a, b) => a.order - b.order);
+      
+      const idx = sameCat.findIndex(p => p.id === id);
+      if (direction === 'up' && idx === 0) return s;
+      if (direction === 'down' && idx === sameCat.length - 1) return s;
+      
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      const targetProduct = sameCat[targetIdx];
+      
+      const newProducts = s.products.map(p => {
+        if (p.id === product.id) return { ...p, order: targetProduct.order };
+        if (p.id === targetProduct.id) return { ...p, order: product.order };
+        return p;
+      });
+      
+      return { ...s, products: newProducts };
+    });
+  };
+
+  // Menu Categories
+  const addMenuCategory = (name: string) => setState(s => {
+      const maxOrder = s.menuCategories.length > 0 ? Math.max(...s.menuCategories.map(c => c.order)) : -1;
+      return { ...s, menuCategories: [...s.menuCategories, { id: Date.now().toString(), name, order: maxOrder + 1 }] };
+  });
+
+  const updateMenuCategory = (id: string, name: string) => setState(s => ({
+    ...s,
+    menuCategories: s.menuCategories.map(c => c.id === id ? { ...c, name } : c),
+    products: s.products.map(p => {
+      const oldCat = s.menuCategories.find(cat => cat.id === id);
+      if (oldCat && p.category === oldCat.name) {
+        return { ...p, category: name };
+      }
+      return p;
+    })
+  }));
+
+  const deleteMenuCategory = (id: string) => setState(s => {
+    const categoryToDelete = s.menuCategories.find(c => c.id === id);
+    const catName = categoryToDelete?.name || "";
+    
+    return {
+      ...s,
+      menuCategories: s.menuCategories.filter(c => c.id !== id),
+      // Move produtos que usavam essa categoria para "Sem Categoria"
+      products: s.products.map(p => p.category === catName ? { ...p, category: "Sem Categoria" } : p)
+    };
+  });
+
+  const reorderMenuCategory = (id: string, direction: 'up' | 'down') => {
+    setState(s => {
+        const sorted = [...s.menuCategories].sort((a,b) => a.order - b.order);
+        const idx = sorted.findIndex(c => c.id === id);
+        if (direction === 'up' && idx === 0) return s;
+        if (direction === 'down' && idx === sorted.length - 1) return s;
+
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+        const current = sorted[idx];
+        const target = sorted[targetIdx];
+
+        const newList = s.menuCategories.map(c => {
+            if (c.id === current.id) return { ...c, order: target.order };
+            if (c.id === target.id) return { ...c, order: current.order };
+            return c;
+        });
+        return { ...s, menuCategories: newList };
+    });
+  };
+
   const addCombo = (combo: Combo) => setState(s => ({ ...s, combos: [...s.combos, combo] }));
   const updateCombo = (id: string, data: Partial<Combo>) => {
-    setState(s => ({
-      ...s,
-      combos: s.combos.map(c => c.id === id ? { ...c, ...data } : c)
-    }));
+    setState(s => ({ ...s, combos: s.combos.map(c => c.id === id ? { ...c, ...data } : c) }));
   };
   const deleteCombo = (id: string) => setState(s => ({ ...s, combos: s.combos.filter(c => c.id !== id) }));
 
-  // Expenses
   const addExpense = (exp: Expense) => setState(s => ({ ...s, expenses: [...s.expenses, exp] }));
-  
   const updateExpense = (id: string, data: Partial<Expense>) => {
-    setState(s => ({
-      ...s,
-      expenses: s.expenses.map(e => e.id === id ? { ...e, ...data } : e)
-    }));
+    setState(s => ({ ...s, expenses: s.expenses.map(e => e.id === id ? { ...e, ...data } : e) }));
   };
-
   const addExpenseWithInstallments = (baseExp: Omit<Expense, 'id' | 'installment'>, installments: number) => {
     if (installments <= 1) {
       addExpense({ ...baseExp, id: Math.random().toString(36).substr(2, 9) });
       return;
     }
-
     const newExpenses: Expense[] = [];
     const groupId = Math.random().toString(36).substr(2, 9);
-    
     let [year, month] = baseExp.month.split('-').map(Number);
-
     for (let i = 1; i <= installments; i++) {
       const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
-      // Calculate due date based on base due date, incrementing month
       let dueDateStr = undefined;
       if (baseExp.dueDate) {
         const [dYear, dMonth, dDay] = baseExp.dueDate.split('-').map(Number);
-        // Simple increment logic
         let targetMonth = dMonth + (i - 1);
         let targetYear = dYear;
-        while (targetMonth > 12) {
-            targetMonth -= 12;
-            targetYear++;
-        }
+        while (targetMonth > 12) { targetMonth -= 12; targetYear++; }
         dueDateStr = `${targetYear}-${targetMonth.toString().padStart(2, '0')}-${dDay.toString().padStart(2, '0')}`;
       }
-
-      newExpenses.push({
-        ...baseExp,
-        id: Math.random().toString(36).substr(2, 9),
-        month: monthStr,
-        dueDate: dueDateStr,
-        installment: {
-          current: i,
-          total: installments,
-          id: groupId
-        }
-      });
-      month++;
-      if (month > 12) {
-        month = 1;
-        year++;
-      }
+      newExpenses.push({ ...baseExp, id: Math.random().toString(36).substr(2, 9), month: monthStr, dueDate: dueDateStr, installment: { current: i, total: installments, id: groupId } });
+      month++; if (month > 12) { month = 1; year++; }
     }
     setState(s => ({ ...s, expenses: [...s.expenses, ...newExpenses] }));
   };
 
   const addCategory = (cat: Category) => setState(s => ({ ...s, categories: [...s.categories, cat] }));
   const deleteCategory = (id: string) => setState(s => ({ ...s, categories: s.categories.filter(c => c.id !== id) }));
-
   const addSupplier = (sup: Supplier) => setState(s => ({ ...s, suppliers: [...s.suppliers, sup] }));
   const deleteSupplier = (id: string) => setState(s => ({ ...s, suppliers: s.suppliers.filter(s => s.id !== id) }));
-
   const updateCfi = (cfi: Partial<CfiConfig>) => setState(s => ({ ...s, cfi: { ...s.cfi, ...cfi } }));
-  
   const updatePlatformConfig = (cfg: Partial<PlatformConfig>) => {
-    setState(s => ({ 
-      ...s, 
-      platformConfig: { 
-        ...s.platformConfig, 
-        ...cfg,
-        ifood: { ...s.platformConfig.ifood, ...(cfg.ifood || {}) },
-        food99: { ...s.platformConfig.food99, ...(cfg.food99 || {}) }
-      } 
-    }));
+    setState(s => ({ ...s, platformConfig: { ...s.platformConfig, ...cfg, ifood: { ...s.platformConfig.ifood, ...(cfg.ifood || {}) }, food99: { ...s.platformConfig.food99, ...(cfg.food99 || {}) } } }));
   };
-  
   const updateMonthlyRevenue = (data: MonthlyData[]) => setState(s => ({ ...s, monthlyRevenue: data }));
-
-  const updateStoreInfo = (info: Partial<StoreInfo>) => {
-    setState(s => {
-      // Logic handled in App.tsx via onStateChange, but we update local state immediately for UI
-      return { ...s, storeInfo: { ...s.storeInfo, ...info } };
-    });
-  };
-
+  const updateStoreInfo = (info: Partial<StoreInfo>) => setState(s => ({ ...s, storeInfo: { ...s.storeInfo, ...info } }));
   const setFixedCostMode = (mode: FixedCostMode) => setState(s => ({ ...s, fixedCostMode: mode }));
 
-  // --- Calculations ---
+  // --- CALCULATIONS ---
   
   const getIngredientRealCost = (ing: Ingredient) => {
     if (!ing.packageQuantity || ing.packageQuantity <= 0) return 0;
@@ -199,7 +222,7 @@ export const AppProvider: React.FC<{
   };
 
   const getProductCMV = (prod: Product) => {
-    return prod.ingredients.reduce((total, item) => {
+    return (prod.ingredients || []).reduce((total, item) => {
       const ing = state.ingredients.find(i => i.id === item.ingredientId);
       if (!ing) return total;
       const realPrice = getIngredientRealCost(ing);
@@ -213,26 +236,18 @@ export const AppProvider: React.FC<{
        const revenueMonths = state.monthlyRevenue.filter(r => r.revenue > 0).map(r => r.month);
        const allMonths = Array.from(new Set([...expenseMonths, ...revenueMonths])).sort();
        const last12 = allMonths.slice(-12);
-       
-       let totalCost = 0;
-       let totalRev = 0;
-
+       let totalCost = 0, totalRev = 0;
        last12.forEach(m => {
           const exp = state.expenses.filter(e => e.month === m).reduce((s, e) => s + e.value, 0);
           const rev = state.monthlyRevenue.find(r => r.month === m)?.revenue || 0;
-          if (exp > 0 || rev > 0) {
-             totalCost += exp;
-             if(rev > 0) totalRev += rev;
-          }
+          if (exp > 0 || rev > 0) { totalCost += exp; if(rev > 0) totalRev += rev; }
        });
-
        if (totalRev === 0) return 0;
        return (totalCost / totalRev) * 100;
     } else {
         const targetMonth = currentMonth || new Date().toISOString().slice(0, 7);
         const totalCost = state.expenses.filter(e => e.month === targetMonth).reduce((s, e) => s + e.value, 0);
         const revenue = state.monthlyRevenue.find(r => r.month === targetMonth)?.revenue || 0;
-        
         if (revenue === 0) return 0;
         return (totalCost / revenue) * 100;
     }
@@ -244,18 +259,32 @@ export const AppProvider: React.FC<{
     return fixedCostPct + avgCardRate + state.cfi.tax + state.cfi.royalties + state.cfi.marketing + state.cfi.voucherTax;
   };
 
+  const getSortedProducts = () => {
+      const catOrderMap: Record<string, number> = {};
+      state.menuCategories.forEach(c => catOrderMap[c.name] = c.order);
+
+      return [...state.products].sort((a, b) => {
+          const orderA = catOrderMap[a.category] ?? 999;
+          const orderB = catOrderMap[b.category] ?? 999;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.order - b.order;
+      });
+  };
+
   return (
     <AppContext.Provider value={{
       ...state,
       addIngredient, updateIngredient, deleteIngredient,
-      addProduct, updateProduct, deleteProduct,
+      addProduct, updateProduct, deleteProduct, reorderProduct,
+      addMenuCategory, updateMenuCategory, deleteMenuCategory, reorderMenuCategory,
       addCombo, updateCombo, deleteCombo,
       addExpense, updateExpense, addExpenseWithInstallments,
       addCategory, deleteCategory,
       addSupplier, deleteSupplier,
       updateCfi, updatePlatformConfig, updateMonthlyRevenue, updateStoreInfo,
       setFixedCostMode,
-      getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent
+      getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
+      getSortedProducts
     }}>
       {children}
     </AppContext.Provider>
@@ -264,8 +293,6 @@ export const AppProvider: React.FC<{
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (context === undefined) throw new Error('useApp must be used within an AppProvider');
   return context;
 };

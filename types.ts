@@ -11,9 +11,9 @@ export interface Ingredient {
   id: string;
   name: string;
   unit: MeasureUnit;
-  price: number; // Price of the package/container
-  packageQuantity: number; // Weight or Qty in the package (e.g. 1000g, 15un)
-  lossPercent: number; // Percentage of waste (0-100)
+  price: number;
+  packageQuantity: number;
+  lossPercent: number;
 }
 
 export interface ProductIngredient {
@@ -52,8 +52,15 @@ export interface Product {
   name: string;
   category: string;
   ingredients: ProductIngredient[];
-  fixedPriceStore?: number; // Manual override or calculated
-  pricing?: ProductPricing; // Per-product overrides
+  fixedPriceStore?: number;
+  pricing?: ProductPricing;
+  order: number; // New: Custom sort order within category
+}
+
+export interface MenuCategory {
+  id: string;
+  name: string;
+  order: number; // New: Custom sort order for sections
 }
 
 export interface ComboItem {
@@ -78,7 +85,7 @@ export interface Expense {
   description: string;
   value: number;
   category: string;
-  dueDate?: string; // YYYY-MM-DD
+  dueDate?: string;
   paid?: boolean;
   installment?: {
     current: number;
@@ -108,7 +115,7 @@ export interface CfiConfig {
   debitTax: number;
   creditTax: number;
   voucherTax: number;
-  tax: number; // Impostos
+  tax: number;
   royalties: number;
   marketing: number;
   profitMargin: number;
@@ -120,7 +127,7 @@ export interface PlatformConfig {
     onlinePayment: number;
     anticipation: number;
     delivery: number;
-    ciValue: number; // Campanha Inteligente fixed value
+    ciValue: number;
   };
   food99: {
     fee: number;
@@ -139,7 +146,7 @@ export interface PlatformConfig {
 export interface StoreInfo {
   id?: string;
   name: string;
-  logo?: string; // Base64 string
+  logo?: string;
   address?: string;
 }
 
@@ -149,6 +156,7 @@ export interface GlobalState {
   storeInfo: StoreInfo;
   ingredients: Ingredient[];
   products: Product[];
+  menuCategories: MenuCategory[]; // New
   combos: Combo[];
   expenses: Expense[];
   monthlyRevenue: MonthlyData[];
