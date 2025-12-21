@@ -1,6 +1,8 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css'; // Importação obrigatória dos estilos globais e correções de layout
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

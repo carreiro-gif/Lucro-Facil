@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
@@ -380,7 +381,8 @@ const BreakEven: React.FC = () => {
                         </h4>
                         <button onClick={() => setChartHelp('comparativo')} className="text-gray-400 hover:text-brand-red"><HelpCircle size={14}/></button>
                     </div>
-                    <div className="flex-1 min-h-[320px]">
+                    {/* Added explicit style minHeight to fix Recharts in production */}
+                    <div className="flex-1" style={{ minHeight: '320px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
@@ -435,7 +437,8 @@ const BreakEven: React.FC = () => {
                         </h4>
                         <button onClick={() => setChartHelp('composicao')} className="text-gray-400 hover:text-brand-red"><HelpCircle size={14}/></button>
                     </div>
-                    <div className="flex-1 min-h-[320px]">
+                    {/* Added explicit style minHeight to fix Recharts in production */}
+                    <div className="flex-1" style={{ minHeight: '320px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie 
@@ -463,7 +466,8 @@ const BreakEven: React.FC = () => {
                         </h4>
                         <button onClick={() => setChartHelp('sensibilidade')} className="text-gray-400 hover:text-brand-red"><HelpCircle size={14}/></button>
                     </div>
-                    <div className="flex-1 min-h-[320px]">
+                    {/* Added explicit style minHeight to fix Recharts in production */}
+                    <div className="flex-1" style={{ minHeight: '320px', width: '100%' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={sensitivityData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />

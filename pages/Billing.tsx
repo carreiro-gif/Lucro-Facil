@@ -192,36 +192,39 @@ const Billing: React.FC = () => {
             {/* Chart */}
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 h-96 shadow-sm">
                 <h3 className="font-bold text-gray-900 dark:text-white uppercase text-sm mb-6">Evolução de Faturamento ({viewYear})</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#9CA3AF" vertical={false} opacity={0.2} />
-                        <XAxis 
-                            dataKey="name" 
-                            stroke="#9CA3AF" 
-                            tick={{fontSize: 12}} 
-                            axisLine={false} 
-                            tickLine={false} 
-                            dy={10}
-                        />
-                        <YAxis 
-                            stroke="#9CA3AF" 
-                            tick={{fontSize: 12}} 
-                            axisLine={false} 
-                            tickLine={false}
-                            tickFormatter={(val) => `R$ ${val/1000}k`}
-                        />
-                        <Tooltip 
-                            contentStyle={{ backgroundColor: '#111827', border: 'none', borderRadius: '8px', color: '#F3F4F6' }}
-                            formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 'Faturamento']}
-                            cursor={{fill: 'rgba(0,0,0,0.1)'}}
-                        />
-                        <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-                            {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.revenue > 0 ? '#D90429' : '#9CA3AF'} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
+                {/* Added explicit style minHeight to fix Recharts in production */}
+                <div style={{ width: '100%', height: '100%', minHeight: '350px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#9CA3AF" vertical={false} opacity={0.2} />
+                            <XAxis 
+                                dataKey="name" 
+                                stroke="#9CA3AF" 
+                                tick={{fontSize: 12}} 
+                                axisLine={false} 
+                                tickLine={false} 
+                                dy={10}
+                            />
+                            <YAxis 
+                                stroke="#9CA3AF" 
+                                tick={{fontSize: 12}} 
+                                axisLine={false} 
+                                tickLine={false}
+                                tickFormatter={(val) => `R$ ${val/1000}k`}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#111827', border: 'none', borderRadius: '8px', color: '#F3F4F6' }}
+                                formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 'Faturamento']}
+                                cursor={{fill: 'rgba(0,0,0,0.1)'}}
+                            />
+                            <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.revenue > 0 ? '#D90429' : '#9CA3AF'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
       </div>
