@@ -163,145 +163,149 @@ const Products: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase">Itens do Cardápio</h2>
-                <button 
-                    onClick={() => setShowHelp(!showHelp)} 
-                    className="text-gray-400 hover:text-brand-red transition-colors"
-                    title="Ajuda"
-                >
-                    <HelpCircle size={20} />
-                </button>
+    <>
+      <div className="space-y-6 animate-fade-in pb-20">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase">Itens do Cardápio</h2>
+                  <button 
+                      onClick={() => setShowHelp(!showHelp)} 
+                      className="text-gray-400 hover:text-brand-red transition-colors"
+                      title="Ajuda"
+                  >
+                      <HelpCircle size={20} />
+                  </button>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400">Organize seu cardápio em grupos e gerencie os custos de produção.</p>
             </div>
-            <p className="text-gray-500 dark:text-gray-400">Organize seu cardápio em grupos e gerencie os custos de produção.</p>
-          </div>
-          
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="relative flex-1 md:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                <input 
-                    type="text" 
-                    placeholder="Buscar produto..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-brand-red outline-none shadow-sm"
-                />
+            
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative flex-1 md:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                  <input 
+                      type="text" 
+                      placeholder="Buscar produto..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-brand-red outline-none shadow-sm"
+                  />
+              </div>
+              <button 
+                  onClick={() => setIsCatModalOpen(true)}
+                  className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  title="Gerenciar Categorias"
+              >
+                  <ListOrdered size={20} />
+              </button>
+              <button 
+                onClick={openNewProductModal}
+                className="bg-brand-red hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 font-bold transition shadow-lg shadow-red-900/20"
+              >
+                <Plus size={18} /> <span className="hidden sm:inline uppercase text-xs">Novo Item</span>
+              </button>
             </div>
-            <button 
-                onClick={() => setIsCatModalOpen(true)}
-                className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                title="Gerenciar Categorias"
-            >
-                <ListOrdered size={20} />
-            </button>
-            <button 
-              onClick={openNewProductModal}
-              className="bg-brand-red hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 font-bold transition shadow-lg shadow-red-900/20"
-            >
-              <Plus size={18} /> <span className="hidden sm:inline uppercase text-xs">Novo Item</span>
-            </button>
+         </div>
+
+         {showHelp && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in mt-2 shadow-sm">
+              <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
+              <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2"><HelpCircle size={16} className="inline"/> Organização do Cardápio</h4>
+              <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                  Nesta tela, os produtos estão agrupados por categoria. 
+                  <br/><br/>
+                  • <strong>Categorias:</strong> Use o botão de lista <ListOrdered size={14} className="inline"/> para adicionar, editar ou excluir seções.
+                  <br/>
+                  • <strong>Produtos:</strong> Use as setas <ChevronUp size={14} className="inline"/> <ChevronDown size={14} className="inline"/> na tabela para subir ou descer um item. 
+              </p>
           </div>
-       </div>
+         )}
 
-       {showHelp && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in mt-2 shadow-sm">
-            <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
-            <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2"><HelpCircle size={16} className="inline"/> Organização do Cardápio</h4>
-            <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                Nesta tela, os produtos estão agrupados por categoria. 
-                <br/><br/>
-                • <strong>Categorias:</strong> Use o botão de lista <ListOrdered size={14} className="inline"/> para adicionar, editar ou excluir seções.
-                <br/>
-                • <strong>Produtos:</strong> Use as setas <ChevronUp size={14} className="inline"/> <ChevronDown size={14} className="inline"/> na tabela para subir ou descer um item. 
-            </p>
-        </div>
-       )}
+         {/* LISTA AGRUPADA */}
+         <div className="space-y-8">
+              {sortedCategories.map(cat => {
+                  const groupItems = filteredProductsByGroup[cat.name] || [];
+                  if (groupItems.length === 0 && searchTerm) return null;
 
-       {/* LISTA AGRUPADA */}
-       <div className="space-y-8">
-            {sortedCategories.map(cat => {
-                const groupItems = filteredProductsByGroup[cat.name] || [];
-                if (groupItems.length === 0 && searchTerm) return null;
+                  return (
+                      <div key={cat.id} className="animate-fade-in">
+                          <div className="flex items-center gap-3 mb-3 border-b border-gray-200 dark:border-gray-800 pb-2">
+                               <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-wider">{cat.name}</h3>
+                               <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-bold">{groupItems.length} ITENS</span>
+                          </div>
 
-                return (
-                    <div key={cat.id} className="animate-fade-in">
-                        <div className="flex items-center gap-3 mb-3 border-b border-gray-200 dark:border-gray-800 pb-2">
-                             <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-wider">{cat.name}</h3>
-                             <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-bold">{groupItems.length} ITENS</span>
-                        </div>
+                          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
+                              <table className="w-full text-left">
+                                  <thead className="bg-gray-50 dark:bg-[#0f111a] text-gray-400 text-[10px] uppercase font-bold tracking-wider">
+                                      <tr>
+                                          <th className="px-6 py-3 w-16 text-center">Ordem</th>
+                                          <th className="px-6 py-3">Produto</th>
+                                          <th className="px-6 py-3 text-right">CMV Est.</th>
+                                          <th className="px-6 py-3 text-right">Ação</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
+                                      {groupItems.length === 0 ? (
+                                          <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic text-xs">Nenhum item nesta categoria.</td></tr>
+                                      ) : (
+                                          groupItems.map((prod, pIdx) => {
+                                              const cmv = getProductCMV(prod);
+                                              return (
+                                                  <tr key={prod.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group">
+                                                      <td className="px-6 py-3">
+                                                          <div className="flex flex-col items-center gap-1">
+                                                              <button 
+                                                                  onClick={() => reorderProduct(prod.id, 'up')}
+                                                                  disabled={pIdx === 0}
+                                                                  className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${pIdx === 0 ? 'opacity-20 cursor-not-allowed' : 'text-brand-red'}`}
+                                                              >
+                                                                  <ChevronUp size={14} />
+                                                              </button>
+                                                              <button 
+                                                                  onClick={() => reorderProduct(prod.id, 'down')}
+                                                                  disabled={pIdx === groupItems.length - 1}
+                                                                  className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${pIdx === groupItems.length - 1 ? 'opacity-20 cursor-not-allowed' : 'text-brand-red'}`}
+                                                              >
+                                                                  <ChevronDown size={14} />
+                                                              </button>
+                                                          </div>
+                                                      </td>
+                                                      <td className="px-6 py-3">
+                                                          <div className="font-bold text-gray-900 dark:text-white text-base">{prod.name}</div>
+                                                          <div className="text-[10px] text-gray-400">{(prod.ingredients || []).length} insumos na receita</div>
+                                                      </td>
+                                                      <td className="px-6 py-3 text-right font-mono font-bold text-brand-red">R$ {cmv.toFixed(2)}</td>
+                                                      <td className="px-6 py-3">
+                                                          <div className="flex justify-end items-center gap-2">
+                                                              <button onClick={() => openRecipeModal(prod)} className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold transition border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                  <FileText size={14} /> Ficha Técnica
+                                                              </button>
+                                                              <button onClick={() => deleteProduct(prod.id)} className="text-gray-400 hover:text-red-500 p-2"><Trash size={16} /></button>
+                                                          </div>
+                                                      </td>
+                                                  </tr>
+                                              );
+                                          })
+                                      )}
+                                  </tbody>
+                              </table>
+                          </div>
+                      </div>
+                  );
+              })}
+         </div>
+      </div>
 
-                        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
-                            <table className="w-full text-left">
-                                <thead className="bg-gray-50 dark:bg-[#0f111a] text-gray-400 text-[10px] uppercase font-bold tracking-wider">
-                                    <tr>
-                                        <th className="px-6 py-3 w-16 text-center">Ordem</th>
-                                        <th className="px-6 py-3">Produto</th>
-                                        <th className="px-6 py-3 text-right">CMV Est.</th>
-                                        <th className="px-6 py-3 text-right">Ação</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-                                    {groupItems.length === 0 ? (
-                                        <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic text-xs">Nenhum item nesta categoria.</td></tr>
-                                    ) : (
-                                        groupItems.map((prod, pIdx) => {
-                                            const cmv = getProductCMV(prod);
-                                            return (
-                                                <tr key={prod.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group">
-                                                    <td className="px-6 py-3">
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <button 
-                                                                onClick={() => reorderProduct(prod.id, 'up')}
-                                                                disabled={pIdx === 0}
-                                                                className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${pIdx === 0 ? 'opacity-20 cursor-not-allowed' : 'text-brand-red'}`}
-                                                            >
-                                                                <ChevronUp size={14} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => reorderProduct(prod.id, 'down')}
-                                                                disabled={pIdx === groupItems.length - 1}
-                                                                className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${pIdx === groupItems.length - 1 ? 'opacity-20 cursor-not-allowed' : 'text-brand-red'}`}
-                                                            >
-                                                                <ChevronDown size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3">
-                                                        <div className="font-bold text-gray-900 dark:text-white text-base">{prod.name}</div>
-                                                        <div className="text-[10px] text-gray-400">{(prod.ingredients || []).length} insumos na receita</div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-right font-mono font-bold text-brand-red">R$ {cmv.toFixed(2)}</td>
-                                                    <td className="px-6 py-3">
-                                                        <div className="flex justify-end items-center gap-2">
-                                                            <button onClick={() => openRecipeModal(prod)} className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold transition border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                                <FileText size={14} /> Ficha Técnica
-                                                            </button>
-                                                            <button onClick={() => deleteProduct(prod.id)} className="text-gray-400 hover:text-red-500 p-2"><Trash size={16} /></button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                );
-            })}
-       </div>
+      {/* MODALS RENDERED OUTSIDE THE FADE-IN CONTAINER TO AVOID TRANSFORM CONTEXT TRAP */}
 
-       {/* MODAL DE GESTÃO DE CATEGORIAS (PADRONIZADO) */}
-       {isCatModalOpen && (
+      {/* MODAL DE GESTÃO DE CATEGORIAS (PADRONIZADO) */}
+      {isCatModalOpen && (
            <div 
-             className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[9999] p-4 animate-fade-in"
+             className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
              onClick={() => setIsCatModalOpen(false)}
            >
                <div 
-                 className="bg-white dark:bg-[#111827] w-full max-w-lg max-h-[85vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col relative overflow-hidden"
+                 className="bg-white dark:bg-[#111827] w-full max-w-lg max-h-[85vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col relative overflow-hidden animate-fade-in"
                  onClick={(e) => e.stopPropagation()}
                >
                     <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50 dark:bg-[#0f111a]">
@@ -375,14 +379,14 @@ const Products: React.FC = () => {
            </div>
        )}
 
-       {/* MODAL FICHA TÉCNICA (PADRONIZADO - BALANCED E REDUZIDO PARA MAX-W-3XL) */}
+       {/* MODAL FICHA TÉCNICA (FIXED OVERLAY INDEPENDENT) */}
        {isModalOpen && (
          <div 
-           className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[9999] p-4 animate-fade-in"
+           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-start z-[9999] p-4 overflow-y-auto pt-10 sm:pt-20"
            onClick={() => setIsModalOpen(false)}
          >
             <div 
-              className="bg-white dark:bg-[#111827] w-full max-w-3xl max-h-[85vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] flex flex-col relative overflow-hidden"
+              className="bg-white dark:bg-[#111827] w-full max-w-3xl max-h-[85vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] flex flex-col relative overflow-hidden animate-fade-in"
               onClick={(e) => e.stopPropagation()}
             >
                {/* Header Fixado */}
@@ -543,7 +547,7 @@ const Products: React.FC = () => {
             </div>
          </div>
        )}
-    </div>
+    </>
   );
 };
 
