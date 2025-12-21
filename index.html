@@ -4,82 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lucro Fácil</title>
-
-    <!-- Tailwind via CDN (ok para agora) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                red: '#D90429',
-                dark: '#161616',
-                gray: '#2B2D42',
-                light: '#EDF2F4'
-              }
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.5s ease-out forwards',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              }
-            }
-          }
-        }
-      }
-    </script>
-
-    <style>
-      :root {
-        --app-bg: #111827;
-      }
-
-      body {
-        background-color: var(--app-bg) !important;
-        color: #111827;
-        transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        min-height: 100vh;
-      }
-
-      .dark body {
-        color: #EDF2F4;
-      }
-
-      .backdrop-blur-md {
-        backdrop-filter: blur(12px);
-      }
-
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: rgba(0,0,0,0.1);
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #9CA3AF;
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-track {
-        background: rgba(0,0,0,0.2);
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #374151;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #D90429;
-      }
-    </style>
-
-    <!-- IMPORTANTE: NÃO USAR index.css -->
   </head>
-
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <!-- Vite SEMPRE entra por aqui -->
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
