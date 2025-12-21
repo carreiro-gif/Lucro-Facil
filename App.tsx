@@ -20,6 +20,7 @@ import { StoreInfo, GlobalState } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE } from './constants';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
+import { migrateStoredData, VersionedData } from './services/dataMigration';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
 const STORAGE_KEY_LAST_BACKUP = 'lucro_facil_last_backup_date';
 
@@ -136,20 +137,32 @@ const App: React.FC = () => {
   });
 
   const [storesData, setStoresData] = useState<Record<string, GlobalState>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load data from local storage');
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DATA);
+
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const migrated = migrateStoredData(parsed);
+      return migrated.data;
     }
-    return {
-      '1': INITIAL_STATE,
-    };
-  });
+  } catch (e) {
+    console.error('Failed to load and migrate data from local storage', e);
+  }
+
+  return {
+    '1': INITIAL_STATE,
+  };
+});
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_STORES, JSON.stringify(stores));
+      const versionedData: VersionedData = {
+  version: '3.0',
+  data: storesData
+};
+
+localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(versionedData));
+
       localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(storesData));
     } catch (e) {
       console.error('Failed to auto-save to local storage', e);
