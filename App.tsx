@@ -16,12 +16,105 @@ import StoreList from './pages/StoreList';
 import Help from './pages/Help';
 import ShoppingList from './pages/ShoppingList';
 import BreakEven from './pages/BreakEven';
+import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE } from './constants';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
 const STORAGE_KEY_LAST_BACKUP = 'lucro_facil_last_backup_date';
+
+// --- MIGRATION UTILS ---
+const fixMoney = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    // Remove pontos de milhar e substitui vírgula por ponto
+    const clean = val.replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+const fixPercent = (val: any): number => {
+  const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : val;
+  return typeof num === 'number' && !isNaN(num) ? parseFloat(num.toFixed(1)) : 0;
+};
+
+const migrateGlobalState = (state: GlobalState): GlobalState => {
+  if (!state) return state;
+  const newState = JSON.parse(JSON.stringify(state)); // Deep clone
+
+  // 1. Fix Monthly Revenue
+  if (Array.isArray(newState.monthlyRevenue)) {
+    newState.monthlyRevenue = newState.monthlyRevenue.map((m: any) => ({
+      ...m,
+      revenue: fixMoney(m.revenue)
+    }));
+  }
+
+  // 2. Fix Expenses
+  if (Array.isArray(newState.expenses)) {
+    newState.expenses = newState.expenses.map((e: any) => ({
+      ...e,
+      value: fixMoney(e.value)
+    }));
+  }
+
+  // 3. Fix Ingredients
+  if (Array.isArray(newState.ingredients)) {
+    newState.ingredients = newState.ingredients.map((i: any) => ({
+      ...i,
+      price: fixMoney(i.price),
+      lossPercent: fixPercent(i.lossPercent)
+    }));
+  }
+
+  // 4. Fix Products
+  if (Array.isArray(newState.products)) {
+    newState.products = newState.products.map((p: any) => {
+      if (p.fixedPriceStore) p.fixedPriceStore = fixMoney(p.fixedPriceStore);
+      if (p.pricing) {
+         if (p.pricing.profitMargin !== undefined) p.pricing.profitMargin = fixPercent(p.pricing.profitMargin);
+         // Marketplaces fees are generally numbers, but safety check could be added if needed
+         // Focusing on the main breakage points requested
+      }
+      return p;
+    });
+  }
+
+  // 5. Fix CFI
+  if (newState.cfi) {
+    Object.keys(newState.cfi).forEach((k: any) => {
+      newState.cfi[k] = fixPercent(newState.cfi[k]);
+    });
+  }
+
+  // 6. Fix Combos
+  if (Array.isArray(newState.combos)) {
+     newState.combos = newState.combos.map((c: any) => ({
+         ...c,
+         profitMargin: fixPercent(c.profitMargin),
+         ifoodFee: fixPercent(c.ifoodFee),
+         food99Fee: fixPercent(c.food99Fee),
+         delivery: fixMoney(c.delivery),
+         coupon: fixMoney(c.coupon)
+     }));
+  }
+
+  return newState;
+};
+
+const migrateStoresData = (data: Record<string, GlobalState>): Record<string, GlobalState> => {
+  const migrated: Record<string, GlobalState> = {};
+  Object.keys(data).forEach(key => {
+    if (data[key]) {
+      migrated[key] = migrateGlobalState(data[key]);
+    }
+  });
+  return migrated;
+};
+// --- END MIGRATION UTILS ---
 
 interface AppContentProps {
   onLogout: () => void;
@@ -138,7 +231,11 @@ const App: React.FC = () => {
   const [storesData, setStoresData] = useState<Record<string, GlobalState>>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsedData = JSON.parse(saved);
+        // Apply migration on load to ensure data is correct
+        return migrateStoresData(parsedData);
+      }
     } catch (e) {
       console.error('Failed to load data from local storage');
     }
@@ -161,7 +258,7 @@ const App: React.FC = () => {
       version: '3.0',
       date: new Date().toISOString(),
       stores,
-      storesData
+      storesData // Data is already migrated in state, so backup is clean
     };
     
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -189,9 +286,12 @@ const App: React.FC = () => {
         
         if (parsed.stores && parsed.storesData) {
           if (window.confirm('Isso irá substituir TODOS os dados atuais pelos dados do backup. Deseja continuar?')) {
+            // Migrar dados do backup antes de setar no estado
+            const migratedStoresData = migrateStoresData(parsed.storesData);
+            
             setStores(parsed.stores);
-            setStoresData(parsed.storesData);
-            alert('Dados restaurados com sucesso!');
+            setStoresData(migratedStoresData);
+            alert('Dados restaurados com sucesso! Migração aplicada.');
             
             const nowISO = new Date().toISOString();
             setLastBackupDate(nowISO);
@@ -301,6 +401,7 @@ const App: React.FC = () => {
         <div className="bg-[var(--app-bg)] transition-colors duration-500">
           <GlobalFooter />
         </div>
+        <UpdateNotification />
       </div>
     );
   }
@@ -319,6 +420,7 @@ const App: React.FC = () => {
         onRestore={handleRestore}
         lastBackupDate={lastBackupDate}
       />
+      <UpdateNotification />
     </AppProvider>
   );
 };
