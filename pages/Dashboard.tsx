@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, DollarSign, AlertTriangle, Dna, HelpCircle, X, Target } from 'lucide-react';
+import { formatPercent } from '../constants';
 
 const Dashboard: React.FC = () => {
   const { monthlyRevenue, calculateFixedCostPercent, calculateTotalCfiPercent, expenses, cfi } = useApp();
@@ -59,7 +60,7 @@ const Dashboard: React.FC = () => {
     },
     { 
       title: 'CFI da Empresa', 
-      value: `${totalCfiPercent.toFixed(2)}%`, 
+      value: formatPercent(totalCfiPercent), 
       icon: Dna, 
       color: 'text-purple-600 dark:text-purple-500',
       bgColor: 'bg-purple-50 dark:bg-purple-500/10',
@@ -67,7 +68,7 @@ const Dashboard: React.FC = () => {
     },
     { 
       title: 'Custo Fixo (Mês)', 
-      value: `${fixedCostPct.toFixed(2)}%`, 
+      value: formatPercent(fixedCostPct), 
       icon: AlertTriangle, 
       color: 'text-amber-600 dark:text-amber-500',
       bgColor: 'bg-amber-50 dark:bg-amber-500/10',
@@ -200,12 +201,12 @@ const Dashboard: React.FC = () => {
                     </Pie>
                     <Tooltip 
                        contentStyle={{ backgroundColor: '#111827', border: 'none', borderRadius: '8px', color: '#F3F4F6' }}
-                       formatter={(val: number) => [`${val.toFixed(1)}%`]}
+                       formatter={(val: number) => [formatPercent(val)]}
                     />
                   </PieChart>
                </ResponsiveContainer>
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-3xl font-bold text-gray-900 dark:text-white">{fixedCostPct.toFixed(0)}%</span>
+                  <span className="text-3xl font-bold text-gray-900 dark:text-white">{formatPercent(fixedCostPct)}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold">Custo Fixo</span>
                </div>
             </div>
@@ -216,7 +217,7 @@ const Dashboard: React.FC = () => {
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }}></div>
                         <span className="text-gray-600 dark:text-gray-300">{entry.name}</span>
                      </div>
-                     <span className="font-bold text-gray-900 dark:text-white">{entry.value.toFixed(1)}%</span>
+                     <span className="font-bold text-gray-900 dark:text-white">{formatPercent(entry.value)}</span>
                   </div>
                 ))}
             </div>

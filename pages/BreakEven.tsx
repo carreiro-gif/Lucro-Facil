@@ -28,6 +28,7 @@ import {
     ResponsiveContainer, LineChart, Line, Legend, Cell, 
     PieChart, Pie 
 } from 'recharts';
+import { formatPercent } from '../constants';
 
 interface VarCostEntry {
     id: string;
@@ -188,7 +189,7 @@ const BreakEven: React.FC = () => {
         const simulatedVarPct = Math.max(0, varPct + diff);
         const simulatedMcPct = 1 - (simulatedVarPct / 100);
         return {
-            name: `${diff > 0 ? '+' : ''}${diff}%`,
+            name: (diff > 0 ? '+' : '') + formatPercent(diff),
             be: simulatedMcPct > 0 ? fixedCosts / simulatedMcPct : 0
         };
     });
@@ -349,7 +350,7 @@ const BreakEven: React.FC = () => {
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-center">
                     <span className="text-[9px] uppercase font-bold text-gray-400 mb-1">% Custo Variável</span>
-                    <p className="text-lg font-black text-amber-500">{varPct.toFixed(2)}%</p>
+                    <p className="text-lg font-black text-amber-500">{formatPercent(varPct)}</p>
                 </div>
                 <div 
                     className={`p-4 rounded-2xl shadow-xl flex flex-col justify-center text-white transition-all ${mcPct <= 0 ? 'bg-gray-400 shadow-none cursor-help' : 'bg-brand-red shadow-red-900/20'}`}
@@ -447,7 +448,7 @@ const BreakEven: React.FC = () => {
                                     outerRadius={100} 
                                     paddingAngle={5} 
                                     dataKey="value"
-                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    label={({ name, percent }) => `${name} ${formatPercent(percent * 100)}`}
                                 >
                                     {pieData.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
                                 </Pie>

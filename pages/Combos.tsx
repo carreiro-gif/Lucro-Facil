@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 /* Fixed: Added missing ChefHat import from lucide-react */
 import { Plus, Trash, Edit2, ShoppingBag, X, AlertTriangle, HelpCircle, ChefHat } from 'lucide-react';
 import { Combo, ComboItem } from '../types';
+import { formatPercent } from '../constants';
 
 const Combos: React.FC = () => {
   const { 
@@ -258,7 +259,7 @@ const Combos: React.FC = () => {
                     <tr key={combo.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                         <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{combo.name}</td>
                         <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{(combo.items || []).length}</td>
-                        <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{combo.profitMargin}%</td>
+                        <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{formatPercent(combo.profitMargin)}</td>
                         <td className="px-6 py-4 text-right font-mono text-gray-600 dark:text-gray-300">R$ {cmv.toFixed(2)}</td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-gray-900 dark:text-white">R$ {pvLojaVal.toFixed(2)}</td>
                         
@@ -332,7 +333,7 @@ const Combos: React.FC = () => {
                      </div>
                      <div className="bg-gray-50 dark:bg-gray-800/40 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-transform hover:scale-[1.02]">
                         <span className="text-[11px] text-gray-500 dark:text-gray-400 uppercase font-black block mb-2 tracking-tighter">CFI Global Aplicado</span>
-                        <span className="text-3xl font-black text-gray-900 dark:text-gray-100">{totalCfiPercent.toFixed(2)}%</span>
+                        <span className="text-3xl font-black text-gray-900 dark:text-gray-100">{formatPercent(totalCfiPercent)}</span>
                      </div>
                      <div className="bg-gray-50 dark:bg-gray-800/40 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm transition-transform hover:scale-[1.02]">
                         <span className="text-[11px] text-gray-500 dark:text-gray-400 uppercase font-black block mb-2 tracking-tighter">Custo Total de Produção</span>

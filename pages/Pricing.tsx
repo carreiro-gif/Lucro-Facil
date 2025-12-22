@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Calculator, AlertTriangle, HelpCircle, X } from 'lucide-react';
 import { Product } from '../types';
+import { formatPercent } from '../constants';
 
 const Pricing: React.FC = () => {
   const { 
@@ -63,7 +64,7 @@ const Pricing: React.FC = () => {
         <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 text-sm flex gap-6 shadow-lg">
             <div>
                 <span className="block text-[10px] text-gray-500 uppercase font-bold">CFI Total (Fixo+Var)</span>
-                <span className="text-xl font-bold text-brand-red">{totalCfiCost.toFixed(2)}%</span>
+                <span className="text-xl font-bold text-brand-red">{formatPercent(totalCfiCost)}</span>
             </div>
         </div>
       </div>
@@ -149,7 +150,7 @@ const Pricing: React.FC = () => {
                                 {product.name}
                             </td>
                             <td className="p-3 text-gray-500 dark:text-gray-400 text-center font-mono bg-gray-50 dark:bg-gray-900/50">R$ {cmv.toFixed(2)}</td>
-                            <td className="p-3 text-center text-gray-600 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/50">{totalCfiCost.toFixed(2)}%</td>
+                            <td className="p-3 text-center text-gray-600 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/50">{formatPercent(totalCfiCost)}</td>
                             <td className="p-3 text-center bg-gray-50 dark:bg-gray-900/50">
                                 <input type="number" step="0.1" className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-transparent text-gray-900 dark:text-white w-12 text-center rounded focus:outline-none focus:ring-1 focus:ring-brand-red" value={profitMargin} onChange={(e) => handleUpdate(product.id, 'pricing', 'profitMargin', parseFloat(e.target.value))} />
                             </td>

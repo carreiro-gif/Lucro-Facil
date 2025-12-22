@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { ScrollText, Info, HelpCircle, X } from 'lucide-react';
+import { formatPercent } from '../constants';
 
 const Profit: React.FC = () => {
   const { 
@@ -93,11 +94,11 @@ const Profit: React.FC = () => {
                             <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-500 font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{idx + 1}</td>
                             <td className="px-4 py-3 font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">{product.name}</td>
                             <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"><input type="number" step="0.01" value={pvAtual || ''} placeholder="0.00" onChange={(e) => handleValueChange(product.id, 'price', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-bold" /></td>
-                            <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{totalCfiPercent.toFixed(2)}%</td>
+                            <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{formatPercent(totalCfiPercent)}</td>
                             <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"><input type="number" step="0.01" value={deliveryCost || ''} placeholder="0.00" onChange={(e) => handleValueChange(product.id, 'delivery', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none" /></td>
                             <td className="px-4 py-3 text-center font-mono text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">R$ {cmv.toFixed(2)}</td>
                             <td className={`px-4 py-3 text-center font-bold font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitValue < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>R$ {profitValue.toFixed(2)}</td>
-                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitPercent < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>{(profitPercent * 100).toFixed(2)}%</td>
+                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitPercent < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>{formatPercent(profitPercent * 100)}</td>
                             <td className="px-4 py-3 text-center bg-gray-50 dark:bg-gray-900/50"><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded border border-transparent ${statusBg} ${statusColor}`}>{statusLabel}</span></td>
                         </tr>
                     );

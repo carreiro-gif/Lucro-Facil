@@ -29,7 +29,11 @@ const Billing: React.FC = () => {
   };
 
   const updateRevenueValue = (monthKey: string, valueStr: string) => {
-    const value = parseFloat(valueStr) || 0;
+    // CORREÇÃO: Tratamento de formato brasileiro (1.000,00)
+    // 1. Remove pontos de milhar
+    // 2. Substitui vírgula decimal por ponto
+    const normalizedStr = valueStr.replace(/\./g, '').replace(',', '.');
+    const value = parseFloat(normalizedStr) || 0;
     
     // Check if entry exists
     const exists = monthlyRevenue.find(r => r.month === monthKey);
@@ -146,9 +150,9 @@ const Billing: React.FC = () => {
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
                                         <input 
-                                            type="number" 
-                                            step="0.01"
-                                            value={month.value || ''}
+                                            type="text" 
+                                            inputMode="decimal"
+                                            value={month.value ? String(month.value).replace('.', ',') : ''}
                                             placeholder="0,00"
                                             onChange={(e) => updateRevenueValue(month.key, e.target.value)}
                                             className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-right rounded-lg py-2 pl-8 pr-3 text-sm font-mono focus:ring-2 focus:ring-brand-red outline-none transition group-hover:bg-white dark:group-hover:bg-gray-700"

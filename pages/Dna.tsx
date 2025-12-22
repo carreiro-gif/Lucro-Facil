@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Info, Settings2, TrendingDown, TrendingUp, Minus, HelpCircle, X } from 'lucide-react';
+import { formatPercent } from '../constants';
 
 const Dna: React.FC = () => {
   const { cfi, updateCfi, calculateFixedCostPercent, fixedCostMode, setFixedCostMode } = useApp();
@@ -117,7 +119,7 @@ const Dna: React.FC = () => {
                           </span>
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-yellow-600 dark:text-yellow-500 text-lg">
-                          {fixedCostPercent.toFixed(2)}%
+                          {formatPercent(fixedCostPercent)}
                       </td>
                       <td className="px-6 py-4 text-center">
                           <span className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-500 text-[10px] px-2 py-1 rounded uppercase font-bold border border-yellow-200 dark:border-yellow-500/30">Automático</span>
@@ -156,7 +158,7 @@ const Dna: React.FC = () => {
                           Média Taxa Cartão (D+C)/2
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-gray-900 dark:text-gray-200">
-                          {avgCardRate.toFixed(2)}%
+                          {formatPercent(avgCardRate)}
                       </td>
                       <td className="px-6 py-4 text-center">
                           <span className="text-[10px] text-gray-500 uppercase font-bold">Calculado</span>
@@ -257,18 +259,18 @@ const Dna: React.FC = () => {
                  </div>
                  
                  <div className="flex items-baseline gap-1 mt-2 text-white">
-                     <span className="text-5xl font-extrabold tracking-tight">{totalCfiCost.toFixed(2)}</span>
+                     <span className="text-5xl font-extrabold tracking-tight">{totalCfiCost.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}</span>
                      <span className="text-2xl font-bold opacity-90">%</span>
                  </div>
 
                  <div className="mt-6 pt-4 border-t border-white/30 space-y-2 text-sm text-white">
                      <div className="flex justify-between">
                          <span className="opacity-90">Custo Fixo:</span>
-                         <span className="font-mono font-bold">{fixedCostPercent.toFixed(2)}%</span>
+                         <span className="font-mono font-bold">{formatPercent(fixedCostPercent)}</span>
                      </div>
                      <div className="flex justify-between">
                          <span className="opacity-90">Outros Itens:</span>
-                         <span className="font-mono font-bold">{totalVariableTax.toFixed(2)}%</span>
+                         <span className="font-mono font-bold">{formatPercent(totalVariableTax)}</span>
                      </div>
                  </div>
 

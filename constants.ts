@@ -3,6 +3,12 @@ import { GlobalState, MeasureUnit, Category, Product, MenuCategory } from './typ
 
 const id = () => Math.random().toString(36).substr(2, 9);
 
+export const formatPercent = (value: number | undefined | null) => {
+  const val = value ?? 0;
+  if (isNaN(val)) return '0,0%';
+  return val.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+};
+
 export const BACKGROUND_PALETTE = [
   { name: 'Neve (Padrão)', color: '#f3f4f6', mode: 'light' },
   { name: 'Papel', color: '#fefce8', mode: 'light' },

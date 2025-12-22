@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock, HelpCircle, Info } from 'lucide-react';
 import { Expense } from '../types';
+import { formatPercent } from '../constants';
 
 const MONTHS = [
   { value: '01', label: 'Janeiro' },
@@ -399,7 +400,7 @@ const Expenses: React.FC = () => {
                                     {data.hasData ? `R$ ${data.totalCost.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` : '-'}
                                 </td>
                                 <td className="px-6 py-2.5 text-right font-mono text-gray-900 dark:text-gray-200">
-                                    {data.hasData ? `${data.percentage.toFixed(2)}%` : '-'}
+                                    {data.hasData ? formatPercent(data.percentage) : '-'}
                                 </td>
                             </tr>
                         ))}
@@ -423,7 +424,7 @@ const Expenses: React.FC = () => {
                      </div>
                      <div>
                         <p className="text-[10px] uppercase font-bold opacity-70">% Aplicada no PV</p>
-                        <p className="text-2xl font-bold">{displayFixedCostPercent.toFixed(2)}%</p>
+                        <p className="text-2xl font-bold">{formatPercent(displayFixedCostPercent)}</p>
                      </div>
                 </div>
 
