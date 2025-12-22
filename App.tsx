@@ -28,8 +28,11 @@ const STORAGE_KEY_LAST_BACKUP = 'lucro_facil_last_backup_date';
 const fixMoney = (val: any): number => {
   if (typeof val === 'number') return val;
   if (typeof val === 'string') {
-    // Remove pontos de milhar e substitui vírgula por ponto
-    const clean = val.replace(/\./g, '').replace(',', '.');
+    // 1. Remove R$, spaces, and thousands separators (dots)
+    // 2. Replace decimal comma with dot
+    // Ex: "R$ 1.500,50" -> "1500.50"
+    // Ex: "15.438,23" -> "15438.23"
+    const clean = val.replace(/[R$\s.]/g, '').replace(',', '.');
     const parsed = parseFloat(clean);
     return isNaN(parsed) ? 0 : parsed;
   }
@@ -37,8 +40,14 @@ const fixMoney = (val: any): number => {
 };
 
 const fixPercent = (val: any): number => {
-  const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : val;
-  return typeof num === 'number' && !isNaN(num) ? parseFloat(num.toFixed(1)) : 0;
+  if (typeof val === 'number') return parseFloat(val.toFixed(1));
+  if (typeof val === 'string') {
+     // Ex: "14,5%" -> "14.5"
+     const clean = val.replace(/[%]/g, '').replace(',', '.');
+     const num = parseFloat(clean);
+     return isNaN(num) ? 0 : parseFloat(num.toFixed(1));
+  }
+  return 0;
 };
 
 const migrateGlobalState = (state: GlobalState): GlobalState => {
@@ -76,8 +85,19 @@ const migrateGlobalState = (state: GlobalState): GlobalState => {
       if (p.fixedPriceStore) p.fixedPriceStore = fixMoney(p.fixedPriceStore);
       if (p.pricing) {
          if (p.pricing.profitMargin !== undefined) p.pricing.profitMargin = fixPercent(p.pricing.profitMargin);
-         // Marketplaces fees are generally numbers, but safety check could be added if needed
-         // Focusing on the main breakage points requested
+         
+         // Platform specifics
+         ['ifood', 'food99', 'keeta'].forEach(platform => {
+             if (p.pricing[platform]) {
+                 ['fee', 'onlinePayment', 'anticipation', 'delivery', 'ciValue', 'coupon'].forEach(field => {
+                     if (p.pricing[platform][field] !== undefined) {
+                         p.pricing[platform][field] = field === 'fee' || field === 'onlinePayment' || field === 'anticipation' 
+                            ? fixPercent(p.pricing[platform][field])
+                            : fixMoney(p.pricing[platform][field]);
+                     }
+                 });
+             }
+         });
       }
       return p;
     });
@@ -100,6 +120,22 @@ const migrateGlobalState = (state: GlobalState): GlobalState => {
          delivery: fixMoney(c.delivery),
          coupon: fixMoney(c.coupon)
      }));
+  }
+
+  // 7. Platform Global Config
+  if (newState.platformConfig) {
+      ['ifood', 'food99', 'keeta'].forEach((platform: string) => {
+          // @ts-ignore
+          if (newState.platformConfig[platform]) {
+              // @ts-ignore
+              Object.keys(newState.platformConfig[platform]).forEach(k => {
+                  // @ts-ignore
+                  const val = newState.platformConfig[platform][k];
+                  // @ts-ignore
+                  newState.platformConfig[platform][k] = (k === 'delivery' || k === 'ciValue') ? fixMoney(val) : fixPercent(val);
+              });
+          }
+      });
   }
 
   return newState;
