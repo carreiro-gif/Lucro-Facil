@@ -17,14 +17,14 @@ import Help from './pages/Help';
 import ShoppingList from './pages/ShoppingList';
 import BreakEven from './pages/BreakEven';
 import { UpdateNotification } from './components/UpdateNotification';
-import { StoreInfo, GlobalState } from './types';
-import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE } from './constants';
+import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
+import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE, INITIAL_MENU_CATEGORIES } from './constants';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
 const STORAGE_KEY_LAST_BACKUP = 'lucro_facil_last_backup_date';
 
-// --- MIGRATION UTILS ---
+// --- MIGRATION & SANITIZATION UTILS ---
 const fixMoney = (val: any): number => {
   if (typeof val === 'number') return val;
   if (typeof val === 'string') {
@@ -50,102 +50,180 @@ const fixPercent = (val: any): number => {
   return 0;
 };
 
-const migrateGlobalState = (state: GlobalState): GlobalState => {
-  if (!state) return state;
-  const newState = JSON.parse(JSON.stringify(state)); // Deep clone
+// Strict Sanitizer: Reconstructs the object to ensure only valid, raw data is kept.
+// Drops any calculated fields that might have polluted the state.
+const sanitizeGlobalState = (data: any): GlobalState => {
+  const safeData = data || {};
 
-  // 1. Fix Monthly Revenue
-  if (Array.isArray(newState.monthlyRevenue)) {
-    newState.monthlyRevenue = newState.monthlyRevenue.map((m: any) => ({
-      ...m,
-      revenue: fixMoney(m.revenue)
-    }));
-  }
+  // 1. Store Info
+  const storeInfo: StoreInfo = {
+    id: safeData.storeInfo?.id || '1',
+    name: safeData.storeInfo?.name || 'Nova Loja',
+    address: safeData.storeInfo?.address || '',
+    logo: safeData.storeInfo?.logo || ''
+  };
 
-  // 2. Fix Expenses
-  if (Array.isArray(newState.expenses)) {
-    newState.expenses = newState.expenses.map((e: any) => ({
-      ...e,
-      value: fixMoney(e.value)
-    }));
-  }
+  // 2. Ingredients (Raw)
+  const ingredients: Ingredient[] = Array.isArray(safeData.ingredients) 
+    ? safeData.ingredients.map((i: any) => ({
+        id: i.id || Math.random().toString(36).substr(2, 9),
+        name: i.name || '',
+        unit: i.unit || 'UN',
+        price: fixMoney(i.price),
+        packageQuantity: Number(i.packageQuantity) || 0,
+        lossPercent: fixPercent(i.lossPercent)
+      }))
+    : [];
 
-  // 3. Fix Ingredients
-  if (Array.isArray(newState.ingredients)) {
-    newState.ingredients = newState.ingredients.map((i: any) => ({
-      ...i,
-      price: fixMoney(i.price),
-      lossPercent: fixPercent(i.lossPercent)
-    }));
-  }
+  // 3. Products (Raw)
+  const products: Product[] = Array.isArray(safeData.products)
+    ? safeData.products.map((p: any) => ({
+        id: p.id || Math.random().toString(36).substr(2, 9),
+        name: p.name || '',
+        category: p.category || 'Sem Categoria',
+        order: Number(p.order) || 0,
+        fixedPriceStore: fixMoney(p.fixedPriceStore),
+        ingredients: Array.isArray(p.ingredients) ? p.ingredients.map((pi: any) => ({
+            ingredientId: pi.ingredientId,
+            quantity: Number(pi.quantity) || 0
+        })) : [],
+        pricing: p.pricing ? {
+            profitMargin: fixPercent(p.pricing.profitMargin),
+            ifood: p.pricing.ifood ? {
+                fee: fixPercent(p.pricing.ifood.fee),
+                onlinePayment: fixPercent(p.pricing.ifood.onlinePayment),
+                anticipation: fixPercent(p.pricing.ifood.anticipation),
+                delivery: fixMoney(p.pricing.ifood.delivery),
+                ciValue: fixMoney(p.pricing.ifood.ciValue),
+                coupon: fixMoney(p.pricing.ifood.coupon)
+            } : undefined,
+            food99: p.pricing.food99 ? {
+                fee: fixPercent(p.pricing.food99.fee),
+                onlinePayment: fixPercent(p.pricing.food99.onlinePayment),
+                anticipation: fixPercent(p.pricing.food99.anticipation),
+                delivery: fixMoney(p.pricing.food99.delivery),
+                coupon: fixMoney(p.pricing.food99.coupon)
+            } : undefined,
+            keeta: p.pricing.keeta ? {
+                fee: fixPercent(p.pricing.keeta.fee),
+                onlinePayment: fixPercent(p.pricing.keeta.onlinePayment),
+                anticipation: fixPercent(p.pricing.keeta.anticipation),
+                delivery: fixMoney(p.pricing.keeta.delivery),
+                coupon: fixMoney(p.pricing.keeta.coupon)
+            } : undefined
+        } : undefined
+      }))
+    : [];
 
-  // 4. Fix Products
-  if (Array.isArray(newState.products)) {
-    newState.products = newState.products.map((p: any) => {
-      if (p.fixedPriceStore) p.fixedPriceStore = fixMoney(p.fixedPriceStore);
-      if (p.pricing) {
-         if (p.pricing.profitMargin !== undefined) p.pricing.profitMargin = fixPercent(p.pricing.profitMargin);
-         
-         // Platform specifics
-         ['ifood', 'food99', 'keeta'].forEach(platform => {
-             if (p.pricing[platform]) {
-                 ['fee', 'onlinePayment', 'anticipation', 'delivery', 'ciValue', 'coupon'].forEach(field => {
-                     if (p.pricing[platform][field] !== undefined) {
-                         p.pricing[platform][field] = field === 'fee' || field === 'onlinePayment' || field === 'anticipation' 
-                            ? fixPercent(p.pricing[platform][field])
-                            : fixMoney(p.pricing[platform][field]);
-                     }
-                 });
-             }
-         });
+  // 4. Expenses (Raw)
+  const expenses: Expense[] = Array.isArray(safeData.expenses)
+    ? safeData.expenses.map((e: any) => ({
+        id: e.id || Math.random().toString(36).substr(2, 9),
+        month: e.month || '',
+        description: e.description || '',
+        value: fixMoney(e.value),
+        category: e.category || 'Outros',
+        dueDate: e.dueDate,
+        paid: !!e.paid,
+        installment: e.installment ? {
+            current: Number(e.installment.current),
+            total: Number(e.installment.total),
+            id: e.installment.id
+        } : undefined
+      }))
+    : [];
+
+  // 5. Monthly Revenue (Raw)
+  const monthlyRevenue: MonthlyData[] = Array.isArray(safeData.monthlyRevenue)
+    ? safeData.monthlyRevenue.map((m: any) => ({
+        month: m.month || '',
+        revenue: fixMoney(m.revenue)
+    }))
+    : [];
+
+  // 6. CFI Config (Raw Inputs only)
+  const cfi: CfiConfig = {
+      debitTax: fixPercent(safeData.cfi?.debitTax),
+      creditTax: fixPercent(safeData.cfi?.creditTax),
+      voucherTax: fixPercent(safeData.cfi?.voucherTax),
+      tax: fixPercent(safeData.cfi?.tax),
+      royalties: fixPercent(safeData.cfi?.royalties),
+      marketing: fixPercent(safeData.cfi?.marketing),
+      profitMargin: fixPercent(safeData.cfi?.profitMargin ?? 20.0)
+  };
+
+  // 7. Platform Config (Raw Inputs)
+  const platformConfig: PlatformConfig = {
+      ifood: {
+          fee: fixPercent(safeData.platformConfig?.ifood?.fee ?? 12),
+          onlinePayment: fixPercent(safeData.platformConfig?.ifood?.onlinePayment ?? 3.2),
+          anticipation: fixPercent(safeData.platformConfig?.ifood?.anticipation ?? 1.9),
+          delivery: fixMoney(safeData.platformConfig?.ifood?.delivery ?? 4.0),
+          ciValue: fixMoney(safeData.platformConfig?.ifood?.ciValue ?? 5.0)
+      },
+      food99: {
+          fee: fixPercent(safeData.platformConfig?.food99?.fee ?? 8.9),
+          onlinePayment: fixPercent(safeData.platformConfig?.food99?.onlinePayment ?? 3.2),
+          anticipation: fixPercent(safeData.platformConfig?.food99?.anticipation ?? 0),
+          delivery: fixMoney(safeData.platformConfig?.food99?.delivery ?? 4.0)
+      },
+      keeta: {
+          fee: fixPercent(safeData.platformConfig?.keeta?.fee ?? 8.9),
+          onlinePayment: fixPercent(safeData.platformConfig?.keeta?.onlinePayment ?? 3.2),
+          anticipation: fixPercent(safeData.platformConfig?.keeta?.anticipation ?? 0),
+          delivery: fixMoney(safeData.platformConfig?.keeta?.delivery ?? 4.0)
       }
-      return p;
-    });
-  }
+  };
 
-  // 5. Fix CFI
-  if (newState.cfi) {
-    Object.keys(newState.cfi).forEach((k: any) => {
-      newState.cfi[k] = fixPercent(newState.cfi[k]);
-    });
-  }
+  // 8. Categories & Suppliers
+  const categories: Category[] = Array.isArray(safeData.categories)
+    ? safeData.categories.map((c: any) => ({ id: c.id, name: c.name, isCustom: !!c.isCustom }))
+    : [];
+  
+  const suppliers: Supplier[] = Array.isArray(safeData.suppliers)
+    ? safeData.suppliers.map((s: any) => ({ id: s.id, name: s.name, contact: s.contact }))
+    : [];
 
-  // 6. Fix Combos
-  if (Array.isArray(newState.combos)) {
-     newState.combos = newState.combos.map((c: any) => ({
-         ...c,
-         profitMargin: fixPercent(c.profitMargin),
-         ifoodFee: fixPercent(c.ifoodFee),
-         food99Fee: fixPercent(c.food99Fee),
-         delivery: fixMoney(c.delivery),
-         coupon: fixMoney(c.coupon)
-     }));
-  }
+  const menuCategories: MenuCategory[] = Array.isArray(safeData.menuCategories)
+    ? safeData.menuCategories.map((mc: any) => ({ id: mc.id, name: mc.name, order: Number(mc.order) || 0 }))
+    : INITIAL_MENU_CATEGORIES; // Default if missing (for migration)
 
-  // 7. Platform Global Config
-  if (newState.platformConfig) {
-      ['ifood', 'food99', 'keeta'].forEach((platform: string) => {
-          // @ts-ignore
-          if (newState.platformConfig[platform]) {
-              // @ts-ignore
-              Object.keys(newState.platformConfig[platform]).forEach(k => {
-                  // @ts-ignore
-                  const val = newState.platformConfig[platform][k];
-                  // @ts-ignore
-                  newState.platformConfig[platform][k] = (k === 'delivery' || k === 'ciValue') ? fixMoney(val) : fixPercent(val);
-              });
-          }
-      });
-  }
+  const combos: Combo[] = Array.isArray(safeData.combos)
+    ? safeData.combos.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        items: Array.isArray(c.items) ? c.items.map((it: any) => ({ productId: it.productId, quantity: Number(it.quantity) })) : [],
+        profitMargin: fixPercent(c.profitMargin),
+        ifoodFee: fixPercent(c.ifoodFee),
+        food99Fee: fixPercent(c.food99Fee),
+        delivery: fixMoney(c.delivery),
+        coupon: fixMoney(c.coupon)
+    }))
+    : [];
 
-  return newState;
+  const fixedCostMode: FixedCostMode = safeData.fixedCostMode === 'CURRENT_MONTH' ? 'CURRENT_MONTH' : 'AVERAGE';
+
+  return {
+      storeInfo,
+      ingredients,
+      products,
+      menuCategories,
+      combos,
+      expenses,
+      monthlyRevenue,
+      cfi,
+      platformConfig,
+      categories,
+      suppliers,
+      fixedCostMode
+  };
 };
 
-const migrateStoresData = (data: Record<string, GlobalState>): Record<string, GlobalState> => {
+const migrateStoresData = (data: Record<string, any>): Record<string, GlobalState> => {
   const migrated: Record<string, GlobalState> = {};
   Object.keys(data).forEach(key => {
     if (data[key]) {
-      migrated[key] = migrateGlobalState(data[key]);
+      migrated[key] = sanitizeGlobalState(data[key]);
     }
   });
   return migrated;
@@ -290,11 +368,14 @@ const App: React.FC = () => {
   }, [stores, storesData]);
 
   const handleBackup = () => {
+    // FORCE SANITIZATION BEFORE BACKUP
+    const cleanStoresData = migrateStoresData(storesData);
+
     const backupData = {
       version: '3.0',
       date: new Date().toISOString(),
       stores,
-      storesData // Data is already migrated in state, so backup is clean
+      storesData: cleanStoresData
     };
     
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -322,7 +403,7 @@ const App: React.FC = () => {
         
         if (parsed.stores && parsed.storesData) {
           if (window.confirm('Isso irá substituir TODOS os dados atuais pelos dados do backup. Deseja continuar?')) {
-            // Migrar dados do backup antes de setar no estado
+            // Migrar e sanitizar dados do backup antes de setar no estado
             const migratedStoresData = migrateStoresData(parsed.storesData);
             
             setStores(parsed.stores);
