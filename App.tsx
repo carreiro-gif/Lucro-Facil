@@ -27,11 +27,16 @@ const STORAGE_KEY_LAST_BACKUP = 'lucro_facil_last_backup_date';
 // --- MIGRATION & SANITIZATION UTILS ---
 const fixMoney = (val: any): number => {
   if (typeof val === 'number') return val;
+  if (!val) return 0;
   if (typeof val === 'string') {
-    // 1. Remove R$, spaces, and thousands separators (dots)
-    // 2. Replace decimal comma with dot
+    // Safety check: if string is already a clean float (e.g. "123.45" from JSON)
+    // and doesn't look like BR thousands (e.g. not "1.234"), parse directly.
+    if (/^-?\d+\.\d+$/.test(val) && !val.includes(',')) {
+       return parseFloat(val);
+    }
+
+    // BR Format: Remove dots (thousands), replace comma with dot
     // Ex: "R$ 1.500,50" -> "1500.50"
-    // Ex: "15.438,23" -> "15438.23"
     const clean = val.replace(/[R$\s.]/g, '').replace(',', '.');
     const parsed = parseFloat(clean);
     return isNaN(parsed) ? 0 : parsed;
@@ -406,15 +411,25 @@ const App: React.FC = () => {
             // Migrar e sanitizar dados do backup antes de setar no estado
             const migratedStoresData = migrateStoresData(parsed.storesData);
             
+            // 1. Update State (to reflect immediately in UI if reload is delayed)
             setStores(parsed.stores);
             setStoresData(migratedStoresData);
-            alert('Dados restaurados com sucesso! Migração aplicada.');
             
-            const nowISO = new Date().toISOString();
-            setLastBackupDate(nowISO);
-            localStorage.setItem(STORAGE_KEY_LAST_BACKUP, nowISO);
-            
-            window.location.reload();
+            // 2. CRITICAL: Force save to LocalStorage immediately to avoid race condition with reload
+            try {
+                localStorage.setItem(STORAGE_KEY_STORES, JSON.stringify(parsed.stores));
+                localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(migratedStoresData));
+                
+                const nowISO = new Date().toISOString();
+                setLastBackupDate(nowISO);
+                localStorage.setItem(STORAGE_KEY_LAST_BACKUP, nowISO);
+                
+                alert('Dados restaurados e higienizados com sucesso! O sistema será reiniciado.');
+                window.location.reload();
+            } catch (storageError) {
+                console.error('Falha ao salvar no LocalStorage', storageError);
+                alert('Erro crítico ao salvar dados. Verifique o espaço disponível.');
+            }
           }
         } else {
           alert('Arquivo de backup inválido.');

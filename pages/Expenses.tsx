@@ -64,37 +64,33 @@ const Expenses: React.FC = () => {
     expenses.filter(e => e.month === selectedMonthKey),
   [expenses, selectedMonthKey]);
 
-  // Calculate Average Cost based on Last 12 Months rule
+  // Calculate Average Cost based on Last 12 Months rule (Strict Revenue > 0 check)
   const last12MonthsMetrics = useMemo(() => {
-    // 1. Get all unique months present in data
-    const allMonths = Array.from(new Set([
-      ...expenses.map(e => e.month), 
-      ...monthlyRevenue.filter(r => r.revenue > 0).map(r => r.month)
-    ])).sort();
+    // 1. Get months with valid revenue
+    const activeRevenueMonths = monthlyRevenue
+        .filter(r => Number(r.revenue) > 0)
+        .sort((a, b) => a.month.localeCompare(b.month));
     
     // 2. Slice last 12
-    const last12 = allMonths.slice(-12);
+    const last12 = activeRevenueMonths.slice(-12);
     
     // 3. Calculate Sums
     let totalCost = 0;
     let totalRev = 0;
-    let monthsCount = 0;
+    let monthsCount = last12.length;
 
     last12.forEach(m => {
-      const exp = expenses.filter(e => e.month === m).reduce((s, e) => s + e.value, 0);
-      const rev = monthlyRevenue.find(r => r.month === m)?.revenue || 0;
+      const exp = expenses
+        .filter(e => e.month === m.month)
+        .reduce((s, e) => s + Number(e.value), 0);
+      const rev = Number(m.revenue);
       
-      // If we have data for this month (either revenue or expense), count it
-      if (exp > 0 || rev > 0) {
-        totalCost += exp;
-        if(rev > 0) {
-            totalRev += rev;
-        }
-        monthsCount++;
-      }
+      totalCost += exp;
+      totalRev += rev;
     });
 
     const avgCost = monthsCount > 0 ? totalCost / monthsCount : 0;
+    // Calculate aggregate percentage (Total Costs / Total Revenue)
     const avgPct = totalRev > 0 ? (totalCost / totalRev) * 100 : 0;
 
     return { avgCost, avgPct, monthsCount };
@@ -105,9 +101,9 @@ const Expenses: React.FC = () => {
     return MONTHS.map(m => {
       const monthKey = `${viewYear}-${m.value}`;
       const monthExpenses = expenses.filter(e => e.month === monthKey);
-      const totalCost = monthExpenses.reduce((sum, e) => sum + e.value, 0);
+      const totalCost = monthExpenses.reduce((sum, e) => sum + Number(e.value), 0);
       const revenueObj = monthlyRevenue.find(r => r.month === monthKey);
-      const revenue = revenueObj ? revenueObj.revenue : 0;
+      const revenue = revenueObj ? Number(revenueObj.revenue) : 0;
       
       const percentage = revenue > 0 ? (totalCost / revenue) * 100 : 0;
 
@@ -430,7 +426,7 @@ const Expenses: React.FC = () => {
 
                 <p className="text-xs italic opacity-80">
                    {fixedCostMode === 'AVERAGE' 
-                     ? `Baseado na média dos últimos ${last12MonthsMetrics.monthsCount} meses com dados lançados.`
+                     ? `Baseado na média dos últimos ${last12MonthsMetrics.monthsCount} meses com faturamento > 0.`
                      : 'Baseado exclusivamente nos lançamentos e faturamento do mês selecionado acima.'}
                    Este percentual será usado automaticamente na precificação.
                 </p>

@@ -257,24 +257,48 @@ export const AppProvider: React.FC<{
     const safeRevenue = state.monthlyRevenue || [];
 
     if (state.fixedCostMode === 'AVERAGE') {
-       const expenseMonths = safeExpenses.map(e => e.month);
-       const revenueMonths = safeRevenue.filter(r => r.revenue > 0).map(r => r.month);
-       const allMonths = Array.from(new Set([...expenseMonths, ...revenueMonths])).sort();
-       const last12 = allMonths.slice(-12);
-       let totalCost = 0, totalRev = 0;
+       // 1. Get months with valid revenue (> 0)
+       const activeRevenueMonths = safeRevenue
+          .filter(r => Number(r.revenue) > 0)
+          .sort((a, b) => a.month.localeCompare(b.month));
+          
+       // 2. Consider only the last 12 active months
+       const last12 = activeRevenueMonths.slice(-12);
+       
+       if (last12.length === 0) return 0;
+
+       let totalFixedCost = 0;
+       let totalRevenue = 0;
+       
+       // 3. Sum Cost and Revenue for these specific months
        last12.forEach(m => {
-          const exp = safeExpenses.filter(e => e.month === m).reduce((s, e) => s + e.value, 0);
-          const rev = safeRevenue.find(r => r.month === m)?.revenue || 0;
-          if (exp > 0 || rev > 0) { totalCost += exp; if(rev > 0) totalRev += rev; }
+          const monthCost = safeExpenses
+            .filter(e => e.month === m.month)
+            .reduce((sum, e) => sum + Number(e.value), 0);
+          
+          totalFixedCost += monthCost;
+          totalRevenue += Number(m.revenue);
        });
-       if (totalRev === 0) return 0;
-       return (totalCost / totalRev) * 100;
+       
+       if (totalRevenue === 0) return 0;
+       
+       // 4. Calculate %
+       return (totalFixedCost / totalRevenue) * 100;
+
     } else {
+        // Mode: CURRENT_MONTH
         const targetMonth = currentMonth || new Date().toISOString().slice(0, 7);
-        const totalCost = safeExpenses.filter(e => e.month === targetMonth).reduce((s, e) => s + e.value, 0);
-        const revenue = safeRevenue.find(r => r.month === targetMonth)?.revenue || 0;
+        
+        const totalFixedCost = safeExpenses
+            .filter(e => e.month === targetMonth)
+            .reduce((sum, e) => sum + Number(e.value), 0);
+            
+        const revenueEntry = safeRevenue.find(r => r.month === targetMonth);
+        const revenue = revenueEntry ? Number(revenueEntry.revenue) : 0;
+        
         if (revenue === 0) return 0;
-        return (totalCost / revenue) * 100;
+        
+        return (totalFixedCost / revenue) * 100;
     }
   };
 

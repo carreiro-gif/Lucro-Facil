@@ -2,7 +2,7 @@
 import { GlobalState, MeasureUnit, Category, Product, MenuCategory } from './types';
 
 // --- VERSION CONTROL ---
-export const APP_VERSION = '3.3.0';
+export const APP_VERSION = '3.3.1';
 export const STORAGE_KEY_APP_VERSION = 'lucro_facil_app_version';
 // -----------------------
 
