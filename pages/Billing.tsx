@@ -20,29 +20,83 @@ const MONTHS = [
 ];
 
 const Billing: React.FC = () => {
-  const { monthlyRevenue, updateMonthlyRevenue } = useApp();
+  const { monthlyRevenue, updateMonthlyRevenue, expenses, cfi } = useApp();
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [showHelp, setShowHelp] = useState(false);
+
+  const avgCardRate = (cfi.debitTax + cfi.creditTax) / 2;
+  const totalVariableTax = avgCardRate + cfi.tax + cfi.royalties + cfi.marketing + cfi.voucherTax;
 
   const handleYearChange = (delta: number) => {
     setViewYear(prev => prev + delta);
   };
 
-  const updateRevenueValue = (monthKey: string, valueStr: string) => {
-    // CORREÇÃO: Tratamento de formato brasileiro (1.000,00)
-    // 1. Remove pontos de milhar
-    // 2. Substitui vírgula decimal por ponto
-    const normalizedStr = valueStr.replace(/\./g, '').replace(',', '.');
-    const value = parseFloat(normalizedStr) || 0;
+  const [localValues, setLocalValues] = useState<Record<string, string>>({});
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+
+  const parseBillingValue = (valueStr: string): number => {
+    if (!valueStr) return 0;
     
-    // Check if entry exists
+    let clean = valueStr.replace(/R\$\s?/, '').trim();
+    
+    if (clean.includes('.') && clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    } else if (clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    } else if (clean.includes('.')) {
+      const parts = clean.split('.');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart.length === 3) {
+        clean = clean.replace(/\./g, '');
+      }
+    }
+    
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const formatValueForDisplay = (val: number, isFocused: boolean, monthKey: string) => {
+    if (isFocused) {
+      return localValues[monthKey] !== undefined ? localValues[monthKey] : (val ? String(val).replace('.', ',') : '');
+    } else {
+      if (!val) return '';
+      return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  };
+
+  const handleFocus = (monthKey: string, currentValue: number) => {
+    setFocusedKey(monthKey);
+    const initialText = currentValue ? currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    setLocalValues(prev => ({
+      ...prev,
+      [monthKey]: initialText
+    }));
+  };
+
+  const handleBlur = (monthKey: string) => {
+    setFocusedKey(null);
+    setLocalValues(prev => {
+      const copy = { ...prev };
+      delete copy[monthKey];
+      return copy;
+    });
+  };
+
+  const handleChange = (monthKey: string, newVal: string) => {
+    setLocalValues(prev => ({
+      ...prev,
+      [monthKey]: newVal
+    }));
+
+    const parsedNum = parseBillingValue(newVal);
+
     const exists = monthlyRevenue.find(r => r.month === monthKey);
     let newData;
 
     if (exists) {
-      newData = monthlyRevenue.map(r => r.month === monthKey ? { ...r, revenue: value } : r);
+      newData = monthlyRevenue.map(r => r.month === monthKey ? { ...r, revenue: parsedNum } : r);
     } else {
-      newData = [...monthlyRevenue, { month: monthKey, revenue: value }];
+      newData = [...monthlyRevenue, { month: monthKey, revenue: parsedNum }];
     }
     
     updateMonthlyRevenue(newData);
@@ -143,24 +197,58 @@ const Billing: React.FC = () => {
             <div className="flex-1 overflow-auto">
                 <table className="w-full">
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {yearData.map((month) => (
-                            <tr key={month.key} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
-                                <td className="px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300 w-1/3">{month.label}</td>
-                                <td className="px-6 py-3">
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
-                                        <input 
-                                            type="text" 
-                                            inputMode="decimal"
-                                            value={month.value ? String(month.value).replace('.', ',') : ''}
-                                            placeholder="0,00"
-                                            onChange={(e) => updateRevenueValue(month.key, e.target.value)}
-                                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-right rounded-lg py-2 pl-8 pr-3 text-sm font-mono focus:ring-2 focus:ring-brand-red outline-none transition group-hover:bg-white dark:group-hover:bg-gray-700"
-                                        />
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                        {yearData.map((month) => {
+                            const monthExpenses = (expenses || []).filter(e => e.month === month.key).reduce((sum, e) => sum + Number(e.value), 0);
+                            const fixedCostPercent = month.value > 0 ? (monthExpenses / month.value) * 100 : 0;
+                            const totalCfiInstant = fixedCostPercent + totalVariableTax;
+
+                            return (
+                                <tr key={month.key} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                                    <td className="px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300 w-1/3">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold text-gray-900 dark:text-gray-200">{month.label}</span>
+                                            {month.value > 0 && (
+                                                <div className="flex flex-wrap items-center gap-1.5 mt-1 no-print">
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-black text-white uppercase tracking-wider ${
+                                                        totalCfiInstant <= 33 ? 'bg-emerald-600' :
+                                                        totalCfiInstant <= 40 ? 'bg-amber-500' :
+                                                        'bg-red-600'
+                                                    }`} title={`Custo Fixo: ${fixedCostPercent.toFixed(1)}% + Taxas/Impostos: ${totalVariableTax.toFixed(1)}%`}>
+                                                        CFI {totalCfiInstant.toFixed(1)}%
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-500 font-mono">
+                                                        (R$ {monthExpenses.toLocaleString('pt-BR', { maximumFractionDigits: 0 })})
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {month.value === 0 && monthExpenses > 0 && (
+                                                <div className="text-[10px] text-amber-500 font-medium mt-1 inline-flex items-center gap-1 no-print">
+                                                    <span>⚠️ Contas: R$ {monthExpenses.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-3">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
+                                            <input 
+                                                type="text" 
+                                                inputMode="decimal"
+                                                value={formatValueForDisplay(month.value, focusedKey === month.key, month.key)}
+                                                placeholder="0,00"
+                                                onFocus={(e) => {
+                                                    handleFocus(month.key, month.value);
+                                                    setTimeout(() => e.target.select(), 0);
+                                                }}
+                                                onBlur={() => handleBlur(month.key)}
+                                                onChange={(e) => handleChange(month.key, e.target.value)}
+                                                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-right rounded-lg py-2 pl-8 pr-3 text-sm font-mono focus:ring-2 focus:ring-brand-red outline-none transition group-hover:bg-white dark:group-hover:bg-gray-700"
+                                            />
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default Deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isStoreOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isSystemAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Rules for userProfiles (PII and role isolation)
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSystemAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId && 
+                    incoming().userId == userId &&
+                    incoming().email is string &&
+                    // Restrict self-assigned role to 'client' unless they are the bootstrapped admin
+                    (incoming().role == 'client' || (incoming().email == 'espacocarreiro@gmail.com' && incoming().role == 'admin')) &&
+                    incoming().createdAt is string;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSystemAdmin()) && 
+                    incoming().userId == existing().userId &&
+                    incoming().email == existing().email &&
+                    // Non-admins cannot elevate their role
+                    (isSystemAdmin() || incoming().role == existing().role);
+      allow delete: if isSystemAdmin();
+    }
+
+    // Rules for storeData (Isolation by user ID, accessible by owner or system admin)
+    match /users/{userId}/stores/{storeId} {
+      allow read, write: if isStoreOwner(userId) || isSystemAdmin();
+    }
+  }
+}

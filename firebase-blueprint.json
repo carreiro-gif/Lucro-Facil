@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Unique identifier matching Auth UID" },
+        "email": { "type": "string", "description": "User's email address" },
+        "role": { "type": "string", "enum": ["admin", "client"], "description": "User's access role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when account was created" }
+      },
+      "required": ["userId", "email", "role", "createdAt"]
+    },
+    "storeData": {
+      "title": "Store Data",
+      "description": "Financial and operational data for a specific store of the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique store ID" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "storeInfo": { "type": "object", "description": "General store header info" },
+        "ingredients": { "type": "array", "description": "Raw list of ingredients" },
+        "products": { "type": "array", "description": "Raw list of products and recipes" },
+        "menuCategories": { "type": "array", "description": "Ordering and name list of menu categories" },
+        "combos": { "type": "array", "description": "List of combo items and their pricing config" },
+        "expenses": { "type": "array", "description": "Expense records with category, status, value, month" },
+        "monthlyRevenue": { "type": "array", "description": "Revenue per month" },
+        "cfi": { "type": "object", "description": "Global CFI configuration" },
+        "platformConfig": { "type": "object", "description": "Platform delivery configs" },
+        "categories": { "type": "array", "description": "Custom financial categories" },
+        "suppliers": { "type": "array", "description": "Supplier database records" },
+        "purchaseEntries": { "type": "array", "description": "Purchase entries for XML imports" },
+        "supplierMappings": { "type": "array", "description": "Ing mapping for XML matching" },
+        "salesTransactions": { "type": "array", "description": "Sales transactions" },
+        "fixedCostMode": { "type": "string", "enum": ["AVERAGE", "CURRENT_MONTH"], "description": "CFI mode" },
+        "resetPassword": { "type": "string", "description": "Reset passcode" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last save timestamp" }
+      },
+      "required": ["id", "userId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User accounts and configurations"
+    },
+    "/users/{userId}/stores/{storeId}": {
+      "schema": "storeData",
+      "description": "Each store belonging to a user containing its complete global state"
+    }
+  }
+}

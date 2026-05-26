@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
-import { Plus, Trash, Edit2, Search, FileText, X, ChefHat, HelpCircle, ChevronUp, ChevronDown, ListOrdered, Settings, Check, Info } from 'lucide-react';
+import { Plus, Trash, Edit2, Search, FileText, X, ChefHat, HelpCircle, ChevronUp, ChevronDown, ListOrdered, Settings, Check, Info, Printer, Copy } from 'lucide-react';
 
 const Products: React.FC = () => {
   const { 
@@ -27,6 +27,7 @@ const Products: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   // Form State
   const [prodName, setProdName] = useState('');
@@ -73,7 +74,8 @@ const Products: React.FC = () => {
 
     (sortedProducts || []).forEach(p => {
         if (p.name.toLowerCase().includes(term)) {
-            if (groups[p.category]) groups[p.category].push(p);
+            const resolvedCategoryName = groups[p.category] ? p.category : (sortedCategories.find(c => c.id === p.category)?.name || 'Sem Categoria');
+            if (groups[resolvedCategoryName]) groups[resolvedCategoryName].push(p);
             else groups['Sem Categoria'].push(p);
         }
     });
@@ -93,6 +95,15 @@ const Products: React.FC = () => {
     setProdName(prod.name);
     setProdCategory(prod.category);
     setIsModalOpen(true);
+  };
+
+  const handleDuplicateProduct = (prod: Product) => {
+    const duplicated: Product = {
+      ...prod,
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+      name: `${prod.name} (Cópia)`,
+    };
+    addProduct(duplicated);
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
@@ -162,9 +173,45 @@ const Products: React.FC = () => {
     setEditingProduct({ ...editingProduct, ingredients: newIngs });
   };
 
+  const toggleProductSelection = (id: string) => {
+    setSelectedProductIds(prev => 
+      prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleCategorySelection = (categoryName: string, groupItems: Product[]) => {
+    const groupIds = groupItems.map(p => p.id);
+    const allSelected = groupIds.every(id => selectedProductIds.includes(id));
+    
+    if (allSelected) {
+      setSelectedProductIds(prev => prev.filter(id => !groupIds.includes(id)));
+    } else {
+      setSelectedProductIds(prev => {
+        const newIds = [...prev];
+        groupIds.forEach(id => {
+          if (!newIds.includes(id)) newIds.push(id);
+        });
+        return newIds;
+      });
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedProductIds.length === sortedProducts.length && sortedProducts.length > 0) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(sortedProducts.map(p => p.id));
+    }
+  };
+
+  const handlePrint = () => {
+    if (selectedProductIds.length === 0) return;
+    window.print();
+  };
+
   return (
     <>
-      <div className="space-y-6 animate-fade-in pb-20">
+      <div className="space-y-6 animate-fade-in pb-20 print:hidden">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -191,6 +238,23 @@ const Products: React.FC = () => {
                       className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-brand-red outline-none shadow-sm"
                   />
               </div>
+              <button 
+                  onClick={toggleSelectAll}
+                  className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
+                  title={selectedProductIds.length === sortedProducts.length && sortedProducts.length > 0 ? "Desmarcar Todos" : "Selecionar Todos"}
+              >
+                  <Check size={18} className={selectedProductIds.length === sortedProducts.length && sortedProducts.length > 0 ? "text-brand-red" : "text-gray-400"} />
+                  <span className="hidden sm:inline uppercase text-xs font-bold">Todos</span>
+              </button>
+              {selectedProductIds.length > 0 && (
+                <button 
+                  onClick={handlePrint}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 font-bold transition shadow-lg shadow-blue-900/20"
+                  title="Imprimir Fichas Selecionadas"
+                >
+                  <Printer size={18} /> <span className="hidden sm:inline uppercase text-xs">Imprimir ({selectedProductIds.length})</span>
+                </button>
+              )}
               <button 
                   onClick={() => setIsCatModalOpen(true)}
                   className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
@@ -230,6 +294,13 @@ const Products: React.FC = () => {
                   return (
                       <div key={cat.id} className="animate-fade-in">
                           <div className="flex items-center gap-3 mb-3 border-b border-gray-200 dark:border-gray-800 pb-2">
+                               <input 
+                                   type="checkbox" 
+                                   checked={groupItems.length > 0 && groupItems.every(p => selectedProductIds.includes(p.id))}
+                                   onChange={() => toggleCategorySelection(cat.name, groupItems)}
+                                   className="w-4 h-4 text-brand-red rounded border-gray-300 focus:ring-brand-red cursor-pointer"
+                                   title="Selecionar todos desta categoria"
+                               />
                                <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-wider">{cat.name}</h3>
                                <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-bold">{groupItems.length} ITENS</span>
                           </div>
@@ -238,6 +309,7 @@ const Products: React.FC = () => {
                               <table className="w-full text-left">
                                   <thead className="bg-gray-50 dark:bg-[#0f111a] text-gray-400 text-[10px] uppercase font-bold tracking-wider">
                                       <tr>
+                                          <th className="px-4 py-3 w-10 text-center"></th>
                                           <th className="px-6 py-3 w-16 text-center">Ordem</th>
                                           <th className="px-6 py-3">Produto</th>
                                           <th className="px-6 py-3 text-right">CMV Est.</th>
@@ -246,12 +318,20 @@ const Products: React.FC = () => {
                                   </thead>
                                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
                                       {groupItems.length === 0 ? (
-                                          <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 italic text-xs">Nenhum item nesta categoria.</td></tr>
+                                          <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400 italic text-xs">Nenhum item nesta categoria.</td></tr>
                                       ) : (
                                           groupItems.map((prod, pIdx) => {
                                               const cmv = getProductCMV(prod);
                                               return (
                                                   <tr key={prod.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group">
+                                                      <td className="px-4 py-3 text-center">
+                                                          <input 
+                                                              type="checkbox" 
+                                                              checked={selectedProductIds.includes(prod.id)}
+                                                              onChange={() => toggleProductSelection(prod.id)}
+                                                              className="w-4 h-4 text-brand-red rounded border-gray-300 focus:ring-brand-red cursor-pointer"
+                                                          />
+                                                      </td>
                                                       <td className="px-6 py-3">
                                                           <div className="flex flex-col items-center gap-1">
                                                               <button 
@@ -280,7 +360,8 @@ const Products: React.FC = () => {
                                                               <button onClick={() => openRecipeModal(prod)} className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold transition border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                   <FileText size={14} /> Ficha Técnica
                                                               </button>
-                                                              <button onClick={() => deleteProduct(prod.id)} className="text-gray-400 hover:text-red-500 p-2"><Trash size={16} /></button>
+                                                              <button onClick={() => handleDuplicateProduct(prod)} title="Duplicar Item" className="text-gray-400 hover:text-blue-500 p-2 transition"><Copy size={16} /></button>
+                                                              <button onClick={() => deleteProduct(prod.id)} title="Excluir Item" className="text-gray-400 hover:text-red-500 p-2 transition"><Trash size={16} /></button>
                                                           </div>
                                                       </td>
                                                   </tr>
@@ -378,6 +459,58 @@ const Products: React.FC = () => {
                </div>
            </div>
        )}
+
+       {/* PRINT VIEW */}
+       <div className="hidden print:block bg-white text-black">
+         {selectedProductIds.map(id => {
+           const prod = products.find(p => p.id === id);
+           if (!prod) return null;
+           const cmv = getProductCMV(prod);
+           return (
+             <div key={prod.id} className="break-inside-avoid mb-8 border border-gray-300 p-6 rounded-lg">
+               <div className="flex justify-between items-center border-b border-gray-300 pb-4 mb-4">
+                 <div>
+                   <h2 className="text-2xl font-black uppercase">{prod.name}</h2>
+                   <p className="text-sm text-gray-500 uppercase tracking-widest">{prod.category}</p>
+                 </div>
+                 <div className="text-right">
+                   <p className="text-xs text-gray-500 uppercase font-bold">Custo Total (CMV)</p>
+                   <p className="text-xl font-black font-mono">R$ {cmv.toFixed(2)}</p>
+                 </div>
+               </div>
+               
+               <table className="w-full text-left text-sm">
+                 <thead className="border-b border-gray-200">
+                   <tr>
+                     <th className="py-2 font-bold uppercase text-xs">Insumo</th>
+                     <th className="py-2 font-bold uppercase text-xs text-center">Und.</th>
+                     <th className="py-2 font-bold uppercase text-xs text-center">Qtd.</th>
+                     <th className="py-2 font-bold uppercase text-xs text-right">Subtotal</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-100">
+                   {(prod.ingredients || []).map((item, idx) => {
+                     const ingInfo = ingredients.find(i => i.id === item.ingredientId);
+                     if (!ingInfo) return null;
+                     const unitCost = getIngredientRealCost(ingInfo);
+                     return (
+                       <tr key={idx}>
+                         <td className="py-2 font-bold text-xs uppercase">{ingInfo.name}</td>
+                         <td className="py-2 text-center text-xs">{ingInfo.unit}</td>
+                         <td className="py-2 text-center text-xs">{item.quantity}</td>
+                         <td className="py-2 text-right font-mono text-xs">R$ {(unitCost * item.quantity).toFixed(2)}</td>
+                       </tr>
+                     );
+                   })}
+                   {(!prod.ingredients || prod.ingredients.length === 0) && (
+                     <tr><td colSpan={4} className="py-4 text-center text-gray-400 italic text-xs">Sem insumos cadastrados.</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+           );
+         })}
+       </div>
 
        {/* MODAL FICHA TÉCNICA (FIXED OVERLAY INDEPENDENT) */}
        {isModalOpen && (

@@ -1,5 +1,5 @@
 
-import { GlobalState, MeasureUnit, Category, Product, MenuCategory } from './types';
+import { GlobalState, MeasureUnit, Category, Product, MenuCategory, IngredientCategory } from './types';
 
 // --- VERSION CONTROL ---
 export const APP_VERSION = '3.3.1';
@@ -14,15 +14,26 @@ export const formatPercent = (value: number | undefined | null) => {
   return val.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 };
 
+export const formatMoney = (value: number | undefined | null) => {
+  const val = value ?? 0;
+  if (isNaN(val)) return 'R$ 0,00';
+  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
 export const BACKGROUND_PALETTE = [
-  { name: 'Neve (Padrão)', color: '#f3f4f6', mode: 'light' },
-  { name: 'Papel', color: '#fefce8', mode: 'light' },
-  { name: 'Nuvem', color: '#f0f9ff', mode: 'light' },
-  { name: 'Lavanda', color: '#faf5ff', mode: 'light' },
-  { name: 'Roxo Moderno', color: '#1A0B2E', mode: 'dark' },
-  { name: 'Preto Absoluto', color: '#000000', mode: 'dark' },
-  { name: 'Azul Profundo', color: '#172554', mode: 'dark' },
-  { name: 'Verde Floresta', color: '#064e3b', mode: 'dark' },
+  // --- Tons Escuros e Modernos (Dark) ---
+  { name: 'Escuro Profundo (Azul Slate)', color: '#0f172a', mode: 'dark' },
+  { name: 'Azul Eclipse (Navy)', color: '#172554', mode: 'dark' },
+  { name: 'Bordô Premium (Vinho)', color: '#450a0a', mode: 'dark' },
+  { name: 'Verde Musgo (Esmeralda Escuro)', color: '#064e3b', mode: 'dark' },
+  { name: 'Roxo Imperial (Deep Violet)', color: '#2e1065', mode: 'dark' },
+  { name: 'Café Expresso (Madeira Escura)', color: '#291c10', mode: 'dark' },
+  { name: 'Preto Ônix (Tech)', color: '#0a0a0a', mode: 'dark' },
+  { name: 'Cinza Chumbo (Industrial)', color: '#334155', mode: 'dark' },
+
+  // --- Tons Claros e Especiais ---
+  { name: 'Branco Gelo (Padrão)', color: '#f8fafc', mode: 'light' },
+  { name: 'Cinza Escuro (Grafite)', color: '#1f2937', mode: 'dark' },
 ];
 
 const DEFAULT_CATEGORIES_LIST = [
@@ -50,6 +61,18 @@ export const INITIAL_MENU_CATEGORIES: MenuCategory[] = [
     { id: 'cat4', name: 'Bebida', order: 3 },
     { id: 'cat5', name: 'Sobremesa', order: 4 },
     { id: 'cat_outros', name: 'OUTROS', order: 5 },
+];
+
+export const INITIAL_INGREDIENT_CATEGORIES: IngredientCategory[] = [
+  { id: 'ing_cat_1', name: 'Proteínas' },
+  { id: 'ing_cat_2', name: 'Laticínios' },
+  { id: 'ing_cat_3', name: 'Hortifrúti' },
+  { id: 'ing_cat_4', name: 'Mercearia' },
+  { id: 'ing_cat_5', name: 'Molhos e Condimentos' },
+  { id: 'ing_cat_6', name: 'Panificação' },
+  { id: 'ing_cat_7', name: 'Embalagens' },
+  { id: 'ing_cat_8', name: 'Bebidas' },
+  { id: 'ing_cat_9', name: 'Limpeza e Descartáveis' },
 ];
 
 const INGREDIENTS_DATA = [
@@ -363,13 +386,27 @@ const PRODUCTS_DATA: Product[] = [
 ];
 
 export const INITIAL_STATE: GlobalState = {
-  storeInfo: { id: '1', name: 'Matriz - Centro', address: 'Rua das Flores, 123' },
+  storeInfo: { id: '1', name: 'ESPAÇO CARREIRO LANCHES', address: 'RUA DAS PÉROLAS, 490' },
   ingredients: INGREDIENTS_DATA,
   products: PRODUCTS_DATA,
   menuCategories: INITIAL_MENU_CATEGORIES,
   combos: [],
-  expenses: [],
-  monthlyRevenue: [],
+  expenses: [
+    { id: 'exp1', month: '2024-01', description: 'SISTEMA SAIPOS', value: 239, category: 'Sistemas', paid: true },
+    { id: 'exp2', month: '2024-01', description: 'CANVA', value: 35, category: 'Marketing', paid: true },
+    { id: 'exp3', month: '2024-01', description: 'ALUGUEL', value: 1500, category: 'Ocupação', paid: true },
+    { id: 'exp4', month: '2024-01', description: 'ENERGIA', value: 800, category: 'Utilidades', paid: true },
+    { id: 'exp5', month: '2024-01', description: 'ÁGUA', value: 150, category: 'Utilidades', paid: true },
+    { id: 'exp6', month: '2024-01', description: 'INTERNET', value: 120, category: 'Utilidades', paid: true },
+    { id: 'exp7', month: '2024-01', description: 'PRO-LABORE', value: 3000, category: 'Pessoal', paid: true },
+    { id: 'exp8', month: '2024-01', description: 'CONTABILIDADE', value: 450, category: 'Serviços', paid: true }
+  ],
+  monthlyRevenue: [
+    { month: '2024-01', revenue: 42000 },
+    { month: '2024-02', revenue: 38500 },
+    { month: '2024-03', revenue: 45000 },
+    { month: '2024-04', revenue: 48000 }
+  ],
   cfi: {
     debitTax: 1.90, creditTax: 5.38, voucherTax: 7.99,
     tax: 0.00, royalties: 0.00, marketing: 0.00, profitMargin: 20.0,
@@ -381,15 +418,23 @@ export const INITIAL_STATE: GlobalState = {
   },
   categories: INITIAL_CATEGORIES,
   suppliers: [],
-  fixedCostMode: 'AVERAGE'
+  fixedCostMode: 'AVERAGE',
+  purchaseEntries: [],
+  supplierMappings: [],
+  resetPassword: '1234',
+  ingredientCategories: INITIAL_INGREDIENT_CATEGORIES
 };
 
 export const EMPTY_STATE: GlobalState = {
   ...INITIAL_STATE,
   storeInfo: { id: 'new', name: 'Nova Loja', address: '' },
-  ingredients: INGREDIENTS_DATA,
+  ingredients: [],
   products: [],
   menuCategories: INITIAL_MENU_CATEGORIES,
   expenses: [],
-  monthlyRevenue: []
+  monthlyRevenue: [],
+  purchaseEntries: [],
+  supplierMappings: [],
+  resetPassword: '1234',
+  ingredientCategories: INITIAL_INGREDIENT_CATEGORIES
 };

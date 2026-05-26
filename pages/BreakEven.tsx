@@ -21,7 +21,17 @@ import {
     TrendingUp,
     PieChart as PieIcon,
     BarChart3,
-    Activity
+    Activity,
+    Sparkles,
+    Lightbulb,
+    AlertTriangle,
+    CheckCircle2,
+    Award,
+    TrendingDown,
+    Zap,
+    Scale,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -75,6 +85,14 @@ const BreakEven: React.FC = () => {
     const [showHelp, setShowHelp] = useState(false);
     const [calcSuccess, setCalcSuccess] = useState(false);
     
+    // --- XANDE ADVISOR AND SIMULATOR STATES ---
+    const [activeAdvisorStep, setActiveAdvisorStep] = useState<number>(0);
+    const [showAdvisor, setShowAdvisor] = useState<boolean>(true);
+
+    const [simulatedCmvDecrease, setSimulatedCmvDecrease] = useState<number>(0); // reduced overall %
+    const [simulatedFixedCostDecrease, setSimulatedFixedCostDecrease] = useState<number>(0); // reduced R$ value
+    const [simulatedTicketIncrease, setSimulatedTicketIncrease] = useState<number>(0); // added R$ value
+
     // --- LOCAL STORAGE DATA ---
     const [customCats, setCustomCats] = useState<CustomCategory[]>(() => {
         const saved = localStorage.getItem(STORAGE_CATS);
@@ -138,6 +156,95 @@ const BreakEven: React.FC = () => {
     const gapToBe = Math.max(0, breakEvenR$ - revenue);
     const progressPct = breakEvenR$ > 0 ? (revenue / breakEvenR$) * 100 : 0;
 
+    // --- DYNAMIC XANDE SIMULATOR CALCULATIONS ---
+    const simulatedFixedCosts = useMemo(() => {
+        return Math.max(0, fixedCosts - simulatedFixedCostDecrease);
+    }, [fixedCosts, simulatedFixedCostDecrease]);
+
+    const simulatedVarPct = useMemo(() => {
+        const baseCmvPercentage = revenue > 0 ? (finalCmv / revenue) * 100 : 35;
+        const cmvDifference = Math.max(0, baseCmvPercentage - simulatedCmvDecrease);
+        const dynamicSimulatedCmv = revenue > 0 ? (cmvDifference / 100) * revenue : 0;
+        
+        const simulatedVarCost = autoImposto + autoCartao + autoVoucher + dynamicSimulatedCmv + finalTx + dynamicExtras;
+        return revenue > 0 ? (simulatedVarCost / revenue) * 100 : Math.max(10, varPct - simulatedCmvDecrease);
+    }, [finalCmv, revenue, simulatedCmvDecrease, autoImposto, autoCartao, autoVoucher, finalTx, dynamicExtras, varPct]);
+
+    const simulatedMcPct = useMemo(() => {
+        return 1 - (simulatedVarPct / 100);
+    }, [simulatedVarPct]);
+
+    const simulatedBreakEvenR$ = useMemo(() => {
+        return simulatedMcPct > 0 ? simulatedFixedCosts / simulatedMcPct : 0;
+    }, [simulatedFixedCosts, simulatedMcPct]);
+
+    const simulatedTicket = useMemo(() => {
+        return Math.max(1, ticketMedio + simulatedTicketIncrease);
+    }, [ticketMedio, simulatedTicketIncrease]);
+
+    const simulatedBreakEvenUnits = useMemo(() => {
+        return (simulatedTicket > 0 && simulatedMcPct > 0) ? simulatedBreakEvenR$ / simulatedTicket : 0;
+    }, [simulatedBreakEvenR$, simulatedTicket, simulatedMcPct]);
+
+    // Hitting days calculations based on daily average revenue
+    const breakEvenDaysActual = useMemo(() => {
+        if (revenue <= 0 || breakEvenR$ <= 0) return 0;
+        const dailyRevenue = revenue / 30;
+        return Math.min(30, breakEvenR$ / dailyRevenue);
+    }, [revenue, breakEvenR$]);
+
+    const breakEvenDaysSimulated = useMemo(() => {
+        if (revenue <= 0 || simulatedBreakEvenR$ <= 0) return 0;
+        const dailyRevenue = revenue / 30;
+        return Math.min(30, simulatedBreakEvenR$ / dailyRevenue);
+    }, [revenue, simulatedBreakEvenR$]);
+
+    // Active Dialogue Advisor Data
+    const ADVISOR_STEPS = [
+        {
+            title: "1. Desmistificando o Ponto de Equilíbrio",
+            subtitle: "O Coração Financeiro da Hamburgueria",
+            concept: "Bater o ponto de equilíbrio significa que seu faturamento cobriu todas as despesas fixas (como aluguel e equipe) e os custos dinâmicos (como carnes, taxas e embalagens). A partir desse centavo, tudo o que entra vira lucro limpo!",
+            dialogue: "Fala parceiro! Se tem uma métrica que impede o dono de hamburgueria de dormir de olho aberto, é o Ponto de Equilíbrio! Em termos simples: é o valor exato que você precisa faturar para empatar o jogo (ficar no zero a zero). Se você vendeu R$ 30 mil e suas contas dão R$ 30 mil, você não ganhou nada, mas também não perdeu. Entender esse limite é o primeiro passo para parar de apagar incêndios e começar a ver a cor do dinheiro!",
+            actionText: "Simular Redução de Custos Fixos",
+            action: () => {
+                setSimulatedFixedCostDecrease(Math.min(1000, fixedCosts > 0 ? fixedCosts * 0.1 : 500));
+            },
+        },
+        {
+            title: "2. A Regra de Ouro dos Primeiros 10 Dias",
+            subtitle: "Sua Margem de Segurança Essencial",
+            concept: "As melhores hamburguerias e buffets focam em faturar e pagar todas as suas contas nos primeiros 10 dias do mês. O restante do mês se torna lucro real. Se você leva mais que 20 dias, seu negócio está exposto a riscos.",
+            dialogue: "Presta atenção nessa dica que vale ouro para hamburguerias: o seu objetivo de vida deve ser bater o seu Ponto de Equilíbrio nos primeiros 10 dias do mês! Se você leva até o dia 28 para pagar o aluguel e as taxas, seu lucro está correndo sério perigo. Sabe por quê? Qualquer chuvinha ou queda no movimento de fim de semana joga você no prejuízo! A partir do dia em que você empata, cada hambúrguer vendido gera Margem de Contribuição quase toda limpa para o seu bolso!",
+            actionText: "Ver dias de equilíbrio",
+            action: () => {
+                // Action will guide them on page lower sections, no-op or slight toggle
+            }
+        },
+        {
+            title: "3. O Efeito Alavanca do CMV de Insumos",
+            subtitle: "Como o Custo dos Ingredientes Altera os Requisitos",
+            concept: "Diminuir o CMV (Custo da Mercadoria Vendida) por meio de fichas técnicas corretas e redução de perdas de comida puxa instantaneamente o seu ponto de equilíbrio para baixo. Você precisa vender muito menos para empatar!",
+            dialogue: "Muitos donos acham que para diminuir o Ponto de Equilíbrio precisam vender mais ou cortar funcionários. Nem sempre! A alavanca mais rápida e silenciosa é diminuir o seu CMV de Insumos! Se você reduzir o desperdício, criar fichas técnicas e negociar melhor com fornecedores, seu custo variável cai. Como consequência, sua Margem de Contribuição sobe e o valor que você precisa faturar para pagar as despesas fixas diminui drasticamente!",
+            actionText: "Simular Meta de -4% no CMV",
+            action: () => {
+                setSimulatedCmvDecrease(4);
+            }
+        },
+        {
+            title: "4. Alavancar o Caixa pelo Ticket Médio",
+            subtitle: "A Força do Upsell e Combos",
+            concept: "Aumentar o valor médio de cada transação (Ticket Médio) em apenas R$ 3 ou R$ 5 permite atingir o faturamento de equilíbrio com dezenas ou centenas de pedidos a menos de sobrecarga física.",
+            dialogue: "Sabe o que é mais fácil? Fazer 500 clientes gastarem R$ 5 a mais cada um (R$ 2.500 extras) ou achar 100 clientes novos do absoluto zero? A segunda opção custa muito mais caro em marketing! Sugerir uma bebida gelada, uma porção de batata frita ou uma sobremesa rápida no caixa aumenta o seu Ticket Médio e reduz na hora o número total de pedidos que você precisa produzir para pagar as contas fixas!",
+            actionText: "Simular +R$ 5 no Ticket Médio",
+            action: () => {
+                setSimulatedTicketIncrease(5);
+            }
+        }
+    ];
+
+    const currentAdvisorData = ADVISOR_STEPS[activeAdvisorStep];
+
     // --- HANDLERS ---
     const handleAddEntry = () => {
         if (!newEntry.subcategory || !newEntry.value) return;
@@ -161,6 +268,9 @@ const BreakEven: React.FC = () => {
         setCmvOverride('');
         setTxEntregaOverride('');
         setOrderCount('');
+        setSimulatedCmvDecrease(0);
+        setSimulatedFixedCostDecrease(0);
+        setSimulatedTicketIncrease(0);
     };
 
     // Subcategory Autocomplete Logic
@@ -195,29 +305,169 @@ const BreakEven: React.FC = () => {
     });
 
     return (
-        <div className="space-y-6 pb-20 animate-fade-in printable-content">
+        <div className="space-y-6 pb-20 animate-fade-in printable-content text-slate-800 dark:text-slate-100">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 no-print bg-white dark:bg-[#1e293b]/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                 <div>
                     <div className="flex items-center gap-2">
-                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase flex items-center gap-2">
-                            <Target className="text-brand-red" /> Ponto de Equilíbrio
+                        <div className="h-8 w-8 bg-brand-red/10 rounded-full flex items-center justify-center border border-brand-red/30">
+                            <Target className="text-brand-red h-4 w-4" />
+                        </div>
+                        <h2 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight">
+                            Ponto de Equilíbrio da Loja (CFI)
                         </h2>
                         <button onClick={() => setShowHelp(!showHelp)} className="text-gray-400 hover:text-brand-red transition-colors">
-                            <HelpCircle size={20} />
+                            <HelpCircle size={18} />
                         </button>
                     </div>
-                    <p className="text-gray-500 dark:text-gray-400">Quanto você precisa vender para não ter prejuízo?</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Metodologia baseada em Custos Fixos Integrados da hamburgueria e simulações com o Xande.</p>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => window.print()} className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-bold border border-gray-200 dark:border-gray-700 flex items-center gap-2 hover:bg-gray-50 transition">
-                        <Printer size={18}/> Imprimir
+                <div className="flex flex-wrap items-center gap-2">
+                    <button 
+                        onClick={() => setShowAdvisor(!showAdvisor)}
+                        className={`px-3.5 py-2 text-xs font-black rounded-xl border transition flex items-center gap-1.5 ${
+                            showAdvisor 
+                                ? 'bg-brand-red/10 border-brand-red/30 text-brand-red' 
+                                : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-800 dark:border-gray-700 dark:text-white font-bold'
+                        }`}
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        {showAdvisor ? "Ocultar Mentor Xande" : "Chamar Consultor Xande"}
                     </button>
-                    <button onClick={handleReset} className="bg-gray-100 dark:bg-gray-800 text-gray-500 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-gray-200 transition">
-                        <RotateCcw size={18}/> Reset
+                    <button onClick={() => window.print()} className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-xl text-xs font-black border border-gray-200 dark:border-gray-700 flex items-center gap-1.5 hover:bg-gray-50 transition">
+                        <Printer size={15}/> Imprimir
+                    </button>
+                    <button onClick={handleReset} className="bg-gray-100 dark:bg-gray-800 text-gray-500 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 hover:bg-gray-200 transition">
+                        <RotateCcw size={15}/> Resetar
                     </button>
                 </div>
             </div>
+
+            {/* INTERACTIVE WALKTHROUGH PANEL WITH XANDE */}
+            {showAdvisor && (
+                <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 shadow-xl relative overflow-hidden transition-all duration-300">
+                    <div className="absolute right-0 top-0 w-64 h-64 bg-brand-red/5 rounded-full blur-3xl pointer-events-none" />
+                    
+                    {/* Header with Steps */}
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
+                        <div className="flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-brand-red animate-pulse" />
+                            <div>
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">
+                                    GUIA DE SOBREVIVÊNCIA FINANCEIRA DO XANDE
+                                </h3>
+                                <p className="text-[10px] text-slate-500 block leading-none mt-1">Siga o passo a passo interativo para entender suas margens e diminuir o ponto de equilíbrio.</p>
+                            </div>
+                        </div>
+
+                        {/* Pagination indicator */}
+                        <div className="flex items-center gap-1">
+                            {ADVISOR_STEPS.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setActiveAdvisorStep(idx)}
+                                    className={`h-2 rounded-full transition-all duration-200 ${idx === activeAdvisorStep ? 'w-5 bg-brand-red' : 'w-2 bg-slate-700 hover:bg-slate-500'}`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Step Tabs Grid Selector */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
+                        {ADVISOR_STEPS.map((step, idx) => {
+                            const isSelected = idx === activeAdvisorStep;
+                            return (
+                                <button
+                                    key={idx}
+                                    onClick={() => setActiveAdvisorStep(idx)}
+                                    className={`p-3 rounded-2xl border text-left transition relative flex flex-col gap-1 ${
+                                        isSelected 
+                                            ? 'bg-slate-800 border-brand-red text-white shadow-lg ring-1 ring-brand-red/30' 
+                                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                                    }`}
+                                >
+                                    <span className="text-[9px] font-black tracking-widest text-[#D90429] uppercase">Passo {idx + 1}</span>
+                                    <span className="text-xs font-extrabold leading-tight block line-clamp-1">{step.title}</span>
+                                    <span className="text-[9px] text-slate-500 block leading-tight truncate">{step.subtitle}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Active Step Content box */}
+                    <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+                        {/* Xande Avatar Box */}
+                        <div className="lg:col-span-3 xl:col-span-2 flex flex-col items-center justify-center text-center p-4 bg-slate-900/50 rounded-xl border border-slate-800">
+                            <div className="relative">
+                                <div className="h-14 w-14 bg-slate-850 rounded-full border-2 border-brand-red flex items-center justify-center font-bold text-2xl text-brand-red">
+                                    L
+                                </div>
+                                <div className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-emerald-500 rounded-full border-2 border-slate-900" />
+                            </div>
+                            <span className="text-xs font-black text-brand-yellow uppercase tracking-wider block mt-2">Consultor Xande</span>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Mentor Financeiro</span>
+                        </div>
+
+                        {/* Interactive speech and actions block */}
+                        <div className="lg:col-span-9 xl:col-span-10 space-y-3">
+                            <div>
+                                <span className="text-[9px] font-bold text-brand-red uppercase tracking-widest bg-brand-red/10 border border-brand-red/20 px-2.5 py-0.5 rounded-full inline-block mb-1">
+                                    {currentAdvisorData.subtitle}
+                                </span>
+                                <h4 className="text-base font-black text-white leading-snug">{currentAdvisorData.title}</h4>
+                            </div>
+
+                            {/* Dialogue content */}
+                            <div className="p-4 bg-slate-900/60 rounded-xl border-l-[4px] border-brand-red text-xs leading-relaxed text-slate-350 italic font-sans">
+                                "{currentAdvisorData.dialogue}"
+                            </div>
+
+                            {/* Dialogue Concepts Description */}
+                            <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                                <strong className="text-slate-200">Visão Técnica:</strong> {currentAdvisorData.concept}
+                            </p>
+
+                            {/* Quick simulator integration button */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                <button
+                                    onClick={() => currentAdvisorData.action()}
+                                    className="px-4 py-2 bg-brand-red hover:bg-brand-red-dark text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 text-center"
+                                >
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                    {currentAdvisorData.actionText}
+                                </button>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        disabled={activeAdvisorStep === 0}
+                                        onClick={() => setActiveAdvisorStep(prev => prev - 1)}
+                                        className="p-1.5 bg-slate-900 hover:bg-slate-850 text-slate-400 rounded-lg transition disabled:opacity-30 disabled:hover:bg-slate-900"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
+                                        Fase {activeAdvisorStep + 1} de {ADVISOR_STEPS.length}
+                                    </span>
+                                    <button
+                                        onClick={() => {
+                                            if (activeAdvisorStep < ADVISOR_STEPS.length - 1) {
+                                                setActiveAdvisorStep(prev => prev + 1);
+                                            } else {
+                                                setShowAdvisor(false);
+                                            }
+                                        }}
+                                        className="p-1.5 bg-slate-900 hover:bg-slate-850 text-brand-red rounded-lg transition"
+                                    >
+                                        {activeAdvisorStep === ADVISOR_STEPS.length - 1 ? <X className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            )}
 
             {/* Help Panel */}
             {showHelp && (
@@ -300,11 +550,11 @@ const BreakEven: React.FC = () => {
                             <p className="text-sm font-black text-gray-900 dark:text-white">R$ {revenue.toLocaleString('pt-BR')}</p>
                         </div>
                         <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                            <span className="text-[9px] uppercase font-bold text-gray-500">Imposto ({cfi.tax}%)</span>
+                            <span className="text-[9px] uppercase font-bold text-gray-500">Imposto ({formatPercent(cfi.tax)})</span>
                             <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoImposto.toFixed(2)}</p>
                         </div>
                         <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                            <span className="text-[9px] uppercase font-bold text-gray-500">Cartão ({avgCardRate.toFixed(2)}%)</span>
+                            <span className="text-[9px] uppercase font-bold text-gray-500">Cartão ({formatPercent(avgCardRate)})</span>
                             <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoCartao.toFixed(2)}</p>
                         </div>
                         <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
@@ -372,6 +622,207 @@ const BreakEven: React.FC = () => {
                 </div>
             </div>
 
+            {/* XANDE'S ADVISORY: TERMÔMETRO DO PONTO DE EQUILÍBRIO & REGRA DOS 10 DIAS */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
+                {/* 10-Day Rule Gauge Card */}
+                <div className="lg:col-span-5 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-4">
+                            <Scale className="text-brand-red h-5 w-5" />
+                            <div>
+                                <h3 className="text-xs font-black uppercase text-gray-400 tracking-wider">Termômetro dos 10 Primeiros Dias</h3>
+                                <p className="text-[10px] text-gray-500">Métrica sugerida pelo Xande para máxima sobrevivência</p>
+                            </div>
+                        </div>
+
+                        {revenue <= 0 ? (
+                            <div className="bg-gray-50 dark:bg-gray-800/35 p-6 rounded-2xl text-center text-xs text-gray-500 italic font-sans">
+                                Selecione um mês com faturamento cadastrado ou insira faturamento para habilitar o Termômetro do Ponto de Equilíbrio do Xande.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Visual 30-day timeline meter */}
+                                <div>
+                                    <div className="flex justify-between text-[11px] font-bold text-gray-400 mb-1">
+                                        <span>Início do Mês</span>
+                                        <span className={breakEvenDaysActual <= 10 ? "text-emerald-500 font-extrabold" : "text-gray-400"}>Dia 10 (Meta)</span>
+                                        <span>Fim do Mês</span>
+                                    </div>
+                                    <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center p-1 overflow-hidden">
+                                        {/* Meta day marker */}
+                                        <div className="absolute left-[33.33%] top-0 bottom-0 w-0.5 bg-gray-300 dark:bg-gray-700 z-10" />
+                                        
+                                        {/* Filled progress up to actual break even day */}
+                                        <div 
+                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                breakEvenDaysActual <= 10 
+                                                    ? 'bg-emerald-500' 
+                                                    : breakEvenDaysActual <= 20 
+                                                        ? 'bg-amber-500' 
+                                                        : 'bg-[#D90429]'
+                                            }`}
+                                            style={{ width: `${(breakEvenDaysActual / 30) * 100}%` }}
+                                        />
+
+                                        {/* Actual marker pin */}
+                                        <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none">
+                                            <span className="text-[9px] font-black text-white bg-slate-900 border border-slate-750 px-2 py-0.5 rounded shadow">
+                                                Dia {Math.ceil(breakEvenDaysActual)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Advisory Diagnosis */}
+                                {(() => {
+                                    const days = Math.ceil(breakEvenDaysActual);
+                                    let rating = {
+                                        icon: <Award className="text-emerald-500 h-8 w-8 shrink-0 animate-bounce" />,
+                                        badge: "Perfeito (ZONA DE SEGURANÇA)",
+                                        text: `Você alcança o ponto de equilíbrio no dia ${days} do mês! Os outros ${30 - days} dias representam lucro limpo e abundância para sua empresa. Continue com as rédeas firmes no CFI!`,
+                                        colorClass: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-350"
+                                    };
+
+                                    if (days > 10 && days <= 20) {
+                                        rating = {
+                                            icon: <TrendingUp className="text-amber-500 h-8 w-8 shrink-0" />,
+                                            badge: "Alerta Médio (ZONA RETRANCADA)",
+                                            text: `Você leva ${days} dias do mês para pagar o aluguel e as contas faturadas. Sobram apenas ${30 - days} dias para gerar lucro real. Recomendo usar o Simulador de Alavancas ao lado para baixar para 10 dias!`,
+                                            colorClass: "bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-800/40 text-amber-800 dark:text-amber-350"
+                                        };
+                                    } else if (days > 20) {
+                                        rating = {
+                                            icon: <AlertTriangle className="text-brand-red h-8 w-8 shrink-0 animate-pulse" />,
+                                            badge: "Alerta Crítico (ZONA DE PERIGO)",
+                                            text: `Você passa ${days} dias do mês trabalhando puramente no vermelho! Se houver uma semana de chuva ou quebra de máquina, você cai no prejuízo. Seu foco de vida deve ser diminuir despesas fixas ou bater metas de CMV urgente!`,
+                                            colorClass: "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-800/40 text-red-800 dark:text-red-350"
+                                        };
+                                    }
+
+                                    return (
+                                        <div className={`p-4 rounded-xl border flex gap-3 items-start leading-snug animate-fade-in ${rating.colorClass}`}>
+                                            {rating.icon}
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] font-black uppercase tracking-widest block">{rating.badge}</span>
+                                                <p className="text-xs font-sans leading-relaxed">{rating.text}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
+                        <p className="text-[10px] text-gray-500 font-sans leading-relaxed italic text-center">
+                            "Bater o Ponto de Equilíbrio nos primeiros 10 dias do mês te dá o fôlego necessário para tomar boas decisões estratégicas sobre o negócio."
+                        </p>
+                    </div>
+                </div>
+
+                {/* Simulated Leverage "E Se..." Panel */}
+                <div className="lg:col-span-7 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-4">
+                            <Sparkles className="text-[#D90429] h-5 w-5" />
+                            <div>
+                                <h3 className="text-xs font-black uppercase text-gray-400 tracking-wider">Odin / Simulador Otimizador do Xande ("E Se...?")</h3>
+                                <p className="text-[10px] text-gray-500">Mude os parâmetros para simular metas fáceis de CMV e ticket</p>
+                            </div>
+                        </div>
+
+                        {/* Slide Adjustments */}
+                        <div className="space-y-4 font-sans text-xs">
+                            {/* CMV Adjustment */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between items-center text-[11px]">
+                                    <span className="font-bold text-gray-650 dark:text-gray-300">Meta: Reduzir Perdas de CMV (Insumos)</span>
+                                    <span className="text-brand-red font-black">-{simulatedCmvDecrease}% no CMV</span>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="15" 
+                                    step="0.5" 
+                                    value={simulatedCmvDecrease}
+                                    onChange={e => setSimulatedCmvDecrease(parseFloat(e.target.value))}
+                                    className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-[#D90429]"
+                                />
+                                <p className="text-[9px] text-gray-400">Padronizar receitas (ficha técnica) ou negociar as perdas puxa o ponto de equilíbrio para baixo.</p>
+                            </div>
+
+                            {/* Fixed Cost Adjustment */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between items-center text-[11px]">
+                                    <span className="font-bold text-gray-650 dark:text-gray-300">Meta: Cortar Custos Fixos (CFI)</span>
+                                    <span className="text-brand-red font-black">-R$ {simulatedFixedCostDecrease} /mês</span>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max={Math.max(5000, Math.ceil(fixedCosts))} 
+                                    step="100" 
+                                    value={simulatedFixedCostDecrease}
+                                    onChange={e => setSimulatedFixedCostDecrease(parseFloat(e.target.value))}
+                                    className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-[#D90429]"
+                                />
+                                <p className="text-[9px] text-gray-400">Diminuir gastos com internet, aluguel, sistemas caros ou despesas desnecessárias de escritório.</p>
+                            </div>
+
+                            {/* Ticket increase via Upsell */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between items-center text-[11px]">
+                                    <span className="font-bold text-gray-650 dark:text-gray-300">Meta: Aumentar Ticket Médio via Upsell</span>
+                                    <span className="text-emerald-500 font-black">+R$ {simulatedTicketIncrease} no Pedido</span>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="30" 
+                                    step="1" 
+                                    value={simulatedTicketIncrease}
+                                    onChange={e => setSimulatedTicketIncrease(parseFloat(e.target.value))}
+                                    className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                                />
+                                <p className="text-[9px] text-gray-400">Suas vendas de molhos extras, adicionais, porções de fritas e sucos geram altíssimo lucro de transação.</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Simulation Comparison Output */}
+                    <div className="mt-5 p-4 bg-slate-950 border border-slate-850 rounded-2xl text-white">
+                        <div className="grid grid-cols-3 gap-3 text-center border-b border-slate-900 pb-3 mb-3">
+                            <div>
+                                <span className="text-[9px] uppercase font-black text-slate-400">Ponto de Equilíbrio</span>
+                                <p className="text-xs font-bold text-slate-450 line-through">R$ {breakEvenR$.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</p>
+                                <p className="text-sm font-black text-brand-red">R$ {simulatedBreakEvenR$.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</p>
+                            </div>
+                            <div>
+                                <span className="text-[9px] uppercase font-black text-slate-400">Meta de Pedidos</span>
+                                <p className="text-xs font-bold text-slate-450 line-through">{ticketMedio <= 0 ? "0" : `${Math.ceil(breakEvenUnits)}`} und</p>
+                                <p className="text-sm font-black text-emerald-400">{simulatedBreakEvenUnits <= 0 ? "0" : `${Math.ceil(simulatedBreakEvenUnits)}`} und</p>
+                            </div>
+                            <div>
+                                <span className="text-[9px] uppercase font-black text-slate-400">Dia de Pagamento</span>
+                                <p className="text-xs font-bold text-slate-450 line-through">Dia {Math.ceil(breakEvenDaysActual)}</p>
+                                <p className="text-sm font-black text-indigo-400">Dia {Math.ceil(breakEvenDaysSimulated)}</p>
+                            </div>
+                        </div>
+
+                        {breakEvenR$ - simulatedBreakEvenR$ > 0 ? (
+                            <div className="text-left flex items-start gap-2 text-xs text-slate-300 animate-fade-in leading-relaxed font-sans">
+                                <CheckCircle2 className="text-emerald-400 h-5 w-5 shrink-0 mt-0.5" />
+                                <p>
+                                    Ao bater essas metas de simulação, você ganha de volta de faturamento de equilíbrio <strong className="text-emerald-400">R$ {(breakEvenR$ - simulatedBreakEvenR$).toLocaleString('pt-BR', {maximumFractionDigits: 0})}</strong> por mês! Isso equivale a <strong className="text-emerald-400">{Math.ceil(Math.max(0, breakEvenUnits - simulatedBreakEvenUnits))} pedidos a menos</strong> de cansaço operacional, atingindo o equilíbrio financeiro <strong className="text-indigo-400">{Math.ceil(Math.max(0, breakEvenDaysActual - breakEvenDaysSimulated))} dias mais cedo</strong> no mês!
+                                </p>
+                            </div>
+                        ) : (
+                            <p className="text-[10px] text-slate-400 font-sans italic text-center">Ajuste os controles deslizantes acima para simular metas do Xande.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
             {/* Didactic Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 no-print">
                 {/* A) Comparativo de Receita */}
@@ -427,35 +878,6 @@ const BreakEven: React.FC = () => {
                                 <p className="text-lg font-bold text-gray-900 dark:text-white">R$ {breakEvenR$.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* C) Composição do Custo Variável */}
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col">
-                    <div className="flex justify-between items-center mb-6">
-                        <h4 className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2">
-                           <PieIcon size={14}/> Composição do Custo Variável
-                        </h4>
-                        <button onClick={() => setChartHelp('composicao')} className="text-gray-400 hover:text-brand-red"><HelpCircle size={14}/></button>
-                    </div>
-                    {/* Added explicit style minHeight to fix Recharts in production */}
-                    <div className="flex-1" style={{ minHeight: '320px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie 
-                                    data={pieData} 
-                                    innerRadius={60} 
-                                    outerRadius={100} 
-                                    paddingAngle={5} 
-                                    dataKey="value"
-                                    label={({ name, percent }) => `${name} ${formatPercent(percent * 100)}`}
-                                >
-                                    {pieData.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
-                                </Pie>
-                                <Tooltip formatter={(v: number) => `R$ ${v.toFixed(2)}`} />
-                                <Legend verticalAlign="bottom" layout="horizontal" align="center" wrapperStyle={{paddingTop: '20px'}}/>
-                            </PieChart>
-                        </ResponsiveContainer>
                     </div>
                 </div>
 

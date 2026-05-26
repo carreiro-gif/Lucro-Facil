@@ -1,15 +1,19 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory } from '../types';
-import { INITIAL_STATE, EMPTY_STATE } from '../constants';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction } from '../types';
+import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
 
 interface AppContextType extends GlobalState {
   addIngredient: (ing: Ingredient) => void;
   updateIngredient: (id: string, ing: Partial<Ingredient>) => void;
   deleteIngredient: (id: string) => void;
   
+  addIngredientCategory: (name: string) => void;
+  updateIngredientCategory: (id: string, name: string) => void;
+  deleteIngredientCategory: (id: string) => void;
   addProduct: (prod: Product) => void;
   updateProduct: (id: string, prod: Partial<Product>) => void;
+  bulkUpdateProductsPricing: (key: string, value: number) => void;
   deleteProduct: (id: string) => void;
   reorderProduct: (id: string, direction: 'up' | 'down') => void;
 
@@ -24,6 +28,8 @@ interface AppContextType extends GlobalState {
   
   addExpense: (exp: Expense) => void;
   updateExpense: (id: string, exp: Partial<Expense>) => void;
+  updateExpenseAndFutureInstallments: (id: string, exp: Partial<Expense>) => void;
+  deleteExpense: (id: string) => void;
   addExpenseWithInstallments: (baseExp: Omit<Expense, 'id' | 'installment'>, installments: number) => void;
   
   addCategory: (cat: Category) => void;
@@ -37,7 +43,19 @@ interface AppContextType extends GlobalState {
   updateMonthlyRevenue: (data: MonthlyData[]) => void;
   updateStoreInfo: (info: Partial<StoreInfo>) => void;
   
+  addPurchaseEntry: (entry: PurchaseEntry) => void;
+  deletePurchaseEntry: (id: string) => void;
+  addSupplierMapping: (mapping: SupplierMapping) => void;
+  updateIngredientPriceFromXML: (ingredientId: string, newPrice: number) => void;
+  
+  addSalesTransaction: (trans: SalesTransaction) => void;
+  addSalesTransactionsBatch: (transList: SalesTransaction[]) => void;
+  deleteSalesTransaction: (id: string) => void;
+  clearSalesTransactions: () => void;
+  
   setFixedCostMode: (mode: FixedCostMode) => void;
+  resetSystem: () => void;
+  updateResetPassword: (newPassword: string) => void;
   
   getIngredientRealCost: (ing: Ingredient) => number;
   getProductCMV: (prod: Product) => number;
@@ -69,6 +87,10 @@ export const AppProvider: React.FC<{
             monthlyRevenue: initialData.monthlyRevenue || [],
             categories: initialData.categories || [],
             suppliers: initialData.suppliers || [],
+            purchaseEntries: initialData.purchaseEntries || [],
+            supplierMappings: initialData.supplierMappings || [],
+            salesTransactions: initialData.salesTransactions || [],
+            ingredientCategories: initialData.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES,
             // Deep merge objects if necessary, but shallow merge for config objects usually suffices if they exist
             cfi: { ...EMPTY_STATE.cfi, ...(initialData.cfi || {}) },
             platformConfig: { 
@@ -98,6 +120,29 @@ export const AppProvider: React.FC<{
   };
   const deleteIngredient = (id: string) => setState(s => ({ ...s, ingredients: s.ingredients.filter(i => i.id !== id) }));
 
+  const addIngredientCategory = (name: string) => {
+    const newCat = { id: 'ing_cat_' + Math.random().toString(36).substr(2, 9), name };
+    setState(s => ({
+      ...s,
+      ingredientCategories: [...(s.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES), newCat]
+    }));
+  };
+
+  const updateIngredientCategory = (id: string, name: string) => {
+    setState(s => ({
+      ...s,
+      ingredientCategories: (s.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES).map(c => c.id === id ? { ...c, name } : c)
+    }));
+  };
+
+  const deleteIngredientCategory = (id: string) => {
+    setState(s => ({
+      ...s,
+      ingredientCategories: (s.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES).filter(c => c.id !== id),
+      ingredients: s.ingredients.map(ing => ing.categoryId === id ? { ...ing, categoryId: undefined } : ing)
+    }));
+  };
+
   // Products
   const addProduct = (prod: Product) => setState(s => {
       const sameCat = s.products.filter(p => p.category === prod.category);
@@ -107,6 +152,28 @@ export const AppProvider: React.FC<{
 
   const updateProduct = (id: string, data: Partial<Product>) => {
     setState(s => ({ ...s, products: s.products.map(p => p.id === id ? { ...p, ...data } : p) }));
+  };
+
+  const bulkUpdateProductsPricing = (key: string, value: number) => {
+    setState(s => {
+      const updatedProducts = (s.products || []).map(p => {
+        const newPricing = p.pricing ? JSON.parse(JSON.stringify(p.pricing)) : {};
+        if (key.includes('.')) {
+          const [parent, child] = key.split('.');
+          if (!newPricing[parent] || typeof newPricing[parent] !== 'object') {
+            newPricing[parent] = {};
+          }
+          newPricing[parent][child] = value;
+        } else {
+          newPricing[key] = value;
+        }
+        return { ...p, pricing: newPricing };
+      });
+      return {
+        ...s,
+        products: updatedProducts
+      };
+    });
   };
 
   const deleteProduct = (id: string) => setState(s => ({ ...s, products: s.products.filter(p => p.id !== id) }));
@@ -197,6 +264,36 @@ export const AppProvider: React.FC<{
   const updateExpense = (id: string, data: Partial<Expense>) => {
     setState(s => ({ ...s, expenses: s.expenses.map(e => e.id === id ? { ...e, ...data } : e) }));
   };
+  const updateExpenseAndFutureInstallments = (id: string, data: Partial<Expense>) => {
+    setState(s => {
+      const expenseToUpdate = s.expenses.find(e => e.id === id);
+      if (!expenseToUpdate || !expenseToUpdate.installment) {
+        return { ...s, expenses: s.expenses.map(e => e.id === id ? { ...e, ...data } : e) };
+      }
+      
+      const groupId = expenseToUpdate.installment.id;
+      const currentInstallment = expenseToUpdate.installment.current;
+      
+      return {
+        ...s,
+        expenses: s.expenses.map(e => {
+          if (e.id === id) {
+            return { ...e, ...data };
+          }
+          if (e.installment?.id === groupId && e.installment.current > currentInstallment) {
+            return { 
+              ...e, 
+              value: data.value ?? e.value,
+              description: data.description ?? e.description,
+              category: data.category ?? e.category
+            };
+          }
+          return e;
+        })
+      };
+    });
+  };
+  const deleteExpense = (id: string) => setState(s => ({ ...s, expenses: s.expenses.filter(e => e.id !== id) }));
   const addExpenseWithInstallments = (baseExp: Omit<Expense, 'id' | 'installment'>, installments: number) => {
     if (installments <= 1) {
       addExpense({ ...baseExp, id: Math.random().toString(36).substr(2, 9) });
@@ -227,19 +324,75 @@ export const AppProvider: React.FC<{
   const deleteSupplier = (id: string) => setState(s => ({ ...s, suppliers: s.suppliers.filter(s => s.id !== id) }));
   const updateCfi = (cfi: Partial<CfiConfig>) => setState(s => ({ ...s, cfi: { ...s.cfi, ...cfi } }));
   const updatePlatformConfig = (cfg: Partial<PlatformConfig>) => {
-    setState(s => ({ ...s, platformConfig: { ...s.platformConfig, ...cfg, ifood: { ...s.platformConfig.ifood, ...(cfg.ifood || {}) }, food99: { ...s.platformConfig.food99, ...(cfg.food99 || {}) } } }));
+    setState(s => ({ 
+      ...s, 
+      platformConfig: { 
+        ...s.platformConfig, 
+        ...cfg, 
+        ifood: { ...s.platformConfig.ifood, ...(cfg.ifood || {}) }, 
+        food99: { ...s.platformConfig.food99, ...(cfg.food99 || {}) },
+        keeta: { ...s.platformConfig.keeta, ...(cfg.keeta || {}) }
+      } 
+    }));
   };
   const updateMonthlyRevenue = (data: MonthlyData[]) => setState(s => ({ ...s, monthlyRevenue: data }));
   const updateStoreInfo = (info: Partial<StoreInfo>) => setState(s => ({ ...s, storeInfo: { ...s.storeInfo, ...info } }));
+
+  const addPurchaseEntry = (entry: PurchaseEntry) => setState(s => ({ ...s, purchaseEntries: [entry, ...s.purchaseEntries] }));
+  const deletePurchaseEntry = (id: string) => setState(s => ({ ...s, purchaseEntries: s.purchaseEntries.filter(e => e.id !== id) }));
+  
+  const addSalesTransaction = (trans: SalesTransaction) => setState(s => ({ ...s, salesTransactions: [...(s.salesTransactions || []), trans] }));
+  const addSalesTransactionsBatch = (transList: SalesTransaction[]) => setState(s => ({ ...s, salesTransactions: [...(s.salesTransactions || []), ...transList] }));
+  const deleteSalesTransaction = (id: string) => setState(s => ({ ...s, salesTransactions: (s.salesTransactions || []).filter(t => t.id !== id) }));
+  const clearSalesTransactions = () => setState(s => ({ ...s, salesTransactions: [] }));
+  
+  const addSupplierMapping = (mapping: SupplierMapping) => setState(s => {
+    const filtered = s.supplierMappings.filter(m => !(m.cnpj === mapping.cnpj && m.xmlItemName === mapping.xmlItemName));
+    return { ...s, supplierMappings: [...filtered, mapping] };
+  });
+
+  const updateIngredientPriceFromXML = (ingredientId: string, newPrice: number) => {
+    setState(s => ({
+      ...s,
+      ingredients: s.ingredients.map(ing => ing.id === ingredientId ? { ...ing, price: newPrice } : ing)
+    }));
+  };
+
   const setFixedCostMode = (mode: FixedCostMode) => setState(s => ({ ...s, fixedCostMode: mode }));
+
+  const resetSystem = () => {
+    setState(s => ({
+      ...EMPTY_STATE,
+      storeInfo: s.storeInfo,
+      resetPassword: s.resetPassword // Keep the current password even after reset
+    }));
+  };
+
+  const updateResetPassword = (newPassword: string) => {
+    setState(s => ({ ...s, resetPassword: newPassword }));
+  };
 
   // --- CALCULATIONS ---
   
-  const getIngredientRealCost = (ing: Ingredient) => {
+  const getIngredientRealCost = (ing: Ingredient, visited = new Set<string>()): number => {
     if (!ing.packageQuantity || ing.packageQuantity <= 0) return 0;
+    
+    if (visited.has(ing.id)) return 0; // Prevent circular dependencies
+    visited.add(ing.id);
+
+    let basePrice = ing.price;
+    if (ing.isSubRecipe && ing.ingredients) {
+      basePrice = ing.ingredients.reduce((total, item) => {
+        const subIng = state.ingredients.find(i => i.id === item.ingredientId);
+        if (!subIng) return total;
+        const realPrice = getIngredientRealCost(subIng, new Set(visited));
+        return total + (realPrice * item.quantity);
+      }, 0);
+    }
+
     const realQty = ing.packageQuantity * (1 - (ing.lossPercent / 100));
     if (realQty <= 0) return 0;
-    return ing.price / realQty;
+    return basePrice / realQty;
   };
 
   const getProductCMV = (prod: Product) => {
@@ -324,14 +477,17 @@ export const AppProvider: React.FC<{
     <AppContext.Provider value={{
       ...state,
       addIngredient, updateIngredient, deleteIngredient,
-      addProduct, updateProduct, deleteProduct, reorderProduct,
+      addIngredientCategory, updateIngredientCategory, deleteIngredientCategory,
+      addProduct, updateProduct, bulkUpdateProductsPricing, deleteProduct, reorderProduct,
       addMenuCategory, updateMenuCategory, deleteMenuCategory, reorderMenuCategory,
       addCombo, updateCombo, deleteCombo,
-      addExpense, updateExpense, addExpenseWithInstallments,
+      addExpense, updateExpense, updateExpenseAndFutureInstallments, deleteExpense, addExpenseWithInstallments,
       addCategory, deleteCategory,
       addSupplier, deleteSupplier,
       updateCfi, updatePlatformConfig, updateMonthlyRevenue, updateStoreInfo,
-      setFixedCostMode,
+      addPurchaseEntry, deletePurchaseEntry, addSupplierMapping, updateIngredientPriceFromXML,
+      addSalesTransaction, addSalesTransactionsBatch, deleteSalesTransaction, clearSalesTransactions,
+      setFixedCostMode, resetSystem, updateResetPassword,
       getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
       getSortedProducts
     }}>

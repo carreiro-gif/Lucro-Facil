@@ -11,9 +11,12 @@ export interface Ingredient {
   id: string;
   name: string;
   unit: MeasureUnit;
-  price: number;
-  packageQuantity: number;
-  lossPercent: number;
+  price: number; // For sub-recipes, this could be calculated dynamically or stored. Let's keep it stored and update when saving.
+  packageQuantity: number; // Equivalent to Yield Quantity (Rendimento Total) for sub-recipes
+  lossPercent: number; // Loss percent after preparation
+  isSubRecipe?: boolean;
+  ingredients?: ProductIngredient[]; // The ingredients used to make this sub-recipe
+  categoryId?: string; // New: Optional category ID for the ingredient
 }
 
 export interface ProductIngredient {
@@ -55,6 +58,9 @@ export interface Product {
   fixedPriceStore?: number;
   pricing?: ProductPricing;
   order: number; // New: Custom sort order within category
+  isTopSeller?: boolean;
+  isSlowMover?: boolean;
+  isAnchor?: boolean;
 }
 
 export interface MenuCategory {
@@ -71,12 +77,20 @@ export interface ComboItem {
 export interface Combo {
   id: string;
   name: string;
+  category?: string;
   items: ComboItem[];
   profitMargin: number;
   ifoodFee: number;
   food99Fee: number;
-  delivery: number;
-  coupon: number;
+  keetaFee: number;
+  ifoodDelivery: number;
+  food99Delivery: number;
+  keetaDelivery: number;
+  ifoodCoupon: number;
+  food99Coupon: number;
+  keetaCoupon: number;
+  ciValue: number;
+  customPackagingCost?: number;
 }
 
 export interface Expense {
@@ -98,6 +112,11 @@ export interface Category {
   id: string;
   name: string;
   isCustom?: boolean;
+}
+
+export interface IngredientCategory {
+  id: string;
+  name: string;
 }
 
 export interface Supplier {
@@ -152,6 +171,50 @@ export interface StoreInfo {
 
 export type FixedCostMode = 'AVERAGE' | 'CURRENT_MONTH';
 
+export interface SupplierMapping {
+  cnpj: string;
+  xmlItemName: string;
+  ingredientId: string;
+  unit: MeasureUnit;
+  conversionFactor: number;
+}
+
+export interface PurchaseEntryItem {
+  xmlItemName: string;
+  xmlUnit: string;
+  xmlUnitPrice: number;
+  xmlQty: number;
+  mappedIngredientId?: string;
+  mappedUnit?: MeasureUnit;
+  conversionFactor?: number;
+  status: 'CONFIRMED' | 'PENDING';
+  previousPrice?: number;
+  variation?: number;
+}
+
+export interface PurchaseEntry {
+  id: string;
+  date: string;
+  supplierCnpj: string;
+  supplierName: string;
+  items: PurchaseEntryItem[];
+}
+
+export interface SalesTransaction {
+  id: string;
+  date: string;
+  orderId?: string;
+  productId: string;
+  productName: string;
+  qty: number;
+  channel: 'ifood' | 'food99' | 'keeta' | 'store';
+  pricePaidByCustomer: number;
+  platformSubsidy: number; // For iFood Campanha Inteligente
+  couponCostByStore: number;
+  feePaid: number;
+  notes?: string;
+}
+
 export interface GlobalState {
   storeInfo: StoreInfo;
   ingredients: Ingredient[];
@@ -165,4 +228,9 @@ export interface GlobalState {
   categories: Category[];
   suppliers: Supplier[];
   fixedCostMode: FixedCostMode;
+  purchaseEntries: PurchaseEntry[];
+  supplierMappings: SupplierMapping[];
+  salesTransactions?: SalesTransaction[];
+  resetPassword?: string;
+  ingredientCategories?: IngredientCategory[];
 }

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock, HelpCircle, Info } from 'lucide-react';
+import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock, HelpCircle, Info, Trash } from 'lucide-react';
 import { Expense } from '../types';
 import { formatPercent } from '../constants';
 
@@ -27,6 +27,8 @@ const Expenses: React.FC = () => {
     categories, 
     addExpenseWithInstallments, 
     updateExpense, 
+    updateExpenseAndFutureInstallments,
+    deleteExpense,
     fixedCostMode, 
     setFixedCostMode,
   } = useApp();
@@ -46,6 +48,9 @@ const Expenses: React.FC = () => {
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+  const [showInstallmentPrompt, setShowInstallmentPrompt] = useState(false);
+  const [pendingEditData, setPendingEditData] = useState<any>(null);
 
   // Form States
   const [formMonthStr, setFormMonthStr] = useState(`${currentYear}-${MONTHS[currentMonthIdx].value}`);
@@ -187,14 +192,23 @@ const Expenses: React.FC = () => {
     if (!desc || !val || !cat) return;
 
     if (editingExpenseId) {
-      updateExpense(editingExpenseId, {
+      const exp = expenses.find(e => e.id === editingExpenseId);
+      const editData = {
         description: desc,
         value: parseFloat(val),
         category: cat,
         month: formMonthStr,
         dueDate: dueDate,
         paid: isPaid
-      });
+      };
+      
+      if (exp?.installment && exp.installment.current < exp.installment.total) {
+        setPendingEditData(editData);
+        setShowInstallmentPrompt(true);
+      } else {
+        updateExpense(editingExpenseId, editData);
+        setIsModalOpen(false);
+      }
     } else {
       addExpenseWithInstallments({
         month: formMonthStr,
@@ -204,13 +218,64 @@ const Expenses: React.FC = () => {
         dueDate: dueDate,
         paid: isPaid
       }, installments);
+      setIsModalOpen(false);
     }
-    setIsModalOpen(false);
   };
 
   return (
     <div className="space-y-6 animate-fade-in relative pb-20">
        
+        {/* Warning Banners */}
+        {(() => {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            let overdueCount = 0;
+            let dueSoonCount = 0;
+
+            expenses.forEach(e => {
+                if (e.paid || !e.dueDate) return;
+                const due = new Date(e.dueDate + 'T00:00:00');
+                const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                if (diffDays < 0) overdueCount++;
+                else if (diffDays === 0 || diffDays === 1) dueSoonCount++;
+            });
+
+            if (overdueCount === 0 && dueSoonCount === 0) return null;
+
+            return (
+                <div className="flex flex-col gap-2">
+                    {overdueCount > 0 && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-xl flex items-center justify-between shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-red-800 dark:text-red-300 text-sm">Atenção! Despesas Vencidas</h4>
+                                    <p className="text-xs text-red-600 dark:text-red-400">Você tem <strong>{overdueCount}</strong> {overdueCount === 1 ? 'despesa' : 'despesas'} com pagamento atrasado.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {dueSoonCount > 0 && (
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 rounded-xl flex items-center justify-between shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                                    <Clock size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">Vencendo Hoje/Amanhã</h4>
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">Fique de olho! <strong>{dueSoonCount}</strong> {dueSoonCount === 1 ? 'despesa vence' : 'despesas vencem'} em breve.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        })()}
+
        {/* Top Controls */}
        <div className="bg-white/50 dark:bg-brand-dark/50 border-b border-gray-200 dark:border-gray-800 pb-6 mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 backdrop-blur-sm rounded-xl p-4">
          <div className="w-full xl:w-auto">
@@ -357,7 +422,29 @@ const Expenses: React.FC = () => {
                                         </button>
                                     </td>
                                     <td className="px-2 py-3 text-right">
-                                        <Edit2 size={14} className="text-gray-400 dark:text-gray-600 group-hover:text-brand-red transition" />
+                                        <div className="flex justify-end items-center gap-2">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); openEditModal(exp); }} 
+                                                className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded text-[10px] font-bold uppercase hover:bg-blue-100 dark:hover:bg-blue-900 flex items-center gap-1 transition"
+                                            >
+                                                <Edit2 size={10} /> Editar
+                                            </button>
+                                            {deletingExpenseId === exp.id ? (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); deleteExpense(exp.id); setDeletingExpenseId(null); }}
+                                                    className="bg-red-600 text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition"
+                                                >
+                                                    Confirmar?
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setDeletingExpenseId(exp.id); }} 
+                                                    className="p-1.5 text-gray-400 dark:text-gray-600 hover:text-red-500 transition"
+                                                >
+                                                    <Trash size={14} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             )})}
@@ -554,6 +641,46 @@ const Expenses: React.FC = () => {
                         <button type="submit" className="flex-1 py-3 bg-brand-red text-white rounded-lg hover:bg-red-700 font-bold shadow-lg shadow-red-900/20">Salvar Lançamento</button>
                     </div>
                 </form>
+            </div>
+        </div>
+       )}
+
+       {/* INSTALLMENT PROMPT MODAL */}
+       {showInstallmentPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xl p-6 animate-fade-in">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Atualizar parcelas futuras?</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                    Esta despesa é parcelada. Gostaria de editar <strong>só a atual</strong> ou <strong>todas as restantes de uma vez</strong>?
+                </p>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={() => {
+                            updateExpenseAndFutureInstallments(editingExpenseId!, pendingEditData);
+                            setShowInstallmentPrompt(false);
+                            setIsModalOpen(false);
+                        }}
+                        className="w-full py-3 bg-brand-red text-white rounded-lg font-bold shadow-lg shadow-red-900/20"
+                    >
+                        Todas as Restantes
+                    </button>
+                    <button 
+                        onClick={() => {
+                            updateExpense(editingExpenseId!, pendingEditData);
+                            setShowInstallmentPrompt(false);
+                            setIsModalOpen(false);
+                        }}
+                        className="w-full py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg font-bold"
+                    >
+                        Só a Atual
+                    </button>
+                    <button 
+                        onClick={() => setShowInstallmentPrompt(false)}
+                        className="w-full py-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm font-bold"
+                    >
+                        Cancelar
+                    </button>
+                </div>
             </div>
         </div>
        )}

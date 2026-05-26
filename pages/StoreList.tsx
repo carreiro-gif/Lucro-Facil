@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Store, ArrowRight, MapPin, Edit2, Upload, X, Copy, CheckCircle, Trash2, AlertTriangle, Tags, TrendingUp } from 'lucide-react';
+import { Plus, Store, ArrowRight, MapPin, Edit2, Upload, X, Copy, CheckCircle, Trash2, AlertTriangle, Tags, TrendingUp, RotateCcw } from 'lucide-react';
 import { StoreInfo } from '../types';
 
 interface StoreListProps {
@@ -132,12 +132,12 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
   };
 
   return (
-    <div className="flex flex-col items-center justify-center p-8 animate-fade-in relative overflow-hidden transition-colors duration-500">
+    <div className="flex flex-col items-center justify-center p-8 animate-fade-in relative overflow-hidden min-h-screen bg-gradient-to-br from-slate-900 to-black text-white w-full">
       
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-red/5 rounded-full blur-[100px] -mr-32 -mt-32"></div>
-          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[100px] -ml-32 -mb-32"></div>
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-yellow/5 rounded-full blur-[100px] -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px] -ml-32 -mb-32"></div>
       </div>
 
       <div className="max-w-6xl w-full space-y-10 relative z-10">
@@ -146,30 +146,43 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 relative">
             <div className="w-full flex flex-col items-center justify-center text-center space-y-6">
                 <div className="relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 to-green-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-                    <div className="relative w-24 h-24 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 flex items-center justify-center shadow-2xl overflow-hidden">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-brand-yellow to-yellow-300 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                    <div className="relative w-24 h-24 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center shadow-2xl overflow-hidden backdrop-blur-md">
                         <div className="relative">
-                            <Tags size={56} className="text-yellow-500 transform -rotate-12" strokeWidth={1.5} fill="rgba(234, 179, 8, 0.1)"/>
-                            <TrendingUp size={32} className="text-emerald-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -ml-1 -mt-1" strokeWidth={3} />
+                            <Tags size={56} className="text-brand-yellow transform -rotate-12" strokeWidth={1.5} fill="rgba(250, 204, 21, 0.1)"/>
+                            <TrendingUp size={32} className="text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -ml-1 -mt-1" strokeWidth={3} />
                         </div>
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                     <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 dark:text-white tracking-tight leading-none">
+                     <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-none">
                         Lucro Fácil
                      </h1>
-                     <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400 font-medium max-w-lg">
+                     <p className="text-lg md:text-xl text-yellow-100/80 font-medium max-w-lg">
                         Precificação Inteligente para Restaurantes
                      </p>
                 </div>
             </div>
 
             <div className="absolute top-0 right-0 hidden md:flex items-center gap-3">
+                <button 
+                    onClick={() => {
+                        if (window.confirm('Isso irá resetar as lojas para o padrão inicial (ESPAÇO CARREIRO e JK BURGUER) com os dados de exemplo do backup. Deseja continuar?')) {
+                            localStorage.removeItem('lucro_facil_pro_data_v3');
+                            localStorage.removeItem('lucro_facil_pro_stores_v3');
+                            window.location.reload();
+                        }
+                    }}
+                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-yellow-500 hover:text-yellow-400 px-4 py-2 rounded-lg text-sm font-bold border border-white/10 hover:border-brand-yellow transition-all backdrop-blur-md"
+                    title="Limpa todos os dados e recarrega as lojas iniciais com dados de exemplo do backup."
+                >
+                    <RotateCcw size={16} /> Resetar p/ Inicial (Backup)
+                </button>
                 {onReplicate && (
                     <button 
                         onClick={handleOpenReplicate}
-                        className="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold border border-gray-200 dark:border-gray-700 hover:border-brand-red transition-all"
+                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold border border-white/10 hover:border-brand-yellow transition-all backdrop-blur-md"
                     >
                         <Copy size={16} /> Replicar Dados
                     </button>
@@ -180,7 +193,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 {onReplicate && (
                     <button 
                         onClick={handleOpenReplicate}
-                        className="flex items-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-lg text-sm font-bold border border-gray-200 dark:border-gray-700 hover:border-brand-red transition-all"
+                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold border border-white/10 hover:border-brand-yellow transition-all backdrop-blur-md"
                     >
                         <Copy size={16} /> Replicar Dados
                     </button>
@@ -192,15 +205,15 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
             {stores.map(store => (
                 <div 
                     key={store.id}
-                    className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 rounded-2xl text-left hover:border-brand-red hover:shadow-2xl hover:shadow-red-900/10 transition-all duration-300 group relative overflow-hidden flex flex-col h-full cursor-pointer"
+                    className="bg-white/5 border border-white/10 p-6 rounded-2xl text-left hover:border-brand-yellow hover:shadow-2xl hover:shadow-brand-yellow/10 transition-all duration-300 group relative overflow-hidden flex flex-col h-full cursor-pointer backdrop-blur-md"
                     onClick={() => onSelectStore(store.id!)}
                 >
-                    <div className="absolute top-0 right-0 p-20 bg-brand-red/5 rounded-full blur-2xl -mr-10 -mt-10 transition-opacity group-hover:opacity-100 opacity-0"></div>
+                    <div className="absolute top-0 right-0 p-20 bg-brand-yellow/5 rounded-full blur-2xl -mr-10 -mt-10 transition-opacity group-hover:opacity-100 opacity-0"></div>
                     
                     <div className="absolute top-3 right-3 flex gap-2 z-20">
                         <button 
                             onClick={(e) => handleEditClick(e, store)}
-                            className="text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                            className="text-gray-400 hover:text-brand-yellow transition-colors p-2 rounded-full hover:bg-white/10"
                             title="Editar Loja"
                         >
                             <Edit2 size={14} />
@@ -208,7 +221,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                         {onDeleteStore && (
                             <button 
                                 onClick={(e) => handleDeleteClick(e, store)}
-                                className="text-gray-400 dark:text-gray-600 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-900/20"
+                                className="text-gray-400 hover:text-brand-yellow transition-colors p-2 rounded-full hover:bg-white/10"
                                 title="Excluir Loja"
                             >
                                 <Trash2 size={14} />
@@ -218,35 +231,35 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
 
                     <div className="relative z-10 flex-1">
                         <div className="flex justify-between items-start mb-4">
-                            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center group-hover:bg-gray-200 dark:group-hover:bg-gray-800 transition-colors text-gray-400 dark:text-gray-500 shadow-inner overflow-hidden border border-gray-200 dark:border-gray-700">
+                            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center group-hover:bg-brand-yellow/20 transition-colors text-white shadow-inner overflow-hidden border border-white/10">
                                 {store.logo ? (
                                     <img src={store.logo} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <Store size={20} className="group-hover:text-brand-red transition-colors" />
+                                    <Store size={20} className="text-brand-yellow group-hover:drop-shadow-[0_0_8px_rgba(250,204,21,0.8)] transition-all" />
                                 )}
                             </div>
                         </div>
                         
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-brand-red transition-colors truncate pr-16">{store.name}</h3>
+                        <h3 className="text-lg font-bold text-white mb-1 group-hover:text-brand-yellow transition-colors truncate pr-16">{store.name}</h3>
                         
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-4 truncate">
+                        <div className="flex items-center gap-2 text-xs text-gray-400 mb-4 truncate">
                             <MapPin size={12} className="shrink-0" />
                             {store.address || 'Sem endereço'}
                         </div>
                     </div>
 
-                    <div className="relative z-10 pt-3 border-t border-gray-100 dark:border-gray-800 mt-auto flex items-center justify-between text-xs font-medium text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                    <div className="relative z-10 mt-auto flex items-center justify-center w-full bg-brand-yellow text-slate-900 font-bold py-3 rounded-lg text-sm hover:bg-yellow-400 transition-colors">
                         <span>Acessar Painel</span>
-                        <ArrowRight size={14} className="transform group-hover:translate-x-1 transition-transform" />
+                        <ArrowRight size={16} className="ml-2 transform group-hover:translate-x-1 transition-transform" />
                     </div>
                 </div>
             ))}
 
             <button 
                 onClick={() => handleOpenModal()}
-                className="bg-gray-50 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-800 border-dashed p-6 rounded-2xl flex flex-col items-center justify-center gap-4 text-gray-500 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white hover:border-brand-red/50 hover:bg-white dark:hover:bg-gray-900 transition-all duration-300 group min-h-[200px]"
+                className="bg-white/5 border border-white/20 border-dashed p-6 rounded-2xl flex flex-col items-center justify-center gap-4 text-gray-400 hover:text-white hover:border-brand-yellow/50 hover:bg-white/10 transition-all duration-300 group min-h-[200px] backdrop-blur-sm"
             >
-                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center group-hover:bg-brand-red group-hover:text-white transition-colors shadow-lg group-hover:shadow-red-900/20 group-hover:scale-110 duration-300">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-brand-yellow group-hover:text-slate-900 transition-colors shadow-lg group-hover:shadow-brand-yellow/20 group-hover:scale-110 duration-300">
                     <Plus size={24} />
                 </div>
                 <div className="text-center">
@@ -268,15 +281,15 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div className="flex justify-center mb-6">
                         <div 
-                            className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-brand-red hover:bg-gray-200 dark:hover:bg-gray-700 transition relative overflow-hidden group"
+                            className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-brand-yellow hover:bg-gray-200 dark:hover:bg-gray-700 transition relative overflow-hidden group"
                             onClick={() => fileInputRef.current?.click()}
                         >
                             {logo ? (
                                 <img src={logo} alt="Logo" className="w-full h-full object-cover" />
                             ) : (
                                 <div className="text-center text-gray-500">
-                                    <Upload size={20} className="mx-auto mb-1" />
-                                    <span className="text-[10px] uppercase font-bold">Logo</span>
+                                    <Upload size={20} className="mx-auto mb-1 group-hover:text-brand-yellow transition" />
+                                    <span className="text-[10px] uppercase font-bold text-gray-500 group-hover:text-brand-yellow transition">Logo</span>
                                 </div>
                             )}
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-xs text-white font-bold">
@@ -299,7 +312,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
-                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-red"
+                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-yellow"
                             placeholder="Ex: Matriz - Centro"
                         />
                     </div>
@@ -310,14 +323,14 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                             type="text" 
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
-                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-red"
+                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-yellow"
                             placeholder="Ex: Rua das Flores, 123"
                         />
                     </div>
 
                     <div className="pt-4 flex gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-white font-bold rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition">Cancelar</button>
-                        <button type="submit" className="flex-1 py-3 bg-brand-red text-white font-bold rounded-lg hover:bg-red-700 transition shadow-lg shadow-red-900/20">Salvar</button>
+                        <button type="submit" className="flex-1 py-3 bg-brand-yellow text-slate-900 font-bold rounded-lg hover:bg-yellow-500 transition shadow-lg shadow-brand-yellow/20">Salvar</button>
                     </div>
                 </form>
             </div>
@@ -376,7 +389,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                     <>
                         <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-[#0f111a] rounded-t-xl">
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Copy size={20} className="text-brand-red" /> Replicar Dados
+                                <Copy size={20} className="text-brand-yellow" /> Replicar Dados
                             </h3>
                             <button onClick={() => setIsReplicateOpen(false)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white"><X size={24}/></button>
                         </div>
@@ -388,7 +401,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                                     <select 
                                         value={sourceId}
                                         onChange={e => setSourceId(e.target.value)}
-                                        className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-red"
+                                        className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-yellow"
                                     >
                                         {stores.map(s => (
                                             <option key={s.id} value={s.id} disabled={s.id === targetId}>{s.name}</option>
@@ -403,7 +416,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                                     <select 
                                         value={targetId}
                                         onChange={e => setTargetId(e.target.value)}
-                                        className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-red"
+                                        className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-yellow"
                                     >
                                         {stores.map(s => (
                                             <option key={s.id} value={s.id} disabled={s.id === sourceId}>{s.name}</option>
@@ -417,7 +430,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                                 <select 
                                     value={replicationType}
                                     onChange={e => setReplicationType(e.target.value)}
-                                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-red font-bold"
+                                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-brand-yellow font-bold"
                                 >
                                     {REPLICATION_OPTIONS.map(opt => (
                                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -430,7 +443,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
 
                             <div className="pt-2 flex gap-3">
                                 <button type="button" onClick={() => setIsReplicateOpen(false)} className="flex-1 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-white font-bold rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition">Cancelar</button>
-                                <button type="submit" className="flex-1 py-3 bg-brand-red text-white font-bold rounded-lg hover:bg-red-700 transition shadow-lg shadow-red-900/20">Confirmar Cópia</button>
+                                <button type="submit" className="flex-1 py-3 bg-brand-yellow text-slate-900 font-bold rounded-lg hover:bg-yellow-500 transition shadow-lg shadow-brand-yellow/20">Confirmar Cópia</button>
                             </div>
                         </form>
                     </>

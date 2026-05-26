@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
       icon: DollarSign, 
       color: 'text-emerald-600 dark:text-emerald-500',
       bgColor: 'bg-emerald-50 dark:bg-emerald-500/10',
-      borderColor: 'border-emerald-200 dark:border-emerald-500/20'
+      borderColor: 'border-emerald-400 dark:border-emerald-500/50'
     },
     { 
       title: 'Ponto Equilíbrio (R$)', 
@@ -55,7 +55,7 @@ const Dashboard: React.FC = () => {
       icon: Target, 
       color: 'text-blue-600 dark:text-blue-500',
       bgColor: 'bg-blue-50 dark:bg-blue-500/10',
-      borderColor: 'border-blue-200 dark:border-blue-500/20',
+      borderColor: 'border-blue-400 dark:border-blue-500/50',
       subtitle: gapToBe > 0 ? `Falta R$ ${gapToBe.toLocaleString('pt-BR', {maximumFractionDigits: 0})}` : 'Meta Batida'
     },
     { 
@@ -64,7 +64,7 @@ const Dashboard: React.FC = () => {
       icon: Dna, 
       color: 'text-purple-600 dark:text-purple-500',
       bgColor: 'bg-purple-50 dark:bg-purple-500/10',
-      borderColor: 'border-purple-200 dark:border-purple-500/20'
+      borderColor: 'border-purple-400 dark:border-purple-500/50'
     },
     { 
       title: 'Custo Fixo (Mês)', 
@@ -72,7 +72,7 @@ const Dashboard: React.FC = () => {
       icon: AlertTriangle, 
       color: 'text-amber-600 dark:text-amber-500',
       bgColor: 'bg-amber-50 dark:bg-amber-500/10',
-      borderColor: 'border-amber-200 dark:border-amber-500/20'
+      borderColor: 'border-amber-400 dark:border-amber-500/50'
     }
   ];
 
@@ -133,7 +133,7 @@ const Dashboard: React.FC = () => {
                    </span>
                 )}
               </div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-bold uppercase tracking-wider">{kpi.title}</p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm font-bold tracking-wider">{kpi.title}</p>
               <h3 className={`text-2xl font-black mt-1 text-gray-900 dark:text-white`}>{kpi.value}</h3>
             </div>
           );
