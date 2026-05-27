@@ -34,6 +34,14 @@ export const BACKGROUND_PALETTE = [
   // --- Tons Claros e Especiais ---
   { name: 'Branco Gelo (Padrão)', color: '#f8fafc', mode: 'light' },
   { name: 'Cinza Escuro (Grafite)', color: '#1f2937', mode: 'dark' },
+
+  // --- Tons Femininos e Vibrantes ---
+  { name: 'Rosa Choque', color: '#db2777', mode: 'dark' },
+  { name: 'Lilás', color: '#e9d5ff', mode: 'light' },
+  { name: 'Verde Água', color: '#99f6e4', mode: 'light' },
+  { name: 'Vermelho Vivo', color: '#dc2626', mode: 'dark' },
+  { name: 'Azul Bebê', color: '#bfdbfe', mode: 'light' },
+  { name: 'Bege', color: '#fef3c7', mode: 'light' },
 ];
 
 const DEFAULT_CATEGORIES_LIST = [

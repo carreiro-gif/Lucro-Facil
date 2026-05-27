@@ -942,62 +942,68 @@ const App: React.FC = () => {
     <div className="flex flex-col min-h-screen">
       {/* PROFESSIONAL ADMIN HUD EMULATOR FLOATING BAR */}
       {profile?.role === 'admin' && (
-        <div className="bg-gradient-to-r from-red-950 via-slate-900 to-red-950 text-white text-xs px-6 py-3 font-semibold flex items-center justify-between border-b border-red-850 shadow-md relative z-50">
-          <div className="flex items-center gap-2.5">
-            <div className="h-2 w-2 rounded-full bg-brand-red animate-ping" />
-            <span className="flex items-center gap-1 uppercase tracking-wide text-[10px] font-black text-brand-red bg-brand-red/10 border border-brand-red/30 px-2 py-0.5 rounded-full">
-              <Shield className="h-3 w-3" /> ADMIN HUD
-            </span>
-            <span className="text-slate-400 hidden sm:inline">| Logado como: <strong className="text-white">{user.email}</strong></span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-xl">
-              <Users className="h-3.5 w-3.5 text-slate-400" />
-              <label className="text-[10px] uppercase font-black tracking-wider text-slate-400">Painel Cliente:</label>
-              <select
-                value={emulatedUser?.userId || ''}
-                onChange={e => {
-                  const val = e.target.value;
-                  if (!val) {
-                    setEmulatedUser(null);
-                  } else {
-                    const found = clients.find(c => c.userId === val);
-                    if (found) {
-                      setEmulatedUser({ userId: found.userId, email: found.email });
-                      setSelectedStoreId(null); // Return to client store selector
-                    }
-                  }
-                }}
-                className="bg-transparent border-none text-white focus:outline-none text-xs font-bold cursor-pointer pr-4"
-              >
-                <option value="" className="bg-slate-900 text-slate-400 font-bold">-- Minha Conta Própria --</option>
-                {clients.map(c => (
-                  <option key={c.userId} value={c.userId} className="bg-slate-900 text-white font-bold">
-                    {c.email} {c.userId === user.uid ? '(Sua)' : ''}
-                  </option>
-                ))}
-              </select>
+        <div className="fixed top-0 left-0 w-full z-50 group transition-transform duration-300 -translate-y-full hover:translate-y-0">
+          <div className="bg-gradient-to-r from-red-950 via-slate-900 to-red-950 text-white text-xs px-6 py-3 font-semibold flex items-center justify-between border-b border-red-850 shadow-xl">
+            <div className="flex items-center gap-2.5">
+              <div className="h-2 w-2 rounded-full bg-brand-red animate-ping" />
+              <span className="flex items-center gap-1 uppercase tracking-wide text-[10px] font-black text-brand-red bg-brand-red/10 border border-brand-red/30 px-2 py-0.5 rounded-full">
+                <Shield className="h-3 w-3" /> ADMIN HUD
+              </span>
+              <span className="text-slate-400 hidden sm:inline">| Logado como: <strong className="text-white">{user.email}</strong></span>
             </div>
 
-            {emulatedUser && (
-              <button
-                onClick={() => {
-                  setEmulatedUser(null);
-                  setSelectedStoreId(null);
-                }}
-                className="flex items-center gap-1 bg-brand-red hover:bg-[#B30321] text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full transition duration-150"
-              >
-                <ArrowLeftRight className="h-3.5 w-3.5" /> Voltar
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-xl">
+                <Users className="h-3.5 w-3.5 text-slate-400" />
+                <label className="text-[10px] uppercase font-black tracking-wider text-slate-400">Painel Cliente:</label>
+                <select
+                  value={emulatedUser?.userId || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setEmulatedUser(null);
+                    } else {
+                      const found = clients.find(c => c.userId === val);
+                      if (found) {
+                        setEmulatedUser({ userId: found.userId, email: found.email });
+                        setSelectedStoreId(null); // Return to client store selector
+                      }
+                    }
+                  }}
+                  className="bg-transparent border-none text-white focus:outline-none text-xs font-bold cursor-pointer pr-4"
+                >
+                  <option value="" className="bg-slate-900 text-slate-400 font-bold">-- Minha Conta Própria --</option>
+                  {clients.map(c => (
+                    <option key={c.userId} value={c.userId} className="bg-slate-900 text-white font-bold">
+                      {c.email} {c.userId === user.uid ? '(Sua)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <button
-              onClick={() => signOut()}
-              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full transition duration-150"
-            >
-              <LogOut className="h-3.5 w-3.5" /> Sair
-            </button>
+              {emulatedUser && (
+                <button
+                  onClick={() => {
+                    setEmulatedUser(null);
+                    setSelectedStoreId(null);
+                  }}
+                  className="flex items-center gap-1 bg-brand-red hover:bg-[#B30321] text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full transition duration-150"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> Voltar
+                </button>
+              )}
+
+              <button
+                onClick={() => signOut()}
+                className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full transition duration-150"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sair
+              </button>
+            </div>
+          </div>
+          {/* Dropdown Handle */}
+          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-red-950 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-b-xl border-b border-l border-r border-red-800 flex items-center gap-1.5 shadow-xl cursor-pointer group-hover:opacity-0 transition-opacity">
+            <Shield className="h-3 w-3 text-brand-red" /> ADMIN HUD
           </div>
         </div>
       )}
