@@ -583,7 +583,7 @@ const App: React.FC = () => {
 
     const createDefaultStore = async () => {
       const defaultId = '1';
-      const defaultStore: StoreInfo = { id: defaultId, name: 'Nova Hamburgueria' };
+      const defaultStore: StoreInfo = { id: defaultId, name: profile?.defaultStoreName || 'Nova Hamburgueria' };
       
       const isDefaultAdmin = user?.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
       const defaultState = {

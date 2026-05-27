@@ -24,6 +24,7 @@ export interface UserProfile {
   email: string;
   role: 'admin' | 'client';
   createdAt: string;
+  defaultStoreName?: string;
 }
 
 interface AuthContextType {
@@ -34,7 +35,7 @@ interface AuthContextType {
   setEmulatedUser: (user: { userId: string; email: string } | null) => void;
   clients: UserProfile[];
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, storeName: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshClients: () => Promise<void>;
@@ -172,9 +173,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, storeName: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // Create user profile immediately with store name
+      const isDefaultAdmin = email.toLowerCase().trim() === 'espacocarreiro@gmail.com';
+      const newProfile: UserProfile = {
+        userId: userCredential.user.uid,
+        email: email,
+        role: isDefaultAdmin ? 'admin' : 'client',
+        createdAt: new Date().toISOString(),
+        defaultStoreName: storeName
+      };
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      await setDoc(userDocRef, newProfile);
+      setProfile(newProfile);
     } catch (e: any) {
       throw new Error(e.message || "Erro ao cadastrar usuário.");
     }

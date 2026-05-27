@@ -8,6 +8,7 @@ export const AuthScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [storeName, setStoreName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -44,6 +45,10 @@ export const AuthScreen: React.FC = () => {
     }
 
     if (mode === 'register') {
+      if (!storeName.trim()) {
+        setError("O nome da loja é obrigatório.");
+        return;
+      }
       if (password !== confirmPassword) {
         setError("As senhas não coincidem.");
         return;
@@ -51,7 +56,7 @@ export const AuthScreen: React.FC = () => {
 
       setLoading(true);
       try {
-        await signUp(email, password);
+        await signUp(email, password, storeName.trim());
         setMessage("Conta criada com sucesso!");
       } catch (err: any) {
         setError(err.message || "Erro ao criar conta.");
@@ -109,6 +114,25 @@ export const AuthScreen: React.FC = () => {
 
         {/* Auth form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'register' && (
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">
+                Nome da Loja
+              </label>
+              <div className="relative">
+                <TrendingUp className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                <input
+                  type="text"
+                  required
+                  value={storeName}
+                  onChange={e => setStoreName(e.target.value)}
+                  placeholder="Minha Hamburgueria"
+                  className="w-full bg-slate-950/80 border border-slate-800 hover:border-slate-750 focus:border-brand-red text-white pl-10 pr-4 py-3 rounded-xl text-xs transition duration-250 outline-none"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">
               E-mail
