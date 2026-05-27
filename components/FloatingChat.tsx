@@ -132,9 +132,9 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const chat = ai.chats.create({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.0-flash",
         config: {
           systemInstruction: SYSTEM_INSTRUCTION + '\n\nDados atuais do sistema (para contexto): ' + JSON.stringify(appState).substring(0, 2000) + '...',
           temperature: 0.7,
