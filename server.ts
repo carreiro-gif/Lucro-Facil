@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
 const app = express();
@@ -8,29 +7,40 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Gemini under named parameters as mandated by the SDK instructions.
-// Note the User-Agent parameter setup for telemetry.
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
-
 // Secure API Route for Xande chat sessions
 app.post("/api/chat", async (req, res) => {
+  console.log("[XANDE-API] === NOVO ATENDIMENTO DE CHAT INICIADO ===");
   try {
     const { systemInstruction, fullPrompt } = req.body;
+    
+    console.log("[XANDE-API] Comprimento de systemInstruction:", systemInstruction?.length || 0);
+    console.log("[XANDE-API] Comprimento de fullPrompt:", fullPrompt?.length || 0);
 
-    if (!process.env.GEMINI_API_KEY) {
-      console.error("Missing GEMINI_API_KEY environment variable on the server side.");
-      res.status(500).json({ error: "Chave do Gemini (GEMINI_API_KEY) não configurada no servidor." });
+    const apiKey = process.env.GEMINI_API_KEY;
+    console.log("[XANDE-API] Verificando existência da chave GEMINI_API_KEY no servidor.");
+    if (!apiKey) {
+      console.error("[XANDE-API] ERRO CRÍTICO: GEMINI_API_KEY não foi encontrada nas variáveis de ambiente do Vercel!");
+      res.status(500).json({ 
+        error: "Chave do Gemini (GEMINI_API_KEY) não está configurada no servidor Vercel. Por favor, adicione-a nas variáveis de ambiente do seu projeto no menu do Vercel." 
+      });
       return;
+    } else {
+      console.log("[XANDE-API] GEMINI_API_KEY está presente. Tamanho da chave:", apiKey.length);
+      console.log("[XANDE-API] Início da chave:", apiKey.substring(0, 8) + "...");
     }
 
-    // Create model session with gemini-3.5-flash as the approved text assistant
+    console.log("[XANDE-API] Inicializando o cliente do GoogleGenAI...");
+    // Initialize Gemini safely inside the request handler as mandated by SDK patterns
+    const ai = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    console.log("[XANDE-API] Criando sessão de chat do Gemini utilizando o modelo gema-3.5-flash...");
     const chat = ai.chats.create({
       model: "gemini-3.5-flash",
       config: {
@@ -39,22 +49,33 @@ app.post("/api/chat", async (req, res) => {
       }
     });
 
+    console.log("[XANDE-API] Enviando mensagem e abrindo stream de resposta...");
     const responseStream = await chat.sendMessageStream({ message: fullPrompt });
 
+    console.log("[XANDE-API] Conectado e transmitindo dados em partes...");
+    
     // Setup chunked stream headers for immediate real-time rendering
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Transfer-Encoding', 'chunked');
 
+    let chunkCount = 0;
     for await (const chunk of responseStream) {
       if (chunk.text) {
         res.write(chunk.text);
+        chunkCount++;
       }
     }
+    console.log(`[XANDE-API] Resposta concluída com sucesso com ${chunkCount} pedaços de dados enviados.`);
     res.end();
   } catch (error: any) {
-    console.error("Erro no proxy do Gemini:", error);
+    console.error("[XANDE-API] ERRO COMPLETO CAPTURADO NO PROXY DO GEMINI:", error);
+    if (error.stack) {
+      console.error("[XANDE-API] STACK TRACE DO ERRO:", error.stack);
+    }
     if (!res.headersSent) {
-      res.status(500).json({ error: error.message || "Erro interno ao processar chat com o Gemini." });
+      res.status(500).json({ 
+        error: `Erro ao processar conversa com o Xande: ${error.message || "Erro desconhecido"}` 
+      });
     }
   }
 });
@@ -70,6 +91,7 @@ export default app;
 async function startServer() {
   // Vite development middleware vs Static Production routes
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
