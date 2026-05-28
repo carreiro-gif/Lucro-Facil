@@ -132,11 +132,68 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+      // Calculate and build the smart condensed dashboard context
+      const activeRevenueMonths = (appState.monthlyRevenue || []).filter(m => (m.revenue || 0) > 0);
+      const latestMonthKey = activeRevenueMonths.length > 0 
+        ? activeRevenueMonths[activeRevenueMonths.length - 1].month 
+        : new Date().toISOString().slice(0, 7);
+
+      const currentMonthRevenue = appState.monthlyRevenue?.find(r => r.month === latestMonthKey)?.revenue || 0;
+      const totalFixedCosts = (appState.expenses || []).filter(e => e.month === latestMonthKey).reduce((s, e) => s + (e.value || 0), 0);
+
+      const avgCardRate = ((appState.cfi?.debitTax || 0) + (appState.cfi?.creditTax || 0)) / 2;
+      const varPctTotal = avgCardRate + (appState.cfi?.tax || 0) + (appState.cfi?.royalties || 0) + (appState.cfi?.marketing || 0) + (appState.cfi?.voucherTax || 0) + 35;
+      const mcPct = 1 - (varPctTotal / 100);
+      const breakEvenCalculated = mcPct > 0 ? totalFixedCosts / mcPct : 0;
+
+      let cfiPercentCalculated = 0;
+      try {
+        cfiPercentCalculated = appState.calculateTotalCfiPercent ? appState.calculateTotalCfiPercent() : 0;
+      } catch (e) {
+        const fixedCostPct = currentMonthRevenue > 0 ? (totalFixedCosts / currentMonthRevenue) * 100 : 0;
+        cfiPercentCalculated = fixedCostPct + avgCardRate + (appState.cfi?.tax || 0) + (appState.cfi?.royalties || 0) + (appState.cfi?.marketing || 0) + (appState.cfi?.voucherTax || 0);
+      }
+
+      const productsSummary = (appState.products || []).map(p => {
+        let cmvReais = 0;
+        try {
+          cmvReais = appState.getProductCMV ? appState.getProductCMV(p) : 0;
+        } catch (e) {
+          // Fallback
+        }
+        const precoVenda = p.fixedPriceStore || 0;
+        const cmvPercent = precoVenda > 0 ? (cmvReais / precoVenda) * 100 : 0;
+        const marginPercent = p.pricing?.profitMargin ?? appState.cfi?.profitMargin ?? 0;
+
+        return {
+          nome: p.name,
+          cmv_reais: cmvReais,
+          preco_venda_loja: precoVenda,
+          cmv_percentual: cmvPercent,
+          margem_lucro_percentual: marginPercent
+        };
+      });
+
+      const ingredientsSummary = (appState.ingredients || []).map(ing => ({
+        nome: ing.name,
+        preco: ing.price
+      }));
+
+      const smartContext = {
+        tela_ativa: activeTab,
+        faturamento_mes_atual: currentMonthRevenue,
+        total_despesas_fixas: totalFixedCosts,
+        cfi_percentual_calculado: cfiPercentCalculated,
+        ponto_equilibrio_calculado: breakEvenCalculated,
+        produtos: productsSummary,
+        ingredientes: ingredientsSummary
+      };
+
+      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY });
       const chat = ai.chats.create({
         model: "gemini-2.5-flash",
         config: {
-          systemInstruction: SYSTEM_INSTRUCTION + '\n\nDados atuais do sistema (para contexto): ' + JSON.stringify(appState).substring(0, 2000) + '...',
+          systemInstruction: SYSTEM_INSTRUCTION + '\n\nDados atuais do sistema (para contexto): ' + JSON.stringify(smartContext),
           temperature: 0.7,
         }
       });

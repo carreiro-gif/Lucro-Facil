@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { MeasureUnit, Ingredient } from '../types';
-import { Trash2, Plus, Edit2, Search, HelpCircle, X, Beef, Info, FileText, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, Edit2, Search, HelpCircle, X, Beef, Info, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatPercent } from '../constants';
 
 const Ingredients: React.FC = () => {
@@ -11,7 +11,8 @@ const Ingredients: React.FC = () => {
     addIngredient, 
     updateIngredient, 
     deleteIngredient, 
-    getIngredientRealCost 
+    getIngredientRealCost,
+    reorderIngredientCategory
   } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -143,6 +144,66 @@ const Ingredients: React.FC = () => {
     return i.categoryId === selectedCategoryFilter;
   });
 
+  // Keep exact user category sorting order
+  const sortedCategories = ingredientCategories || [];
+
+  interface GroupedIngredients {
+    id: string;
+    name: string;
+    colorClass: string;
+    items: typeof ingredients;
+  }
+
+  const ingredientGroups: GroupedIngredients[] = [];
+
+  // 1. Populate items matching categories
+  sortedCategories.forEach((cat, index) => {
+    const catItems = filteredIngredients
+      .filter(i => i.categoryId === cat.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (catItems.length > 0) {
+      const colors = [
+        'bg-purple-600',
+        'bg-teal-600',
+        'bg-rose-500',
+        'bg-blue-600',
+        'bg-emerald-600',
+        'bg-sky-500',
+        'bg-pink-600',
+        'bg-indigo-600',
+        'bg-cyan-600',
+        'bg-violet-600',
+        'bg-orange-500',
+        'bg-fuchsia-600',
+        'bg-lime-600',
+        'bg-amber-600'
+      ];
+      const colorClass = colors[index % colors.length];
+      
+      ingredientGroups.push({
+        id: cat.id,
+        name: cat.name,
+        colorClass,
+        items: catItems
+      });
+    }
+  });
+
+  // 2. Populate uncategorized items at the bottom of the list
+  const uncategorizedItems = filteredIngredients
+    .filter(i => !i.categoryId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (uncategorizedItems.length > 0) {
+    ingredientGroups.push({
+      id: 'none',
+      name: 'Sem Categoria de Insumo',
+      colorClass: 'bg-amber-400',
+      items: uncategorizedItems
+    });
+  }
+
   // Local calculation helpers to avoid complex inline logic
   const getRealQty = () => {
     const qty = Number(formData.packageQuantity) || 0;
@@ -254,53 +315,112 @@ const Ingredients: React.FC = () => {
                         <th className="px-6 py-4 text-center">Ações</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-                    {filteredIngredients.map((ing, idx) => (
-                        <tr key={ing.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group">
-                            <td className="px-6 py-4 text-gray-400 font-mono text-xs text-center">{idx + 1}</td>
-                            <td className="px-6 py-4">
-                                <span className="font-bold text-gray-950 dark:text-gray-50 uppercase text-xs block">{ing.name}</span>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                    {ing.isSubRecipe && <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded text-[9px] uppercase font-black">Sub-receita</span>}
-                                    {(() => {
-                                        const cat = (ingredientCategories || []).find(c => c.id === ing.categoryId);
-                                        if (cat) {
-                                            return <span className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-md text-[8px] uppercase font-black border border-purple-200/30 dark:border-purple-800/30 tracking-wider shadow-sm">{cat.name}</span>;
-                                        } else {
-                                            return <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-md text-[8px] uppercase font-black border border-amber-200/30 dark:border-amber-800/30 tracking-wider shadow-sm">Sem Categoria</span>;
-                                        }
-                                    })()}
-                                </div>
-                            </td>
-                            <td className="px-6 py-4 text-center text-gray-600 dark:text-gray-305 font-semibold text-xs">{ing.packageQuantity}</td>
-                            <td className="px-6 py-4 text-center">
-                                <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded text-[10px] font-black border border-gray-200/35 dark:border-gray-700">
-                                    {ing.unit}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 text-right font-mono text-xs text-gray-900 dark:text-white font-semibold">R$ {ing.price.toFixed(2)}</td>
-                            <td className="px-6 py-4 text-center text-red-500 font-bold text-xs">
-                                {ing.lossPercent > 0 ? formatPercent(ing.lossPercent) : '-'}
-                            </td>
-                            <td className="px-6 py-4 text-right font-black text-gray-950 dark:text-gray-50 font-mono bg-gray-50/50 dark:bg-gray-800/30">
-                                R$ {getIngredientRealCost(ing).toFixed(4)}
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                                <div className="flex justify-center gap-3">
-                                    <button onClick={() => handleEdit(ing)} className="text-blue-500 dark:text-blue-400 hover:scale-110 transition shrink-0 p-1"><Edit2 size={15} /></button>
-                                    <button 
-                                      onClick={() => {
-                                        if (window.confirm(`Tem certeza que deseja excluir o insumo "${ing.name}"? Isso pode impactar as fichas técnicas que o utilizam!`)) {
-                                          deleteIngredient(ing.id);
-                                        }
-                                      }} 
-                                      className="text-gray-400 hover:text-red-500 hover:scale-110 transition shrink-0 p-1"
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                <tbody className="text-sm">
+                    {ingredientGroups.map((group) => (
+                        <React.Fragment key={group.id}>
+                            {/* Category Header Row */}
+                            <tr className="bg-gray-50/70 dark:bg-[#161a29]/40 border-y border-gray-150 dark:border-gray-800/85">
+                                <td colSpan={8} className="px-6 py-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className={`w-2.5 h-2.5 rounded-full ${group.colorClass} shadow-sm`} />
+                                            <span className="font-extrabold text-xs uppercase tracking-wider text-gray-950 dark:text-white">
+                                                {group.name}
+                                            </span>
+                                            <span className="bg-gray-200/60 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full text-[9px] font-black border border-gray-300/10 dark:border-gray-700/30">
+                                                {group.items.length} {group.items.length === 1 ? 'insumo' : 'insumos'}
+                                            </span>
+                                        </div>
+                                        {group.id !== 'none' && (
+                                            <div className="flex items-center gap-1.5 no-print">
+                                                <button 
+                                                    onClick={() => reorderIngredientCategory(group.id, 'up')}
+                                                    className="bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-750 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 p-1 rounded-lg transition shadow-sm"
+                                                    title="Mover para cima"
+                                                >
+                                                    <ChevronUp size={14} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => reorderIngredientCategory(group.id, 'down')}
+                                                    className="bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-750 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 p-1 rounded-lg transition shadow-sm"
+                                                    title="Mover para baixo"
+                                                >
+                                                    <ChevronDown size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                            {group.items.map((ing, idx) => (
+                                <tr key={ing.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition group border-b border-gray-105 dark:border-gray-800/60">
+                                    <td className="px-6 py-4 text-gray-400 font-mono text-xs text-center">{idx + 1}</td>
+                                    <td className="px-6 py-4">
+                                        <span className="font-bold text-gray-950 dark:text-gray-50 uppercase text-xs block">{ing.name}</span>
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                            {ing.isSubRecipe && (
+                                                <span 
+                                                    className="bg-fuchsia-600 text-white px-2 py-0.5 rounded-md text-[8px] uppercase font-black tracking-wider shadow-sm border border-black/10 animate-pulse"
+                                                    style={{ textShadow: '-1px -1px 0 #005, 1px -1px 0 #005, -1px 1px 0 #005, 1px 1px 0 #005' }}
+                                                >
+                                                    Sub-receita
+                                                </span>
+                                            )}
+                                            {(() => {
+                                                const cat = (ingredientCategories || []).find(c => c.id === ing.categoryId);
+                                                if (cat) {
+                                                    return (
+                                                        <span 
+                                                            className={`${group.colorClass} text-white px-2 py-0.5 rounded-md text-[8px] uppercase font-black tracking-wider shadow-sm border border-black/10`}
+                                                            style={{ textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' }}
+                                                        >
+                                                            {cat.name}
+                                                        </span>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <span 
+                                                            className="bg-amber-500 text-white px-2 py-0.5 rounded-md text-[8px] uppercase font-black tracking-wider shadow-sm border border-black/10"
+                                                            style={{ textShadow: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' }}
+                                                        >
+                                                            Sem Categoria
+                                                        </span>
+                                                    );
+                                                }
+                                            })()}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center text-gray-600 dark:text-gray-350 font-semibold text-xs">{ing.packageQuantity}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded text-[10px] font-black border border-gray-200/35 dark:border-gray-700">
+                                            {ing.unit}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right font-mono text-xs text-gray-900 dark:text-white font-semibold">R$ {ing.price.toFixed(2)}</td>
+                                    <td className="px-6 py-4 text-center text-red-500 font-bold text-xs">
+                                        {ing.lossPercent > 0 ? formatPercent(ing.lossPercent) : '-'}
+                                    </td>
+                                    <td className="px-6 py-4 text-right font-black text-gray-950 dark:text-gray-50 font-mono bg-gray-50/50 dark:bg-gray-800/30">
+                                        R$ {getIngredientRealCost(ing).toFixed(4)}
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex justify-center gap-3">
+                                            <button onClick={() => handleEdit(ing)} className="text-blue-500 dark:text-blue-400 hover:scale-110 transition shrink-0 p-1"><Edit2 size={15} /></button>
+                                            <button 
+                                              onClick={() => {
+                                                if (window.confirm(`Tem certeza que deseja excluir o insumo "${ing.name}"? Isso pode impactar as fichas técnicas que o utilizam!`)) {
+                                                  deleteIngredient(ing.id);
+                                                }
+                                              }} 
+                                              className="text-gray-400 hover:text-red-500 hover:scale-110 transition shrink-0 p-1"
+                                            >
+                                              <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </React.Fragment>
                     ))}
                     {filteredIngredients.length === 0 && (
                         <tr>

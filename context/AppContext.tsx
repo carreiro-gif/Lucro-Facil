@@ -11,6 +11,7 @@ interface AppContextType extends GlobalState {
   addIngredientCategory: (name: string) => void;
   updateIngredientCategory: (id: string, name: string) => void;
   deleteIngredientCategory: (id: string) => void;
+  reorderIngredientCategory: (id: string, direction: 'up' | 'down') => void;
   addProduct: (prod: Product) => void;
   updateProduct: (id: string, prod: Partial<Product>) => void;
   bulkUpdateProductsPricing: (key: string, value: number) => void;
@@ -141,6 +142,26 @@ export const AppProvider: React.FC<{
       ingredientCategories: (s.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES).filter(c => c.id !== id),
       ingredients: s.ingredients.map(ing => ing.categoryId === id ? { ...ing, categoryId: undefined } : ing)
     }));
+  };
+
+  const reorderIngredientCategory = (id: string, direction: 'up' | 'down') => {
+    setState(s => {
+      const list = [...(s.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES)];
+      const idx = list.findIndex(c => c.id === id);
+      if (idx === -1) return s;
+      if (direction === 'up' && idx === 0) return s;
+      if (direction === 'down' && idx === list.length - 1) return s;
+
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      const temp = list[idx];
+      list[idx] = list[targetIdx];
+      list[targetIdx] = temp;
+
+      return {
+        ...s,
+        ingredientCategories: list
+      };
+    });
   };
 
   // Products
@@ -477,7 +498,7 @@ export const AppProvider: React.FC<{
     <AppContext.Provider value={{
       ...state,
       addIngredient, updateIngredient, deleteIngredient,
-      addIngredientCategory, updateIngredientCategory, deleteIngredientCategory,
+      addIngredientCategory, updateIngredientCategory, deleteIngredientCategory, reorderIngredientCategory,
       addProduct, updateProduct, bulkUpdateProductsPricing, deleteProduct, reorderProduct,
       addMenuCategory, updateMenuCategory, deleteMenuCategory, reorderMenuCategory,
       addCombo, updateCombo, deleteCombo,

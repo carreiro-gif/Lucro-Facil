@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Trash2, Plus, Users, Tags, HelpCircle, X, Beef, Edit2, Check } from 'lucide-react';
+import { Trash2, Plus, Users, Tags, HelpCircle, X, Beef, Edit2, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
 const FinancialCategories: React.FC = () => {
   const { 
@@ -13,7 +13,8 @@ const FinancialCategories: React.FC = () => {
     ingredientCategories,
     addIngredientCategory,
     updateIngredientCategory,
-    deleteIngredientCategory
+    deleteIngredientCategory,
+    reorderIngredientCategory
   } = useApp();
   
   const [newCatName, setNewCatName] = useState('');
@@ -194,7 +195,21 @@ const FinancialCategories: React.FC = () => {
                 ) : (
                   <>
                     <span className="text-gray-700 dark:text-gray-300 text-xs font-semibold uppercase">{cat.name}</span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5 items-center">
+                      <button 
+                        onClick={() => reorderIngredientCategory(cat.id, 'up')}
+                        className="text-gray-400 hover:text-purple-650 transition p-1"
+                        title="Mover para cima"
+                      >
+                        <ChevronUp size={15} />
+                      </button>
+                      <button 
+                        onClick={() => reorderIngredientCategory(cat.id, 'down')}
+                        className="text-gray-400 hover:text-purple-650 transition p-1"
+                        title="Mover para baixo"
+                      >
+                        <ChevronDown size={15} />
+                      </button>
                       <button 
                         onClick={() => {
                           setEditingIngCatId(cat.id);
