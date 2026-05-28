@@ -300,6 +300,11 @@ const Ingredients: React.FC = () => {
       </div>
 
       {/* Main Table */}
+      <div className="md:hidden flex items-center gap-2 justify-center bg-brand-red/5 dark:bg-brand-red/10 border border-brand-red/10 dark:border-brand-red/20 text-brand-red dark:text-red-400 py-2 px-3 rounded-lg text-[11px] font-bold select-none shadow-sm mb-3">
+        <span className="animate-bounce">↔</span>
+        <span>DESLIZE A TABELA PARA OS LADOS PARA VER TODOS OS DADOS</span>
+      </div>
+
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">

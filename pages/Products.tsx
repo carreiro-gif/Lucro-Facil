@@ -305,7 +305,7 @@ const Products: React.FC = () => {
                                <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-bold">{groupItems.length} ITENS</span>
                           </div>
 
-                          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
+                          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-x-auto shadow-sm">
                               <table className="w-full text-left">
                                   <thead className="bg-gray-50 dark:bg-[#0f111a] text-gray-400 text-[10px] uppercase font-bold tracking-wider">
                                       <tr>

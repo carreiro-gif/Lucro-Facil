@@ -47,6 +47,8 @@ interface SidebarProps {
   onBackup: () => void;
   onRestore: (file: File) => void;
   lastBackupDate: string | null;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const DEFAULT_MENU_SECTIONS = [
@@ -153,7 +155,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSidebarBgColorChange,
   onBackup,
   onRestore,
-  lastBackupDate
+  lastBackupDate,
+  isOpen = false,
+  onClose
 }) => {
   const { storeInfo, updateStoreInfo, resetSystem, updateResetPassword, resetPassword } = useApp();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -409,24 +413,43 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
+      {/* Backdrop overlay underneath sidebar when open on mobile */}
+      {isOpen && (
+        <div 
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-30 md:hidden"
+        />
+      )}
+
       <div 
-        className={`sidebar-v2-modern w-64 border-r ${borderClass} h-screen flex flex-col fixed left-0 top-0 z-10 transition-colors duration-300 shadow-sm font-sans`}
+        className={`sidebar-v2-modern w-64 border-r ${borderClass} h-screen flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-sm font-sans`}
         style={{ backgroundColor: sidebarBgColor }}
       >
-        <div className={`p-6 border-b ${borderClass} flex items-center gap-3 shrink-0`}>
-          <div className={`w-10 h-10 ${isSidebarDark ? 'bg-black/20' : 'bg-white/50'} rounded-lg flex items-center justify-center shadow-lg overflow-hidden shrink-0 border ${borderClass}`}>
-            {storeInfo.logo ? (
-               <img src={storeInfo.logo} alt="Logo" className="w-full h-full object-cover" />
-            ) : (
-               <UtensilsCrossed className="text-brand-red w-5 h-5" />
-            )}
+        <div className={`p-6 border-b ${borderClass} flex items-center justify-between gap-2 shrink-0`}>
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className={`w-10 h-10 ${isSidebarDark ? 'bg-black/20' : 'bg-white/50'} rounded-lg flex items-center justify-center shadow-lg overflow-hidden shrink-0 border ${borderClass}`}>
+              {storeInfo.logo ? (
+                 <img src={storeInfo.logo} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                 <UtensilsCrossed className="text-brand-red w-5 h-5" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+               <h1 className={`text-sm font-bold ${textPrimary} truncate leading-tight`}>{storeInfo.name}</h1>
+               <button onClick={openSettings} className={`text-[10px] ${textSecondary} hover:text-brand-red flex items-center gap-1 transition-colors mt-0.5 font-bold uppercase truncate`}>
+                 <Settings size={10} className="shrink-0" /> Configurar
+               </button>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-             <h1 className={`text-sm font-bold ${textPrimary} truncate leading-tight`}>{storeInfo.name}</h1>
-             <button onClick={openSettings} className={`text-[10px] ${textSecondary} hover:text-brand-red flex items-center gap-1 transition-colors mt-0.5 font-bold uppercase truncate`}>
-               <Settings size={10} className="shrink-0" /> Configurar
-             </button>
-          </div>
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className={`md:hidden p-1.5 rounded-lg ${hoverBg} ${textSecondary} hover:text-brand-red flex items-center justify-center`}
+              title="Fechar menu"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
         
         <nav className="flex-1 px-3 py-6 space-y-6 overflow-y-auto sidebar-v2-modern-scroll">
@@ -461,7 +484,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                       
                       <button
                         disabled={isOrganizing}
-                        onClick={() => setActiveTab(itemId)}
+                        onClick={() => {
+                          setActiveTab(itemId);
+                          onClose?.();
+                        }}
                         className={`flex-1 flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-left ${
                           isOrganizing 
                             ? 'cursor-default opacity-85' 
@@ -589,7 +615,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           {onLogout && (
               <button 
-                  onClick={onLogout}
+                  onClick={() => {
+                      onLogout();
+                      onClose?.();
+                  }}
                   className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white transition-all duration-200 text-sm"
               >
                   <LogOut size={16} />

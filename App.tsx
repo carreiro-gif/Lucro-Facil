@@ -31,7 +31,7 @@ import { useAuth } from './context/AuthContext';
 import { db } from './firebase';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { AuthScreen } from './components/AuthScreen';
-import { LogOut, Users, Shield, ArrowLeftRight, Loader } from 'lucide-react';
+import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu } from 'lucide-react';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
@@ -330,6 +330,7 @@ const GlobalFooter: React.FC = () => (
 const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorChange, sidebarBgColor, onSidebarBgColorChange, onBackup, onRestore, lastBackupDate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGlobalXande, setShowGlobalXande] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     const handleOpenXande = () => setShowGlobalXande(true);
@@ -363,8 +364,55 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
     }
   };
 
+  const getTabLabel = (tab: string) => {
+    const map: Record<string, string> = {
+      dashboard: 'Dashboard',
+      expenses: 'Despesas Fixas',
+      categories: 'Categorias',
+      billing: 'Faturamento',
+      dna: 'CFI da Empresa',
+      ingredients: 'Insumos / Receitas',
+      products: 'Ficha Técnica (CMV)',
+      pricing: 'Preço de Venda',
+      profit: 'Lucro Atual',
+      'xande-report': 'Relatório do Xande',
+      'buffet-simulator': 'À Vontade / Buffet',
+      combos: 'Combos',
+      'sales-import': 'Integrar Vendas',
+      'purchase-entry': 'Entrada de Compras',
+      'break-even': 'Ponto de Equilíbrio',
+      'smart-offers': 'Ofertas de Margem',
+      'smart-simulator': 'Simular Descontos',
+      calculator: 'Calculadora',
+      'shopping-list': 'Lista de Compras',
+      help: 'Central de Ajuda'
+    };
+    return map[tab] || 'Lucro Fácil';
+  };
+
   return (
-    <div className="flex min-h-screen transition-colors duration-500 relative">
+    <div className="flex min-h-screen transition-colors duration-500 relative flex-col md:flex-row">
+      {/* Mobile Top Navigation Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-white/10 flex items-center justify-between px-5 z-30">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2 -ml-2 rounded-lg text-gray-400 hover:text-white transition"
+            title="Abrir menu"
+          >
+            <Menu size={24} />
+          </button>
+          <span className="text-sm font-bold text-white uppercase tracking-wider">
+            {getTabLabel(activeTab)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-brand-red bg-brand-red/10 border border-brand-red/20 px-2 py-0.5 rounded">
+            PRO
+          </span>
+        </div>
+      </div>
+
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -376,8 +424,11 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
         onBackup={onBackup}
         onRestore={onRestore}
         lastBackupDate={lastBackupDate}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
       />
-      <main className="flex-1 min-w-0 ml-64 p-8 flex flex-col min-h-screen">
+      
+      <main className="flex-1 min-w-0 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 flex flex-col min-h-screen">
         <div className="flex-1">
           {renderContent()}
         </div>

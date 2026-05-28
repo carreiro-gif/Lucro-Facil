@@ -330,6 +330,11 @@ const Pricing: React.FC = () => {
         </div>
       </div>
 
+      <div className="md:hidden flex items-center gap-2 justify-center bg-brand-red/5 dark:bg-brand-red/10 border border-brand-red/10 dark:border-brand-red/20 text-brand-red dark:text-red-400 py-2 px-3 rounded-lg text-[11px] font-bold select-none shadow-sm mb-3">
+        <span className="animate-bounce">↔</span>
+        <span>DESLIZE AS TABELAS PARA A DIREITA PARA COMPARAR OS CANAIS DE VENDA</span>
+      </div>
+
       <div className="bg-transparent border border-transparent rounded-xl shadow-none overflow-hidden max-h-[calc(100vh-220px)] flex flex-col">
         <div className="overflow-x-auto overflow-y-auto pb-8 flex-1 space-y-12" style={{ scrollbarGutter: 'stable' }}>
             {sortedCategories.map(cat => {
