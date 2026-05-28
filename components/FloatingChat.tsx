@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, ChevronDown, User, Bot, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 import { useApp } from '../context/AppContext';
 
 interface Message {
@@ -189,34 +188,47 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
         ingredientes: ingredientsSummary
       };
 
-      const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY });
-      const chat = ai.chats.create({
-        model: "gemini-2.5-flash",
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION + '\n\nDados atuais do sistema (para contexto): ' + JSON.stringify(smartContext),
-          temperature: 0.7,
-        }
-      });
-
       // Pass previous history minus the new message to recreate conversation context
       const historyMsg = messages.map(m => (m.role === 'model' ? 'Xande' : 'Usuário') + ': ' + m.text).join('\n');
       
       const fullPrompt = '\nHistórico da conversa:\n' + historyMsg + '\n\nUsuário: ' + textToSend + '\n';
 
-      const response = await chat.sendMessageStream({ message: fullPrompt });
-      
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          systemInstruction: SYSTEM_INSTRUCTION + '\n\nDados atuais do sistema (para contexto): ' + JSON.stringify(smartContext),
+          fullPrompt: fullPrompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro na resposta do servidor: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Não foi possível ler a transmissão do servidor.");
+      }
+
+      const decoder = new TextDecoder("utf-8");
       let aiResponseText = '';
       setMessages(prev => [...prev, { role: 'model', text: '' }]);
 
-      for await (const chunk of response) {
-         if (chunk.text) {
-             aiResponseText += chunk.text;
-             setMessages(prev => {
-                const newMsgs = [...prev];
-                newMsgs[newMsgs.length - 1].text = aiResponseText;
-                return newMsgs;
-             });
-         }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (chunk) {
+          aiResponseText += chunk;
+          setMessages(prev => {
+            const newMsgs = [...prev];
+            newMsgs[newMsgs.length - 1].text = aiResponseText;
+            return newMsgs;
+          });
+        }
       }
 
     } catch (error) {
@@ -233,6 +245,12 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
 
   const currentWelcomeData = getWelcomeData(activeTab);
   const showSuggestions = messages.length === 1 && messages[0].role === 'model';
+  const isWaitingForResponse = isLoading && (
+    messages.length > 0 && (
+      messages[messages.length - 1].role === 'user' || 
+      (messages[messages.length - 1].role === 'model' && !messages[messages.length - 1].text)
+    )
+  );
 
   return (
     <>
@@ -291,23 +309,52 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#F8FAFC] dark:bg-[#111827]">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-              <div className={'max-w-[85%] rounded-2xl px-4 py-2.5 text-[14px] leading-relaxed ' + (
-                msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-sm' 
-                  : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 shadow-sm rounded-tl-sm'
-              )}>
-                {msg.text || (
-                  <span className="flex gap-1 items-center h-4">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+          {messages.map((msg, idx) => {
+            if (msg.role === 'model' && !msg.text && isWaitingForResponse) return null;
+            return (
+              <div key={idx} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div className={'max-w-[85%] rounded-2xl px-4 py-2.5 text-[14px] leading-relaxed ' + (
+                  msg.role === 'user' 
+                    ? 'bg-blue-600 text-white rounded-tr-sm' 
+                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 shadow-sm rounded-tl-sm'
+                )}>
+                  {msg.text || (
+                    <span className="flex gap-1 items-center h-4">
+                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Typing indicator bubble */}
+          {isWaitingForResponse && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] rounded-2xl px-4 py-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 shadow-sm rounded-tl-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full overflow-hidden bg-white/30 border border-slate-200 dark:border-slate-700 shrink-0 select-none">
+                    <img 
+                      src="/xande-avatar.png" 
+                      alt="Xande" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
+                  <span className="italic text-gray-450 dark:text-gray-450 font-medium text-xs select-none">
+                    Xande está digitando
                   </span>
-                )}
+                  <span className="flex gap-1 items-center pt-1.5 h-3">
+                    <span className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </span>
+                </div>
               </div>
             </div>
-          ))}
+          )}
           
           {/* Suggestions (only show after initial welcome) */}
           {showSuggestions && (
