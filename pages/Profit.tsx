@@ -31,12 +31,25 @@ const Profit: React.FC = () => {
 
   const getComboCMV = (combo: Combo) => {
     let cmvCombo = 0;
+    const itemCosts: number[] = [];
+    
     combo.items.forEach(item => {
         const prod = (products || []).find(p => p.id === item.productId);
         if (prod) {
-            cmvCombo += getProductCMV(prod) * item.quantity;
+            itemCosts.push(getProductCMV(prod) * item.quantity);
+        } else {
+            itemCosts.push(0);
         }
     });
+
+    if (combo.type === 'free_choice') {
+      const sortedCosts = [...itemCosts].sort((a, b) => b - a);
+      const freeChoiceCount = combo.freeChoiceCount || 1;
+      cmvCombo = sortedCosts.slice(0, freeChoiceCount).reduce((acc, val) => acc + val, 0);
+    } else {
+      cmvCombo = itemCosts.reduce((acc, val) => acc + val, 0);
+    }
+
     cmvCombo += (combo.customPackagingCost || 0);
     return cmvCombo;
   };
