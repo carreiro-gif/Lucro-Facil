@@ -3,14 +3,21 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { ScrollText, Info, HelpCircle, X } from 'lucide-react';
 import { formatPercent } from '../constants';
-import { Product } from '../types';
+import { Product, Combo } from '../types';
+
+type MergedItem = {
+    type: 'product' | 'combo';
+    data: Product | Combo;
+};
 
 const Profit: React.FC = () => {
   const { 
     products,
+    combos,
     menuCategories,
     calculateTotalCfiPercent,
     updateProduct,
+    updateCombo,
     getSortedProducts,
     getProductCMV
   } = useApp();
@@ -21,32 +28,73 @@ const Profit: React.FC = () => {
   const sortedCategories = useMemo(() => [...(menuCategories || [])].sort((a,b) => a.order - b.order), [menuCategories]);
   const sortedProducts = useMemo(() => getSortedProducts() || [], [getSortedProducts, products]);
 
+  const getComboCMV = (combo: Combo) => {
+    let cmvCombo = 0;
+    combo.items.forEach(item => {
+        const prod = (products || []).find(p => p.id === item.productId);
+        if (prod) {
+            cmvCombo += getProductCMV(prod) * item.quantity;
+        }
+    });
+    cmvCombo += (combo.customPackagingCost || 0);
+    return cmvCombo;
+  };
+
   // Grouped by Category in exact order
-  const filteredProductsByGroup = useMemo(() => {
-    const groups: Record<string, Product[]> = {};
+  const filteredItemsByGroup = useMemo(() => {
+    const groups: Record<string, MergedItem[]> = {};
 
     sortedCategories.forEach(cat => groups[cat.name] = []);
     groups['Sem Categoria'] = [];
+    groups['Padrão'] = []; // For combos specifically
 
-    (sortedProducts || []).forEach(p => {
+    (sortedProducts || []).forEach((p: Product) => {
         const resolvedCategoryName = groups[p.category] ? p.category : (sortedCategories.find(c => c.id === p.category)?.name || 'Sem Categoria');
-        if (groups[resolvedCategoryName]) groups[resolvedCategoryName].push(p);
-        else groups['Sem Categoria'].push(p);
+        if (groups[resolvedCategoryName]) groups[resolvedCategoryName].push({ type: 'product', data: p });
+        else groups['Sem Categoria'].push({ type: 'product', data: p });
+    });
+
+    (combos || []).forEach((c: Combo) => {
+        const catName = c.category || 'Padrão';
+        if (!groups[catName]) {
+            groups[catName] = []; // Create custom combo categories if they don't exist in product menu categories
+        }
+        groups[catName].push({ type: 'combo', data: c });
     });
 
     return groups;
-  }, [sortedProducts, sortedCategories]);
+  }, [sortedProducts, combos, sortedCategories]);
 
-  const handleValueChange = (productId: string, field: 'price' | 'delivery', value: string) => {
+  const allCategoryNamesTemp = [
+      ...sortedCategories.map(c => c.name),
+      'Sem Categoria',
+      'Padrão'
+  ];
+  const dynamicComboCats = Object.keys(filteredItemsByGroup).filter(c => !allCategoryNamesTemp.includes(c));
+  const finalCategoryOrder = [...allCategoryNamesTemp, ...dynamicComboCats];
+
+  const handleValueChange = (itemId: string, itemType: 'product' | 'combo', field: 'price' | 'delivery', value: string) => {
     const numValue = parseFloat(value) || 0;
-    const product = sortedProducts.find(p => p.id === productId);
-    if (product) {
-      if (field === 'price') {
-        updateProduct(productId, { fixedPriceStore: numValue });
-      } else {
-        const newPricing = { ...product.pricing, keeta: { ...product.pricing?.keeta, delivery: numValue } };
-        updateProduct(productId, { pricing: newPricing as any });
-      }
+    
+    if (itemType === 'product') {
+        const product = sortedProducts.find(p => p.id === itemId);
+        if (product) {
+          if (field === 'price') {
+            updateProduct(itemId, { fixedPriceStore: numValue });
+          } else {
+            const newPricing = { ...product.pricing, keeta: { ...product.pricing?.keeta, delivery: numValue } };
+            updateProduct(itemId, { pricing: newPricing as any });
+          }
+        }
+    } else {
+        const combo = (combos || []).find(c => c.id === itemId);
+        if (combo) {
+            if (field === 'price') {
+                updateCombo(itemId, { fixedPriceStore: numValue });
+            } else {
+                updateCombo(itemId, { keetaDelivery: numValue });
+            }
+        }
     }
   };
 
@@ -102,31 +150,38 @@ const Profit: React.FC = () => {
                     let globalIdx = 0;
                     return (
                         <>
-                            {sortedCategories.map(cat => {
-                                const groupItems = filteredProductsByGroup[cat.name] || [];
+                            {finalCategoryOrder.map(catName => {
+                                const groupItems = filteredItemsByGroup[catName] || [];
                                 if (groupItems.length === 0) return null;
 
                                 return (
-                                    <React.Fragment key={cat.id}>
+                                    <React.Fragment key={catName}>
                                         <tr className="bg-gray-100 dark:bg-[#1f2937] font-extrabold select-none">
                                             <td 
                                                 className="px-4 py-3 bg-gray-100 dark:bg-[#1f2937] text-gray-900 dark:text-white uppercase tracking-wider text-[11px] font-black text-left" 
                                                 colSpan={9}
                                             >
                                                 <span className="flex items-center gap-2">
-                                                    {cat.name} 
+                                                    {catName} 
                                                     <span className="bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-bold">
                                                         {groupItems.length} ITENS
                                                     </span>
                                                 </span>
                                             </td>
                                         </tr>
-                                        {groupItems.map(product => {
+                                        {groupItems.map(item => {
                                             globalIdx++;
                                             const currentIdx = globalIdx;
-                                            const cmv = getProductCMV(product);
-                                            const pvAtual = product.fixedPriceStore || 0;
-                                            const deliveryCost = product.pricing?.keeta?.delivery || 0;
+                                            const isCombo = item.type === 'combo';
+                                            const data = item.data;
+                                            
+                                            // Handle calculation differently for Product vs Combo
+                                            const cmv = isCombo ? getComboCMV(data as Combo) : getProductCMV(data as Product);
+                                            const pvAtual = data.fixedPriceStore || 0;
+                                            const deliveryCost = isCombo 
+                                                ? ((data as Combo).keetaDelivery || 0) 
+                                                : ((data as Product).pricing?.keeta?.delivery || 0);
+
                                             const cfiCost = pvAtual * (totalCfiPercent / 100);
                                             const totalCosts = cmv + cfiCost + deliveryCost;
                                             const profitValue = pvAtual - totalCosts;
@@ -140,12 +195,19 @@ const Profit: React.FC = () => {
                                             }
 
                                             return (
-                                                <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition group">
+                                                <tr key={data.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition group">
                                                     <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-500 font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{currentIdx}</td>
-                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">{product.name}</td>
-                                                    <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"><input type="number" step="0.01" value={pvAtual || ''} placeholder="0.00" onChange={(e) => handleValueChange(product.id, 'price', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-bold" /></td>
+                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+                                                        {data.name}
+                                                        {isCombo && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Combo</span>}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+                                                        <input type="number" step="0.01" value={pvAtual || ''} placeholder="0.00" onChange={(e) => handleValueChange(data.id, item.type, 'price', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-bold" />
+                                                    </td>
                                                     <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{formatPercent(totalCfiPercent)}</td>
-                                                    <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"><input type="number" step="0.01" value={deliveryCost || ''} placeholder="0.00" onChange={(e) => handleValueChange(product.id, 'delivery', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none" /></td>
+                                                    <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+                                                        <input type="number" step="0.01" value={deliveryCost || ''} placeholder="0.00" onChange={(e) => handleValueChange(data.id, item.type, 'delivery', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none" />
+                                                    </td>
                                                     <td className="px-4 py-3 text-center font-mono text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">R$ {cmv.toFixed(2)}</td>
                                                     <td className={`px-4 py-3 text-center font-bold font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitValue < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>R$ {profitValue.toFixed(2)}</td>
                                                     <td className={`px-4 py-3 text-center font-bold bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitPercent < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>{formatPercent(profitPercent * 100)}</td>
@@ -156,62 +218,6 @@ const Profit: React.FC = () => {
                                     </React.Fragment>
                                 );
                             })}
-                            
-                            {/* Fallback for "Sem Categoria" */}
-                            {(() => {
-                                const groupItems = filteredProductsByGroup['Sem Categoria'] || [];
-                                if (groupItems.length === 0) return null;
-
-                                return (
-                                    <React.Fragment key="sem-categoria">
-                                        <tr className="bg-gray-100 dark:bg-[#1f2937] font-extrabold select-none">
-                                            <td 
-                                                className="px-4 py-3 bg-gray-100 dark:bg-[#1f2937] text-gray-900 dark:text-white uppercase tracking-wider text-[11px] font-black text-left" 
-                                                colSpan={9}
-                                            >
-                                                <span className="flex items-center gap-2">
-                                                    Sem Categoria 
-                                                    <span className="bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                                                        {groupItems.length} ITENS
-                                                    </span>
-                                                </span>
-                                            </td>
-                                        </tr>
-                                        {groupItems.map(product => {
-                                            globalIdx++;
-                                            const currentIdx = globalIdx;
-                                            const cmv = getProductCMV(product);
-                                            const pvAtual = product.fixedPriceStore || 0;
-                                            const deliveryCost = product.pricing?.keeta?.delivery || 0;
-                                            const cfiCost = pvAtual * (totalCfiPercent / 100);
-                                            const totalCosts = cmv + cfiCost + deliveryCost;
-                                            const profitValue = pvAtual - totalCosts;
-                                            const profitPercent = pvAtual > 0 ? (profitValue / pvAtual) : 0;
-                                            
-                                            let statusColor = 'text-gray-500', statusBg = 'bg-gray-100 dark:bg-gray-800', statusLabel = 'N/A';
-                                            if (pvAtual > 0) {
-                                                if (profitValue < 0) { statusColor = 'text-red-700 dark:text-red-500'; statusBg = 'bg-red-100 dark:bg-red-900/20'; statusLabel = 'PREJUÍZO'; }
-                                                else if (profitPercent < 0.15) { statusColor = 'text-amber-700 dark:text-yellow-500'; statusBg = 'bg-amber-100 dark:bg-yellow-900/20'; statusLabel = 'BAIXO'; }
-                                                else { statusColor = 'text-emerald-700 dark:text-emerald-500'; statusBg = 'bg-emerald-100 dark:bg-emerald-900/20'; statusLabel = 'OK'; }
-                                            }
-
-                                            return (
-                                                <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition group">
-                                                    <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-500 font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{currentIdx}</td>
-                                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">{product.name}</td>
-                                                    <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"><input type="number" step="0.01" value={pvAtual || ''} placeholder="0.00" onChange={(e) => handleValueChange(product.id, 'price', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-bold" /></td>
-                                                    <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{formatPercent(totalCfiPercent)}</td>
-                                                    <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"><input type="number" step="0.01" value={deliveryCost || ''} placeholder="0.00" onChange={(e) => handleValueChange(product.id, 'delivery', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none" /></td>
-                                                    <td className="px-4 py-3 text-center font-mono text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">R$ {cmv.toFixed(2)}</td>
-                                                    <td className={`px-4 py-3 text-center font-bold font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitValue < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>R$ {profitValue.toFixed(2)}</td>
-                                                    <td className={`px-4 py-3 text-center font-bold bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitPercent < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>{formatPercent(profitPercent * 100)}</td>
-                                                    <td className="px-4 py-3 text-center bg-gray-50 dark:bg-gray-900/50"><span className={`text-[10px] uppercase font-bold px-2 py-1 rounded border border-transparent ${statusBg} ${statusColor}`}>{statusLabel}</span></td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </React.Fragment>
-                                );
-                            })()}
                         </>
                     );
                 })()}

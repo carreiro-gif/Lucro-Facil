@@ -77,8 +77,11 @@ export interface ComboItem {
 export interface Combo {
   id: string;
   name: string;
+  description?: string;
+  type?: 'fixed' | 'free_choice' | 'boosted';
   category?: string;
   items: ComboItem[];
+  freeChoiceCount?: number;
   profitMargin: number;
   ifoodFee: number;
   food99Fee: number;
@@ -91,6 +94,8 @@ export interface Combo {
   keetaCoupon: number;
   ciValue: number;
   customPackagingCost?: number;
+  fixedPriceStore?: number; // Added to let the user input the price they are actually charging
+  order?: number;
 }
 
 export interface Expense {
