@@ -44,7 +44,7 @@ const Profit: React.FC = () => {
 
     if (combo.type === 'free_choice') {
       const sortedCosts = [...itemCosts].sort((a, b) => b - a);
-      const freeChoiceCount = combo.freeChoiceCount || 1;
+      const freeChoiceCount = combo.freeChoiceCount || 2;
       cmvCombo = sortedCosts.slice(0, freeChoiceCount).reduce((acc, val) => acc + val, 0);
     } else {
       cmvCombo = itemCosts.reduce((acc, val) => acc + val, 0);
@@ -238,8 +238,29 @@ const Profit: React.FC = () => {
                                                 <tr key={data.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition group">
                                                     <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-500 font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{currentIdx}</td>
                                                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
-                                                        {data.name}
-                                                        {isCombo && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Combo</span>}
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex items-center gap-1.5 flex-wrap font-bold">
+                                                                <span>{data.name}</span>
+                                                                {isCombo && (
+                                                                    <span className="text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                                                        Combo
+                                                                    </span>
+                                                                )}
+                                                                {isCombo && (data as Combo).type === 'free_choice' && (
+                                                                    <span className="text-[9px] bg-red-50 text-brand-red dark:bg-red-950/25 border border-brand-red/20 rounded px-1.5 py-0.5 font-black uppercase tracking-wider">
+                                                                        Escolhe {(data as Combo).freeChoiceCount || 2} de {((data as Combo).items || []).length}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {isCombo && (
+                                                                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal leading-relaxed">
+                                                                    {((data as Combo).items || []).map(it => {
+                                                                        const p = products.find(prod => prod.id === it.productId);
+                                                                        return `${it.quantity}x ${p ? p.name : '?'}`;
+                                                                    }).join(', ')}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
                                                         <input 
@@ -249,9 +270,13 @@ const Profit: React.FC = () => {
                                                            onFocus={() => setActiveEdit({ id: data.id, type: 'price', value: pvAtual > 0 ? pvAtual.toFixed(2).replace('.', ',') : '' })}
                                                            onChange={(e) => {
                                                              setActiveEdit({ id: data.id, type: 'price', value: e.target.value });
-                                                             handleValueChange(data.id, item.type, 'price', e.target.value);
                                                            }}
-                                                           onBlur={() => setActiveEdit(null)}
+                                                           onBlur={() => {
+                                                             if (activeEdit && activeEdit.id === data.id && activeEdit.type === 'price') {
+                                                               handleValueChange(data.id, item.type, 'price', activeEdit.value);
+                                                             }
+                                                             setActiveEdit(null);
+                                                           }}
                                                            onKeyDown={(e) => {
                                                              if (e.key === 'Enter') {
                                                                (e.target as HTMLInputElement).blur();
@@ -274,9 +299,13 @@ const Profit: React.FC = () => {
                                                            onFocus={() => setActiveEdit({ id: data.id, type: 'delivery', value: deliveryCost > 0 ? deliveryCost.toFixed(2).replace('.', ',') : '' })}
                                                            onChange={(e) => {
                                                              setActiveEdit({ id: data.id, type: 'delivery', value: e.target.value });
-                                                             handleValueChange(data.id, item.type, 'delivery', e.target.value);
                                                            }}
-                                                           onBlur={() => setActiveEdit(null)}
+                                                           onBlur={() => {
+                                                             if (activeEdit && activeEdit.id === data.id && activeEdit.type === 'delivery') {
+                                                               handleValueChange(data.id, item.type, 'delivery', activeEdit.value);
+                                                             }
+                                                             setActiveEdit(null);
+                                                           }}
                                                            onKeyDown={(e) => {
                                                              if (e.key === 'Enter') {
                                                                (e.target as HTMLInputElement).blur();

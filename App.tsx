@@ -107,6 +107,9 @@ const sanitizeGlobalState = (data: any): GlobalState => {
         category: p.category || 'Sem Categoria',
         order: Number(p.order) || 0,
         fixedPriceStore: fixMoney(p.fixedPriceStore),
+        isTopSeller: p.isTopSeller !== undefined ? !!p.isTopSeller : undefined,
+        isSlowMover: p.isSlowMover !== undefined ? !!p.isSlowMover : undefined,
+        isAnchor: p.isAnchor !== undefined ? !!p.isAnchor : undefined,
         ingredients: Array.isArray(p.ingredients) ? p.ingredients.map((pi: any) => ({
             ingredientId: pi.ingredientId,
             quantity: Number(pi.quantity) || 0
@@ -229,8 +232,11 @@ const sanitizeGlobalState = (data: any): GlobalState => {
     ? safeData.combos.map((c: any) => ({
         id: c.id,
         name: c.name,
+        description: c.description || '',
         category: c.category || 'Padrão',
+        type: c.type || 'fixed',
         items: Array.isArray(c.items) ? c.items.map((it: any) => ({ productId: it.productId, quantity: Number(it.quantity) })) : [],
+        freeChoiceCount: Number(c.freeChoiceCount) || 2,
         profitMargin: fixPercent(c.profitMargin),
         ifoodFee: fixPercent(c.ifoodFee ?? (platformConfig.ifood.fee + platformConfig.ifood.onlinePayment + platformConfig.ifood.anticipation)),
         food99Fee: fixPercent(c.food99Fee ?? (platformConfig.food99.fee + platformConfig.food99.onlinePayment + platformConfig.food99.anticipation)),
@@ -241,7 +247,10 @@ const sanitizeGlobalState = (data: any): GlobalState => {
         ifoodCoupon: fixMoney(c.ifoodCoupon ?? c.coupon),
         food99Coupon: fixMoney(c.food99Coupon ?? c.coupon),
         keetaCoupon: fixMoney(c.keetaCoupon ?? c.coupon),
-        ciValue: fixMoney(c.ciValue ?? platformConfig.ifood.ciValue)
+        ciValue: fixMoney(c.ciValue ?? platformConfig.ifood.ciValue),
+        customPackagingCost: fixMoney(c.customPackagingCost),
+        fixedPriceStore: fixMoney(c.fixedPriceStore),
+        order: Number(c.order) || 0
     }))
     : [];
 

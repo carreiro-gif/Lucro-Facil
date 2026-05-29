@@ -713,17 +713,51 @@ const Combos: React.FC = () => {
                                           </button>
                                         </div>
                                       )}
-                                      <div className="font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
-                                        {combo.name}
-                                        {combo.category && combo.category !== 'Padrão' && (
-                                          <span className={`text-[10px] ${catColorInfo.lightBg} ${catColorInfo.tagText} px-2.5 py-1 rounded-md font-black uppercase tracking-wider`}>
-                                            {combo.category}
-                                          </span>
-                                        )}
+                                      <div className="flex flex-col gap-1.5">
+                                        <div className="font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
+                                          {combo.name}
+                                          {combo.category && combo.category !== 'Padrão' && (
+                                            <span className={`text-[10px] ${catColorInfo.lightBg} ${catColorInfo.tagText} px-2.5 py-1 rounded-md font-black uppercase tracking-wider`}>
+                                              {combo.category}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {/* List items inside the combo */}
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-2 gap-y-1 items-center bg-gray-50 dark:bg-gray-800/40 p-2 rounded-xl border border-gray-100 dark:border-gray-800 max-w-xl">
+                                          {(combo.items || []).map((it, idx) => {
+                                            const p = products.find(prod => prod.id === it.productId);
+                                            return (
+                                              <span key={idx} className="flex items-center gap-1">
+                                                <span className="font-black text-brand-red">{it.quantity}x</span>
+                                                <span className="font-medium text-gray-600 dark:text-gray-300">{p ? p.name : 'Item Desconhecido'}</span>
+                                                {idx < combo.items.length - 1 && <span className="opacity-40 select-none">•</span>}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{(combo.items || []).length}</td>
+                                  <td className="px-6 py-4 text-center">
+                                    {combo.type === 'free_choice' ? (
+                                      <div className="flex flex-col items-center gap-1 select-none">
+                                        <div className="bg-red-50 dark:bg-red-950/25 border-2 border-brand-red/35 text-brand-red rounded-full px-3 py-1 font-black text-xs">
+                                          Escolhe {combo.freeChoiceCount || 2} de {(combo.items || []).length}
+                                        </div>
+                                        <span className="text-[9px] uppercase font-black tracking-wider text-gray-400 dark:text-gray-500">Escolha Livre</span>
+                                      </div>
+                                    ) : combo.type === 'boosted' ? (
+                                      <div className="flex flex-col items-center gap-1 select-none">
+                                        <span className="font-black text-indigo-650 dark:text-indigo-400 text-sm">{(combo.items || []).length}</span>
+                                        <span className="text-[9px] uppercase font-black tracking-wider text-gray-400 dark:text-gray-500">Turbinado</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-center gap-1 select-none">
+                                        <span className="font-black text-gray-700 dark:text-gray-300 text-sm">{(combo.items || []).length}</span>
+                                        <span className="text-[9px] uppercase font-black tracking-wider text-gray-400 dark:text-gray-500">Fixo</span>
+                                      </div>
+                                    )}
+                                  </td>
                                   <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{formatPercent(combo.profitMargin)}</td>
                                   <td className="px-6 py-4 text-right font-mono text-gray-600 dark:text-gray-300">R$ {cmv.toFixed(2)}</td>
                                   <td className="px-6 py-4 text-right font-mono">
@@ -1023,8 +1057,48 @@ const Combos: React.FC = () => {
                     </div>
                  </div>
               ) : (
-              <div className="flex-1 overflow-y-auto p-5 sm:p-12 space-y-12 max-w-7xl mx-auto w-full">
+              <div className="flex-1 overflow-y-auto p-5 sm:p-12 space-y-8 max-w-7xl mx-auto w-full">
                  
+                 {/* Tipo de Combo Selector inside the modal form */}
+                 <div className="bg-gray-100 dark:bg-gray-850 p-1.5 rounded-2xl flex flex-col sm:flex-row gap-1.5 border border-gray-200 dark:border-gray-800">
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedComboType('fixed')}
+                      className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                        selectedComboType === 'fixed' 
+                          ? 'bg-brand-red text-white shadow-md shadow-red-900/10' 
+                          : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <Package size={16} /> Combo Fixo
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setSelectedComboType('free_choice');
+                        if (!description) setDescription('Escolha os seus favoritos e aproveite mais sabor pelo melhor preço');
+                      }}
+                      className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                        selectedComboType === 'free_choice' 
+                          ? 'bg-brand-red text-white shadow-md shadow-red-900/10' 
+                          : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <ListChecks size={16} /> Escolha Livre
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedComboType('boosted')}
+                      className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                        selectedComboType === 'boosted' 
+                          ? 'bg-brand-red text-white shadow-md shadow-red-900/10' 
+                          : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <TrendingUp size={16} /> Combo Turbinado
+                    </button>
+                 </div>
+
                  {/* LINHA 1: Nome, Categoria e Lucro */}
                  <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                     <div className="md:col-span-4">
