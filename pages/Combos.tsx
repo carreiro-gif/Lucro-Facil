@@ -351,16 +351,17 @@ const Combos: React.FC = () => {
     };
 
     // 3. PV iFood
-    const pvIfood = calcMarketplace(pvLoja, ifoodFee, ifoodDelivery, 0, ifoodCoupon);
+    const baseLojaPrice = fixedPriceStore > 0 ? fixedPriceStore : pvLoja;
+    const pvIfood = calcMarketplace(baseLojaPrice, ifoodFee, ifoodDelivery, 0, ifoodCoupon);
 
     // 4. PV CI
-    const pvCi = calcMarketplace(pvLoja, ifoodFee, ifoodDelivery, ciVal, ifoodCoupon);
+    const pvCi = calcMarketplace(baseLojaPrice, ifoodFee, ifoodDelivery, ciVal, ifoodCoupon);
 
     // 5. PV 99Food
-    const pv99 = calcMarketplace(pvLoja, food99Fee, food99Delivery, 0, food99Coupon);
+    const pv99 = calcMarketplace(baseLojaPrice, food99Fee, food99Delivery, 0, food99Coupon);
 
     // 6. PV Keeta
-    const pvKeeta = calcMarketplace(pvLoja, keetaFee, keetaDelivery, 0, keetaCoupon);
+    const pvKeeta = calcMarketplace(baseLojaPrice, keetaFee, keetaDelivery, 0, keetaCoupon);
 
     return { cmvCombo, pvLoja, pvIfood, pvCi, pv99, pvKeeta, worstCaseCMV, bestCaseCMV, avgCMV };
   };
@@ -682,7 +683,9 @@ const Combos: React.FC = () => {
                             cmv += combo.customPackagingCost || 0;
                             
                             const deductions = (totalCfiPercent + combo.profitMargin) / 100;
-                            const pvLojaVal = deductions < 1 ? cmv / (1 - deductions) : 0;
+                            const pvLojaSuggested = deductions < 1 ? cmv / (1 - deductions) : 0;
+                            const hasFixedPrice = !!(combo.fixedPriceStore && combo.fixedPriceStore > 0);
+                            const pvLojaVal = hasFixedPrice ? combo.fixedPriceStore : pvLojaSuggested;
                             
                             const calcMarketplace = (base: number, feesPct: number, del: number, ci: number, cpn: number) => {
                                 const denominator = 1 - (feesPct / 100);
@@ -723,7 +726,16 @@ const Combos: React.FC = () => {
                                   <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{(combo.items || []).length}</td>
                                   <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{formatPercent(combo.profitMargin)}</td>
                                   <td className="px-6 py-4 text-right font-mono text-gray-600 dark:text-gray-300">R$ {cmv.toFixed(2)}</td>
-                                  <td className="px-6 py-4 text-right font-mono font-bold text-gray-900 dark:text-white">R$ {pvLojaVal.toFixed(2)}</td>
+                                  <td className="px-6 py-4 text-right font-mono">
+                                    <div className="flex flex-col items-end">
+                                      <span className="font-bold text-gray-900 dark:text-white">R$ {pvLojaVal.toFixed(2)}</span>
+                                      {hasFixedPrice ? (
+                                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider select-none">Definitivo</span>
+                                      ) : (
+                                        <span className="text-[9px] text-gray-400 font-medium uppercase tracking-wider select-none">Sugerido</span>
+                                      )}
+                                    </div>
+                                  </td>
                                   
                                   <td className="px-6 py-4 text-right font-mono font-bold text-[#E53935]">R$ {pvIfoodVal.toFixed(2)}</td>
                                   <td className="px-6 py-4 text-right font-mono font-bold text-[#B71C1C]">R$ {pvCiVal.toFixed(2)}</td>

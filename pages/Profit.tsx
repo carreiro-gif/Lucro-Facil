@@ -22,6 +22,7 @@ const Profit: React.FC = () => {
     getProductCMV
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
+  const [activeEdit, setActiveEdit] = useState<{ id: string; type: 'price' | 'delivery'; value: string } | null>(null);
 
   const totalCfiPercent = calculateTotalCfiPercent();
   
@@ -38,6 +39,20 @@ const Profit: React.FC = () => {
     });
     cmvCombo += (combo.customPackagingCost || 0);
     return cmvCombo;
+  };
+
+  const getProductSuggestedPrice = (product: Product) => {
+    const cmv = getProductCMV(product);
+    const margin = product.pricing?.profitMargin !== undefined ? product.pricing.profitMargin : 20;
+    const totalDeductions = (totalCfiPercent + margin) / 100;
+    if (totalDeductions >= 1) return 0;
+    return cmv / (1 - totalDeductions);
+  };
+
+  const getComboSuggestedPrice = (combo: Combo) => {
+    const cmv = getComboCMV(combo);
+    const deductions = (totalCfiPercent + combo.profitMargin) / 100;
+    return deductions < 1 ? cmv / (1 - deductions) : 0;
   };
 
   // Grouped by Category in exact order
@@ -74,7 +89,8 @@ const Profit: React.FC = () => {
   const finalCategoryOrder = [...allCategoryNamesTemp, ...dynamicComboCats];
 
   const handleValueChange = (itemId: string, itemType: 'product' | 'combo', field: 'price' | 'delivery', value: string) => {
-    const numValue = parseFloat(value) || 0;
+    const cleanValue = value.replace(',', '.');
+    const numValue = parseFloat(cleanValue) || 0;
     
     if (itemType === 'product') {
         const product = sortedProducts.find(p => p.id === itemId);
@@ -177,12 +193,23 @@ const Profit: React.FC = () => {
                                             
                                             // Handle calculation differently for Product vs Combo
                                             const cmv = isCombo ? getComboCMV(data as Combo) : getProductCMV(data as Product);
-                                            const pvAtual = data.fixedPriceStore || 0;
+                                            const suggestedPrice = isCombo ? getComboSuggestedPrice(data as Combo) : getProductSuggestedPrice(data as Product);
+                                            const hasFixedPrice = !!(data.fixedPriceStore && data.fixedPriceStore > 0);
+                                            const pvAtual = hasFixedPrice ? data.fixedPriceStore : suggestedPrice;
                                             const deliveryCost = isCombo 
                                                 ? ((data as Combo).keetaDelivery || 0) 
                                                 : ((data as Product).pricing?.keeta?.delivery || 0);
 
                                             const cfiCost = pvAtual * (totalCfiPercent / 100);
+                                            const isEditingPrice = activeEdit?.id === data.id && activeEdit?.type === 'price';
+                                            const displayPrice = isEditingPrice 
+                                              ? activeEdit.value 
+                                              : (pvAtual > 0 ? pvAtual.toFixed(2).replace('.', ',') : '');
+
+                                            const isEditingDelivery = activeEdit?.id === data.id && activeEdit?.type === 'delivery';
+                                            const displayDelivery = isEditingDelivery 
+                                              ? activeEdit.value 
+                                              : (deliveryCost > 0 ? deliveryCost.toFixed(2).replace('.', ',') : '');
                                             const totalCosts = cmv + cfiCost + deliveryCost;
                                             const profitValue = pvAtual - totalCosts;
                                             const profitPercent = pvAtual > 0 ? (profitValue / pvAtual) : 0;
@@ -202,11 +229,48 @@ const Profit: React.FC = () => {
                                                         {isCombo && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Combo</span>}
                                                     </td>
                                                     <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
-                                                        <input type="number" step="0.01" value={pvAtual || ''} placeholder="0.00" onChange={(e) => handleValueChange(data.id, item.type, 'price', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-bold" />
+                                                        <input 
+                                                           type="text" 
+                                                           value={displayPrice} 
+                                                           placeholder="0,00"
+                                                           onFocus={() => setActiveEdit({ id: data.id, type: 'price', value: pvAtual > 0 ? pvAtual.toFixed(2).replace('.', ',') : '' })}
+                                                           onChange={(e) => {
+                                                             setActiveEdit({ id: data.id, type: 'price', value: e.target.value });
+                                                             handleValueChange(data.id, item.type, 'price', e.target.value);
+                                                           }}
+                                                           onBlur={() => setActiveEdit(null)}
+                                                           onKeyDown={(e) => {
+                                                             if (e.key === 'Enter') {
+                                                               (e.target as HTMLInputElement).blur();
+                                                             }
+                                                           }}
+                                                           className={`w-full bg-gray-50 dark:bg-gray-800 border ${hasFixedPrice ? 'border-emerald-500/80 dark:border-emerald-500/55 shadow-sm' : 'border-gray-300 dark:border-gray-700'} text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-bold`} 
+                                                         />
+                                                        {hasFixedPrice ? (
+                                                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase block mt-1 tracking-wider select-none">Definitivo</span>
+                                                        ) : (
+                                                          <span className="text-[9px] text-gray-400 font-medium block mt-1 tracking-wider select-none">Sugerido</span>
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">{formatPercent(totalCfiPercent)}</td>
                                                     <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
-                                                        <input type="number" step="0.01" value={deliveryCost || ''} placeholder="0.00" onChange={(e) => handleValueChange(data.id, item.type, 'delivery', e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none" />
+                                                        <input 
+                                                           type="text" 
+                                                           value={displayDelivery} 
+                                                           placeholder="0,00"
+                                                           onFocus={() => setActiveEdit({ id: data.id, type: 'delivery', value: deliveryCost > 0 ? deliveryCost.toFixed(2).replace('.', ',') : '' })}
+                                                           onChange={(e) => {
+                                                             setActiveEdit({ id: data.id, type: 'delivery', value: e.target.value });
+                                                             handleValueChange(data.id, item.type, 'delivery', e.target.value);
+                                                           }}
+                                                           onBlur={() => setActiveEdit(null)}
+                                                           onKeyDown={(e) => {
+                                                             if (e.key === 'Enter') {
+                                                               (e.target as HTMLInputElement).blur();
+                                                             }
+                                                           }}
+                                                           className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center rounded p-1.5 focus:border-brand-red outline-none font-mono" 
+                                                         />
                                                     </td>
                                                     <td className="px-4 py-3 text-center font-mono text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">R$ {cmv.toFixed(2)}</td>
                                                     <td className={`px-4 py-3 text-center font-bold font-mono bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800 ${profitValue < 0 ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>R$ {profitValue.toFixed(2)}</td>
