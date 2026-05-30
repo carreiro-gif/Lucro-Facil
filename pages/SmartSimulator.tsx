@@ -212,8 +212,6 @@ const SmartSimulator: React.FC = () => {
     setIsXandeLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
       const scenarioContext = `
       Você é o Xande, consultor do Lucro Fácil, especialista e francamente direto com os números de hamburguerias.
       O usuário está analisando cenários e ferramentas de fidelização/desconto na aba ativa de "${activeSubTab.toUpperCase()}":
@@ -255,20 +253,57 @@ const SmartSimulator: React.FC = () => {
       - Use emojis adequados e linguagem brasileira e prática.
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: [...xandeChatMessages, userMsg].map(m => ({
-          role: m.role,
-          parts: [{ text: m.text }]
-        })),
-        config: {
+      // Format previous chat history along with the new user message
+      const historyContext = xandeChatMessages.map(m => `${m.role === 'user' ? 'Usuário' : 'Você (Xande)'}: ${m.text}`).join('\n');
+      const fullPrompt = historyContext + '\nUsuário: ' + textToSend + '\nVocê (Xande):';
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           systemInstruction: scenarioContext,
-          temperature: 0.7,
-        }
+          fullPrompt: fullPrompt
+        })
       });
 
-      const responseText = response.text || "Sem reposta. Tente novamente.";
-      addXandeBotMessage(responseText);
+      if (!response.ok) {
+        throw new Error('Erro na API do chat. Configure a chave no servidor.');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      let answerText = '';
+      
+      if (reader) {
+        // Add a temporary empty message that will be streamed into
+        setXandeChatMessages(prev => {
+          const newMessages = [...prev];
+          newMessages.push({ role: 'model', text: '' });
+          return newMessages;
+        });
+
+        let done = false;
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          if (value) {
+            const chunk = decoder.decode(value, { stream: !done });
+            answerText += chunk;
+            
+            // Update the last message in state with the new chunk
+            setXandeChatMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].text = answerText;
+              return newMessages;
+            });
+          }
+        }
+      } else {
+        throw new Error('No body returned from stream');
+      }
 
     } catch (error) {
       console.error(error);

@@ -315,6 +315,8 @@ interface AppContentProps {
   onLogout: () => void;
   bgColor: string;
   onBgColorChange: (color: string) => void;
+  bgPatternEnabled: boolean;
+  onBgPatternToggle: (enabled: boolean) => void;
   sidebarBgColor: string;
   onSidebarBgColorChange: (color: string) => void;
   onBackup: () => void;
@@ -336,7 +338,7 @@ const GlobalFooter: React.FC = () => (
   </div>
 );
 
-const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorChange, sidebarBgColor, onSidebarBgColorChange, onBackup, onRestore, lastBackupDate }) => {
+const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorChange, bgPatternEnabled, onBgPatternToggle, sidebarBgColor, onSidebarBgColorChange, onBackup, onRestore, lastBackupDate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGlobalXande, setShowGlobalXande] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -428,6 +430,8 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
         onLogout={onLogout} 
         bgColor={bgColor}
         onBgColorChange={onBgColorChange}
+        bgPatternEnabled={bgPatternEnabled}
+        onBgPatternToggle={onBgPatternToggle}
         sidebarBgColor={sidebarBgColor}
         onSidebarBgColorChange={onSidebarBgColorChange}
         onBackup={onBackup}
@@ -490,6 +494,14 @@ const App: React.FC = () => {
     return null;
   });
 
+  const [bgPatternEnabled, setBgPatternEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('app_bg_pattern_v2');
+      if (saved !== null) return saved === 'true';
+    }
+    return true;
+  });
+
   useLayoutEffect(() => {
     const root = window.document.documentElement;
     const selectedPalette = BACKGROUND_PALETTE.find(p => p.color === bgColor) || BACKGROUND_PALETTE[0];
@@ -501,11 +513,21 @@ const App: React.FC = () => {
     }
     
     root.style.setProperty('--app-bg', bgColor);
+    if (bgPatternEnabled) {
+      root.style.setProperty('--app-bg-image', 'url("/food_doodle_pattern.png")');
+    } else {
+      root.style.setProperty('--app-bg-image', 'none');
+    }
     localStorage.setItem('app_bg_color', bgColor);
-  }, [bgColor]);
+    localStorage.setItem('app_bg_pattern_v2', bgPatternEnabled.toString());
+  }, [bgColor, bgPatternEnabled]);
 
   const handleBgColorChange = (color: string) => {
     setBgColor(color);
+  };
+
+  const handleBgPatternToggle = (enabled: boolean) => {
+    setBgPatternEnabled(enabled);
   };
 
   const handleSidebarBgColorChange = (color: string) => {
@@ -1113,6 +1135,8 @@ const App: React.FC = () => {
             onLogout={() => setSelectedStoreId(null)} 
             bgColor={bgColor}
             onBgColorChange={handleBgColorChange}
+            bgPatternEnabled={bgPatternEnabled}
+            onBgPatternToggle={handleBgPatternToggle}
             sidebarBgColor={sidebarBgColor}
             onSidebarBgColorChange={handleSidebarBgColorChange}
             onBackup={handleBackup}

@@ -42,6 +42,8 @@ interface SidebarProps {
   onLogout?: () => void;
   bgColor: string;
   onBgColorChange: (color: string) => void;
+  bgPatternEnabled?: boolean;
+  onBgPatternToggle?: (enabled: boolean) => void;
   sidebarBgColor: string;
   onSidebarBgColorChange: (color: string) => void;
   onBackup: () => void;
@@ -151,6 +153,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout, 
   bgColor,
   onBgColorChange,
+  bgPatternEnabled = false,
+  onBgPatternToggle,
   sidebarBgColor,
   onSidebarBgColorChange,
   onBackup,
@@ -600,10 +604,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                       ))}
                     </div>
                   </div>
+                  
+                  {onBgPatternToggle && (
+                    <div className={`border-t ${borderClass} pt-3 pb-1 flex items-center justify-between cursor-pointer`} onClick={() => onBgPatternToggle(!bgPatternEnabled)}>
+                      <h4 className={`text-[10px] ${textSecondary} font-bold uppercase`}>Textura Doodle Mágica</h4>
+                      <div className={`w-8 h-4 rounded-full flex items-center p-0.5 transition-colors ${bgPatternEnabled ? 'bg-brand-red' : 'bg-gray-300 dark:bg-gray-700'}`}>
+                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${bgPatternEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                  )}
+
                   <button 
                     onClick={() => {
                         onBgColorChange(BACKGROUND_PALETTE[0].color);
                         onSidebarBgColorChange('#F8FAFC');
+                        if (onBgPatternToggle) onBgPatternToggle(false);
                     }}
                     className={`w-full text-[10px] ${textSecondary} hover:text-brand-red flex items-center justify-center gap-1 mt-1 border-t ${borderClass} pt-2`}
                   >

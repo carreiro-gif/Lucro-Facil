@@ -244,8 +244,6 @@ const ConsultingReport: React.FC = () => {
   const fetchXandeCustomReport = async () => {
     setIsGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
       const prompt = `
       Você é o Xande, consultor financeiro do Lucro Fácil, experiente em gestão e precificação de negócios de alimentos.
       Escreva um relatório de consultoria financeira em formato de texto estruturado detalhado com parágrafos objetivos para o dono da loja "${storeInfo.name || 'Minha Loja'}".
@@ -271,15 +269,41 @@ const ConsultingReport: React.FC = () => {
       - Linguagem brasileira de consultor experiente, direta, sem mentiras, confiante e extremamente prática. Use no máximo 400 palavras.
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          temperature: 0.82
-        }
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          systemInstruction: 'Você é um bot consultor de relatórios estático',
+          fullPrompt: prompt
+        })
       });
 
-      setXandeBriefing(response.text || '');
+      if (!response.ok) {
+        throw new Error('Erro na API do chat. Configure a chave no servidor.');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      let answerText = '';
+      setXandeBriefing('');
+
+      if (reader) {
+        let done = false;
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          if (value) {
+            const chunk = decoder.decode(value, { stream: !done });
+            answerText += chunk;
+            setXandeBriefing(answerText);
+          }
+        }
+      } else {
+        throw new Error('No body returned from stream');
+      }
     } catch (e) {
       console.error(e);
       setXandeBriefing(`Fala, parceiro! Analusando aqui as suas métricas de finanças e cardápio, vejo que seu CFI atual está em **${totalCfiPercent.toFixed(1)}%** e o CMV em **${(historicalTrendData[historicalTrendData.length-1]?.CmvPercent || 30).toFixed(0)}%**.

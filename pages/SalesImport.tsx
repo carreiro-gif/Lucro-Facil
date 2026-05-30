@@ -25,6 +25,32 @@ import { GoogleGenAI } from '@google/genai';
 import { formatMoney, formatPercent } from '../constants';
 import { SalesTransaction } from '../types';
 
+const parseBrOrUsMoney = (val: string): number => {
+  if (!val) return 0;
+  let s = val.replace(/[R$\sA-Za-z]/g, '');
+  if (!s) return 0;
+  
+  const lastDot = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+  const lastSeparatorIndex = Math.max(lastDot, lastComma);
+  
+  if (lastSeparatorIndex === -1) {
+    return parseFloat(s) || 0;
+  }
+  
+  const charsAfter = s.length - 1 - lastSeparatorIndex;
+  
+  if (charsAfter === 2 || charsAfter === 1) {
+     const integerPart = s.substring(0, lastSeparatorIndex).replace(/[.,]/g, '');
+     const decimalPart = s.substring(lastSeparatorIndex + 1);
+     return parseFloat(`${integerPart}.${decimalPart}`) || 0;
+  } else if (charsAfter === 3) {
+     return parseFloat(s.replace(/[.,]/g, '')) || 0;
+  }
+  
+  return parseFloat(s.replace(/[.,]/g, '')) || 0;
+};
+
 const SalesImport: React.FC = () => {
   const { 
     products, 
@@ -254,8 +280,7 @@ const SalesImport: React.FC = () => {
           qty = parseInt(cols[headerIndexMap.qty].replace(/[^\d]/g, '')) || 1;
         }
         if (headerIndexMap.price !== -1 && cols[headerIndexMap.price]) {
-          const rawPrice = cols[headerIndexMap.price].replace(/[R$\s.]/g, '').replace(',', '.');
-          pricePaid = parseFloat(rawPrice) || 0;
+          pricePaid = parseBrOrUsMoney(cols[headerIndexMap.price]);
         }
         if (headerIndexMap.channel !== -1 && cols[headerIndexMap.channel]) {
           const ch = cols[headerIndexMap.channel].toLowerCase();
@@ -278,16 +303,13 @@ const SalesImport: React.FC = () => {
           orderId = cols[headerIndexMap.orderId];
         }
         if (headerIndexMap.subsidy !== -1 && cols[headerIndexMap.subsidy]) {
-          const rawSub = cols[headerIndexMap.subsidy].replace(/[R$\s.]/g, '').replace(',', '.');
-          subsidy = parseFloat(rawSub) || 0;
+          subsidy = parseBrOrUsMoney(cols[headerIndexMap.subsidy]);
         }
         if (headerIndexMap.coupon !== -1 && cols[headerIndexMap.coupon]) {
-          const rawCop = cols[headerIndexMap.coupon].replace(/[R$\s.]/g, '').replace(',', '.');
-          coupon = parseFloat(rawCop) || 0;
+          coupon = parseBrOrUsMoney(cols[headerIndexMap.coupon]);
         }
         if (headerIndexMap.fee !== -1 && cols[headerIndexMap.fee]) {
-          const rawFee = cols[headerIndexMap.fee].replace(/[R$\s.]/g, '').replace(',', '.');
-          feePaid = parseFloat(rawFee) || 0;
+          feePaid = parseBrOrUsMoney(cols[headerIndexMap.fee]);
         }
       } else {
         // HEURISTIC / NO-HEADERS PARSE:
@@ -308,7 +330,7 @@ const SalesImport: React.FC = () => {
         }
 
         // Search for small integer for qty, and floats for prices
-        const numCols = cols.map(c => parseFloat(c.replace(/[R$\s.]/g, '').replace(',', '.'))).filter(n => !isNaN(n));
+        const numCols = cols.map(c => parseBrOrUsMoney(c)).filter(n => !isNaN(n));
         
         // Take integers under 50 as qty
         const possibleQty = numCols.find(n => Number.isInteger(n) && n > 0 && n < 50);
@@ -348,6 +370,48 @@ const SalesImport: React.FC = () => {
           feePaid = pricePaid * (getChannelDefaultFeePercent(channel) / 100);
         }
 
+        // Heuristic to detect if pasted prices are totals (due to POS exports)
+        let finalUnitPrice = pricePaid;
+        let finalSubsidy = subsidy;
+        let finalCoupon = coupon;
+        let finalFee = feePaid;
+
+        if (qty > 1) {
+            let isTotal = false;
+            if (hasHeaders && headerIndexMap.price !== -1) {
+                const headerName = firstLineCols[headerIndexMap.price] || '';
+                if (headerName.includes('total') || headerName.includes('faturamento') || headerName.includes('bruto')) {
+                    isTotal = true;
+                } else if (headerName.includes('unitário') || headerName.includes('unit')) {
+                    isTotal = false;
+                } else {
+                    // Check by expected base price
+                    if (targetProduct && targetProduct.fixedPriceStore) {
+                        const diffTotal = Math.abs((pricePaid / qty) - targetProduct.fixedPriceStore);
+                        const diffUnit = Math.abs(pricePaid - targetProduct.fixedPriceStore);
+                        if (diffTotal < diffUnit) isTotal = true;
+                    } else if (pricePaid > 100 && (pricePaid / qty) <= 100 && (pricePaid / qty) >= 5) {
+                        isTotal = true;
+                    }
+                }
+            } else {
+                if (targetProduct && targetProduct.fixedPriceStore) {
+                    const diffTotal = Math.abs((pricePaid / qty) - targetProduct.fixedPriceStore);
+                    const diffUnit = Math.abs(pricePaid - targetProduct.fixedPriceStore);
+                    if (diffTotal < diffUnit) isTotal = true;
+                } else if (pricePaid > 100 && (pricePaid / qty) <= 100 && (pricePaid / qty) >= 5) {
+                    isTotal = true;
+                }
+            }
+
+            if (isTotal) {
+                finalUnitPrice = pricePaid / qty;
+                finalSubsidy = subsidy / qty;
+                finalCoupon = coupon / qty;
+                finalFee = feePaid / qty;
+            }
+        }
+
         importedTransactions.push({
           id: Math.random().toString(36).substr(2, 9),
           date,
@@ -355,10 +419,10 @@ const SalesImport: React.FC = () => {
           productName: resolvedName,
           qty,
           channel,
-          pricePaidByCustomer: pricePaid,
-          platformSubsidy: subsidy,
-          couponCostByStore: coupon,
-          feePaid,
+          pricePaidByCustomer: finalUnitPrice,
+          platformSubsidy: finalSubsidy,
+          couponCostByStore: finalCoupon,
+          feePaid: finalFee,
           orderId: orderId || undefined
         });
 
@@ -525,7 +589,6 @@ const SalesImport: React.FC = () => {
     setIsXandeLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       // Compose dedicated system instructions featuring current sales state
       const salesOverviewContext = `
       Você é o Xande, consultor do Lucro Fácil. O usuário está na tela de "Integrar Vendas".
@@ -542,20 +605,57 @@ const SalesImport: React.FC = () => {
       Sua missão é dar um conselho focado em resolver as dúvidas do usuário de forma brasileira, prática, focada em resolver o problema do CMV ou margem, incentivando o uso das "4 Listas" e "Oferta Salva Margem" (para itens de prejuízo). Responda em no máximo 3 parágrafos curtos.
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: [...xandeChatMessages, userMsg].map(m => ({
-          role: m.role,
-          parts: [{ text: m.text }]
-        })),
-        config: {
+      // Format previous chat history along with the new user message
+      const historyContext = xandeChatMessages.map(m => `${m.role === 'user' ? 'Usuário' : 'Você (Xande)'}: ${m.text}`).join('\n');
+      const fullPrompt = historyContext + '\nUsuário: ' + textToSend + '\nVocê (Xande):';
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           systemInstruction: salesOverviewContext,
-          temperature: 0.7,
-        }
+          fullPrompt: fullPrompt
+        })
       });
 
-      const responseText = response.text || "Sem resposta. Tente formular outra dúvida.";
-      addXandeBotMessage(responseText);
+      if (!response.ok) {
+        throw new Error('Erro na API do chat. Configure a chave no servidor.');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      let answerText = '';
+      
+      if (reader) {
+        // Add a temporary empty message that will be streamed into
+        setXandeChatMessages(prev => {
+          const newMessages = [...prev];
+          newMessages.push({ role: 'model', text: '' });
+          return newMessages;
+        });
+
+        let done = false;
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          if (value) {
+            const chunk = decoder.decode(value, { stream: !done });
+            answerText += chunk;
+            
+            // Update the last message in state with the new chunk
+            setXandeChatMessages(prev => {
+              const newMessages = [...prev];
+              newMessages[newMessages.length - 1].text = answerText;
+              return newMessages;
+            });
+          }
+        }
+      } else {
+        throw new Error('No body returned from stream');
+      }
 
     } catch (error) {
       console.error(error);
