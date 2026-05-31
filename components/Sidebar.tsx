@@ -426,7 +426,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <div 
-        className={`sidebar-v2-modern w-64 border-r ${borderClass} h-screen flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-sm font-sans relative overflow-hidden`}
+        className={`sidebar-v2-modern w-64 border-r ${borderClass} h-full flex flex-col fixed md:relative left-0 top-0 z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-sm font-sans shrink-0 overflow-hidden`}
         style={{ backgroundColor: sidebarBgColor }}
       >
         {bgPatternEnabled && (

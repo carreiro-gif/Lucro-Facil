@@ -402,7 +402,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
   };
 
   return (
-    <div className="flex min-h-screen transition-colors duration-500 relative flex-col md:flex-row">
+    <div className="flex h-[100vh] w-full overflow-hidden transition-colors duration-500 bg-[var(--app-bg,#111827)]">
       {/* Mobile Top Navigation Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-white/10 flex items-center justify-between px-5 z-30">
         <div className="flex items-center gap-3">
@@ -441,8 +441,8 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
         onClose={() => setIsMobileSidebarOpen(false)}
       />
       
-      <main className="flex-1 min-w-0 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 flex flex-col min-h-screen">
-        <div className="flex-1">
+      <main className="flex-1 w-full flex flex-col bg-transparent overflow-y-auto min-h-0">
+        <div className="flex-1 w-full max-w-none flex flex-col p-4 md:p-6 pt-20 md:pt-6">
           {renderContent()}
         </div>
         <GlobalFooter />

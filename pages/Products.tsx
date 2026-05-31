@@ -211,7 +211,7 @@ const Products: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6 animate-fade-in pb-20 print:hidden">
+      <div className="w-full space-y-6 animate-fade-in pb-20 print:hidden">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <div className="flex items-center gap-2">

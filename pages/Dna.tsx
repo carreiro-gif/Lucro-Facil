@@ -51,7 +51,7 @@ const Dna: React.FC = () => {
   const StatusIcon = status.icon;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-fade-in">
+    <div className="space-y-6 pb-20 animate-fade-in">
       
       {/* EXPLANATORY BANNER - CFI (TOGGLEABLE) */}
       <div className="flex justify-between items-center">

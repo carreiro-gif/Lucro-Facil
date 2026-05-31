@@ -1057,7 +1057,7 @@ const Combos: React.FC = () => {
                     </div>
                  </div>
               ) : (
-              <div className="flex-1 overflow-y-auto p-5 sm:p-12 space-y-8 max-w-7xl mx-auto w-full">
+              <div className="flex-1 overflow-y-auto p-5 sm:p-12 space-y-8 w-full">
                  
                  {/* Tipo de Combo Selector inside the modal form */}
                  <div className="bg-gray-100 dark:bg-gray-850 p-1.5 rounded-2xl flex flex-col sm:flex-row gap-1.5 border border-gray-200 dark:border-gray-800">

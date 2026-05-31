@@ -218,7 +218,7 @@ const Ingredients: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in pb-20 space-y-6">
+    <div className="w-full animate-fade-in pb-20 space-y-6">
       
       {/* Header Page */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

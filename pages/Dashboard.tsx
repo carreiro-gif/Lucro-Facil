@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
   }));
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20">
+    <div className="w-full space-y-6 animate-fade-in pb-20">
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-start">
             <div>

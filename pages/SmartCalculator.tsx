@@ -125,7 +125,7 @@ const SmartCalculator: React.FC = () => {
 
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-20">
+    <div className="space-y-6 animate-fade-in pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-3">

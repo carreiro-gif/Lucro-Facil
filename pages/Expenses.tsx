@@ -223,7 +223,7 @@ const Expenses: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in relative pb-20">
+    <div className="w-full space-y-6 animate-fade-in relative pb-20">
        
         {/* Warning Banners */}
         {(() => {
