@@ -1117,6 +1117,8 @@ const App: React.FC = () => {
               onUpdateStore={handleUpdateStore}
               onDeleteStore={handleDeleteStore}
               onReplicate={handleReplicate}
+              bgPatternEnabled={bgPatternEnabled}
+              onBgPatternToggle={handleBgPatternToggle}
             />
           </div>
           <div className="bg-[var(--app-bg)] transition-colors duration-500">

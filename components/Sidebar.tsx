@@ -426,10 +426,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <div 
-        className={`sidebar-v2-modern w-64 border-r ${borderClass} h-screen flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-sm font-sans`}
+        className={`sidebar-v2-modern w-64 border-r ${borderClass} h-screen flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} shadow-sm font-sans relative overflow-hidden`}
         style={{ backgroundColor: sidebarBgColor }}
       >
-        <div className={`p-6 border-b ${borderClass} flex items-center justify-between gap-2 shrink-0`}>
+        {bgPatternEnabled && (
+           <div className={`absolute inset-0 pointer-events-none z-0 ${isSidebarDark ? 'mix-blend-screen opacity-60' : 'mix-blend-overlay opacity-30'}`} style={{ backgroundImage: 'var(--app-bg-image)', backgroundSize: '300px', backgroundRepeat: 'repeat' }}></div>
+        )}
+        <div className={`relative z-10 p-6 border-b ${borderClass} flex items-center justify-between gap-2 shrink-0`}>
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className={`w-10 h-10 ${isSidebarDark ? 'bg-black/20' : 'bg-white/50'} rounded-lg flex items-center justify-center shadow-lg overflow-hidden shrink-0 border ${borderClass}`}>
               {storeInfo.logo ? (
@@ -456,7 +459,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
         
-        <nav className="flex-1 px-3 py-6 space-y-6 overflow-y-auto sidebar-v2-modern-scroll">
+        <nav className="relative z-10 flex-1 px-3 py-6 space-y-6 overflow-y-auto sidebar-v2-modern-scroll">
           {menuSections.map((section, idx) => {
             if (section.ids.length === 0 && !isOrganizing) return null;
             
@@ -546,7 +549,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        <div className={`p-4 border-t ${borderClass} space-y-3`}>
+        <div className={`relative z-10 p-4 border-t ${borderClass} space-y-3`}>
           <div className="px-2">
              {/* Organize Menu Toggle */}
              <div className="flex items-center justify-between mb-3 border-b pb-2 border-dashed border-gray-400/20">

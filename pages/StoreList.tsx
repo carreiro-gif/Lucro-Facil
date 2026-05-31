@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Store, ArrowRight, MapPin, Edit2, Upload, X, Copy, CheckCircle, Trash2, AlertTriangle, Tags, TrendingUp, RotateCcw } from 'lucide-react';
+import { Plus, Store, ArrowRight, MapPin, Edit2, Upload, X, Copy, CheckCircle, Trash2, AlertTriangle, Tags, TrendingUp, RotateCcw, Wand2 } from 'lucide-react';
 import { StoreInfo } from '../types';
 
 interface StoreListProps {
@@ -10,6 +10,8 @@ interface StoreListProps {
   onUpdateStore: (store: StoreInfo) => void;
   onDeleteStore?: (storeId: string) => void;
   onReplicate?: (sourceId: string, targetId: string, type: string) => void;
+  bgPatternEnabled?: boolean;
+  onBgPatternToggle?: (enabled: boolean) => void;
 }
 
 const REPLICATION_OPTIONS = [
@@ -23,7 +25,7 @@ const REPLICATION_OPTIONS = [
     { value: 'categories', label: 'Categorias & Fornecedores' },
 ];
 
-const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore, onUpdateStore, onDeleteStore, onReplicate }) => {
+const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore, onUpdateStore, onDeleteStore, onReplicate, bgPatternEnabled = false, onBgPatternToggle }) => {
   // Store Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<StoreInfo | null>(null);
@@ -133,7 +135,9 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
 
   return (
     <div className="flex flex-col items-center justify-center p-8 animate-fade-in relative overflow-hidden min-h-screen bg-gradient-to-br from-slate-900 to-black text-white w-full">
-      
+      {bgPatternEnabled && (
+         <div className="absolute inset-0 pointer-events-none mix-blend-screen opacity-60 z-0" style={{ backgroundImage: 'var(--app-bg-image)', backgroundSize: '300px', backgroundRepeat: 'repeat' }}></div>
+      )}
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-yellow/5 rounded-full blur-[100px] -mr-32 -mt-32"></div>
@@ -165,7 +169,24 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                 </div>
             </div>
 
-            <div className="absolute top-0 right-0 hidden md:flex items-center gap-3">
+            <div className="absolute top-4 right-4 md:top-6 md:right-6 hidden md:flex items-center gap-2 z-20">
+                {onBgPatternToggle && (
+                    <button 
+                        onClick={() => onBgPatternToggle(!bgPatternEnabled)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all backdrop-blur-sm ${bgPatternEnabled ? 'text-brand-yellow bg-brand-yellow/10' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                        title="Ativar/Desativar Textura Doodle"
+                    >
+                        <Wand2 size={12} /> Textura {bgPatternEnabled ? 'ON' : 'OFF'}
+                    </button>
+                )}
+                {onReplicate && (
+                    <button 
+                        onClick={handleOpenReplicate}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all backdrop-blur-sm"
+                    >
+                        <Copy size={12} /> Replicar
+                    </button>
+                )}
                 <button 
                     onClick={() => {
                         if (window.confirm('Isso irá resetar as lojas para o padrão inicial (ESPAÇO CARREIRO e JK BURGUER) com os dados de exemplo do backup. Deseja continuar?')) {
@@ -174,28 +195,28 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
                             window.location.reload();
                         }
                     }}
-                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-yellow-500 hover:text-yellow-400 px-4 py-2 rounded-lg text-sm font-bold border border-white/10 hover:border-brand-yellow transition-all backdrop-blur-md"
-                    title="Limpa todos os dados e recarrega as lojas iniciais com dados de exemplo do backup."
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all backdrop-blur-sm"
+                    title="Restaurar dados iniciais"
                 >
-                    <RotateCcw size={16} /> Resetar p/ Inicial (Backup)
+                    <RotateCcw size={12} /> Resetar
                 </button>
-                {onReplicate && (
-                    <button 
-                        onClick={handleOpenReplicate}
-                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold border border-white/10 hover:border-brand-yellow transition-all backdrop-blur-md"
-                    >
-                        <Copy size={16} /> Replicar Dados
-                    </button>
-                )}
             </div>
 
-            <div className="md:hidden mt-6 flex gap-3 justify-center">
+            <div className="md:hidden mt-6 flex flex-wrap gap-2 justify-center w-full max-w-xs mx-auto">
+                {onBgPatternToggle && (
+                    <button 
+                        onClick={() => onBgPatternToggle(!bgPatternEnabled)}
+                        className={`flex-1 flex justify-center items-center gap-1.5 px-3 py-2 rounded-md text-[11px] font-medium transition-all backdrop-blur-sm ${bgPatternEnabled ? 'text-brand-yellow bg-brand-yellow/10' : 'text-slate-400 bg-white/5 hover:bg-white/10'}`}
+                    >
+                        <Wand2 size={12} /> Textura {bgPatternEnabled ? 'ON' : 'OFF'}
+                    </button>
+                )}
                 {onReplicate && (
                     <button 
                         onClick={handleOpenReplicate}
-                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-bold border border-white/10 hover:border-brand-yellow transition-all backdrop-blur-md"
+                        className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 rounded-md text-[11px] font-medium text-slate-400 bg-white/5 hover:bg-white/10 transition-all backdrop-blur-sm"
                     >
-                        <Copy size={16} /> Replicar Dados
+                        <Copy size={12} /> Replicar
                     </button>
                 )}
             </div>

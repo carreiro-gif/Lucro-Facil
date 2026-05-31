@@ -27,7 +27,8 @@ import { SalesTransaction } from '../types';
 
 const parseBrOrUsMoney = (val: string): number => {
   if (!val) return 0;
-  let s = val.replace(/[R$\sA-Za-z]/g, '');
+  // Strip anything that is NOT a digit, dot, comma, or minus sign
+  let s = val.replace(/[^\d.,-]/g, '');
   if (!s) return 0;
   
   const lastDot = s.lastIndexOf('.');
@@ -277,7 +278,7 @@ const SalesImport: React.FC = () => {
           productName = cols[headerIndexMap.product];
         }
         if (headerIndexMap.qty !== -1 && cols[headerIndexMap.qty]) {
-          qty = parseInt(cols[headerIndexMap.qty].replace(/[^\d]/g, '')) || 1;
+          qty = parseBrOrUsMoney(cols[headerIndexMap.qty]) || 1;
         }
         if (headerIndexMap.price !== -1 && cols[headerIndexMap.price]) {
           pricePaid = parseBrOrUsMoney(cols[headerIndexMap.price]);
