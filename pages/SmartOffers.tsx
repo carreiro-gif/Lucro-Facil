@@ -13,7 +13,8 @@ const SmartOffers: React.FC = () => {
     getProductCMV, 
     calculateTotalCfiPercent,
     ingredients,
-    addProduct
+    addProduct,
+    salesTransactions = []
   } = useApp();
 
   const [reguaDaCasa, setReguaDaCasa] = useState<number | null>(null);
@@ -21,8 +22,36 @@ const SmartOffers: React.FC = () => {
   // Helper calculating profit margin of a product
   const getProductMargin = (p: Product) => p.pricing?.profitMargin ?? cfi.profitMargin;
 
-  const topSellers = products.filter(p => p.isTopSeller);
-  const slowMovers = products.filter(p => p.isSlowMover);
+  // Derive auto selections from sales
+  const { autoTopSellers, autoSlowMovers, hasSalesData } = useMemo(() => {
+    const hasData = salesTransactions.length > 0;
+    const topSet = new Set<string>();
+    const slowSet = new Set<string>();
+    
+    if (hasData) {
+      const vols: Record<string, number> = {};
+      salesTransactions.forEach(t => {
+         vols[t.productId] = (vols[t.productId] || 0) + t.qty;
+      });
+      const sorted = [...products].sort((a, b) => (vols[b.id] || 0) - (vols[a.id] || 0));
+      const topCount = Math.max(1, Math.ceil(products.length * 0.2)); // Top 20%
+      
+      sorted.slice(0, topCount).forEach(p => {
+         if ((vols[p.id] || 0) > 0) topSet.add(p.id);
+      });
+      sorted.forEach(p => {
+         // Se não aparece nas vendas ou aparece com volume muito baixo (<= 2)
+         if ((vols[p.id] || 0) <= 2) slowSet.add(p.id);
+      });
+    }
+    return { autoTopSellers: topSet, autoSlowMovers: slowSet, hasSalesData: hasData };
+  }, [salesTransactions, products]);
+
+  const isProductTopSeller = (p: Product) => p.isTopSeller !== undefined ? p.isTopSeller : autoTopSellers.has(p.id);
+  const isProductSlowMover = (p: Product) => p.isSlowMover !== undefined ? p.isSlowMover : autoSlowMovers.has(p.id);
+
+  const topSellers = products.filter(p => isProductTopSeller(p));
+  const slowMovers = products.filter(p => isProductSlowMover(p));
   
   const calculateRegua = () => {
     if (topSellers.length === 0) return 0;
@@ -140,19 +169,19 @@ const SmartOffers: React.FC = () => {
             </p>
             <div className="flex flex-wrap items-center gap-3 mt-4">
               <button 
-                onClick={() => window.scrollTo({ top: 300, behavior: 'smooth' })}
+                onClick={() => document.getElementById('section-listas')?.scrollIntoView({ behavior: 'smooth' })}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold uppercase transition flex items-center gap-2 border border-white/10"
               >
                 <Tag size={14} /> Quero ver as 4 Listas
               </button>
               <button 
-                onClick={() => window.scrollTo({ top: 1200, behavior: 'smooth' })}
+                onClick={() => document.getElementById('section-ofertas')?.scrollIntoView({ behavior: 'smooth' })}
                 className="px-4 py-2 bg-brand-yellow hover:bg-yellow-500 text-slate-900 rounded-lg text-xs font-bold uppercase transition flex items-center gap-2 shadow-lg shadow-brand-yellow/30"
               >
                 <Plus size={14} /> Quero montar oferta agora
               </button>
               <button 
-                onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                onClick={() => document.getElementById('section-recomenda')?.scrollIntoView({ behavior: 'smooth' })}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold uppercase transition flex items-center gap-2 border border-white/10"
               >
                 <Target size={14} /> Ver o que o Xande recomenda
@@ -163,7 +192,13 @@ const SmartOffers: React.FC = () => {
       </div>
 
       {/* Section 1: As 4 Listas do Cardápio */}
-      <section className="space-y-6">
+      <section id="section-listas" className="space-y-6">
+        {!hasSalesData && (
+          <div className="text-xs text-brand-red mb-4 bg-brand-red/10 p-3 rounded-lg border border-brand-red/20">
+            <AlertTriangle className="inline-block w-4 h-4 mr-1 mb-0.5" />
+            <strong>Dica:</strong> Importe suas vendas na tela "Integrar Vendas" para que o sistema identifique automaticamente os produtos Campeões e Parados!
+          </div>
+        )}
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
           <h2 className="text-xl font-extrabold text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
             <Tag className="text-brand-yellow drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]" /> 1. As 4 Listas do Cardápio
@@ -197,7 +232,7 @@ const SmartOffers: React.FC = () => {
                     <div className="text-xs font-bold text-gray-800 dark:text-gray-200">{p.name}</div>
                     <div className="text-[10px] text-gray-500">CMV: {formatMoney(getProductCMV(p))} • Lucro: {getProductMargin(p)}%</div>
                   </div>
-                  <button onClick={() => toggleTopSeller(p.id, !!p.isTopSeller)} className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${p.isTopSeller ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'}`}>
+                  <button onClick={() => toggleTopSeller(p.id, isProductTopSeller(p))} className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${isProductTopSeller(p) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'}`}>
                     <Check size={14} />
                   </button>
                 </div>
@@ -216,7 +251,7 @@ const SmartOffers: React.FC = () => {
                     <div className="text-xs font-bold text-gray-800 dark:text-gray-200">{p.name}</div>
                     <div className="text-[10px] text-gray-500">CMV: {formatMoney(getProductCMV(p))} • Lucro: {getProductMargin(p)}%</div>
                   </div>
-                  <button onClick={() => toggleSlowMover(p.id, !!p.isSlowMover)} className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${p.isSlowMover ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'}`}>
+                  <button onClick={() => toggleSlowMover(p.id, isProductSlowMover(p))} className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${isProductSlowMover(p) ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'}`}>
                     <Check size={14} />
                   </button>
                 </div>
@@ -461,7 +496,7 @@ const SmartOffers: React.FC = () => {
       </section>
 
       {/* Section 3: Monte sua Oferta */}
-      <section className="space-y-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+      <section id="section-ofertas" className="space-y-6 pt-6 border-t border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
           <h2 className="text-xl font-extrabold text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
             <Calculator className="text-brand-yellow" /> 3. Monte sua Oferta
@@ -631,7 +666,7 @@ const SmartOffers: React.FC = () => {
       </section>
 
       {/* Section 4: Xande Recomenda */}
-      <section className="space-y-6 pt-6 border-t border-gray-200 dark:border-gray-800 pb-12">
+      <section id="section-recomenda" className="space-y-6 pt-6 border-t border-gray-200 dark:border-gray-800 pb-12">
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
           <h2 className="text-xl font-extrabold text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
             <Target className="text-brand-yellow" /> 4. Xande Recomenda
