@@ -56,6 +56,7 @@ const parseBrOrUsMoney = (val: string): number => {
 const SalesImport: React.FC = () => {
   const { 
     products, 
+    combos = [],
     getProductCMV, 
     calculateTotalCfiPercent,
     salesTransactions = [],
@@ -66,6 +67,34 @@ const SalesImport: React.FC = () => {
   } = useApp();
 
   const totalCfiPercent = calculateTotalCfiPercent();
+
+  const getComboCMV = React.useCallback((combo: any) => {
+    let cmvCombo = 0;
+    const itemCosts: number[] = [];
+    
+    (combo.items || []).forEach((item: any) => {
+        const prod = (products || []).find(p => p.id === item.productId);
+        if (prod) {
+            itemCosts.push(getProductCMV(prod) * item.quantity);
+        } else {
+            itemCosts.push(0);
+        }
+    });
+
+    if (combo.type === 'free_choice') {
+      const avgCost = itemCosts.length > 0 ? (itemCosts.reduce((acc, val) => acc + val, 0) / itemCosts.length) : 0;
+      const freeChoiceCount = combo.freeChoiceCount || 2;
+      cmvCombo = avgCost * freeChoiceCount;
+    } else {
+      cmvCombo = itemCosts.reduce((acc, val) => acc + val, 0);
+    }
+    return cmvCombo;
+  }, [products, getProductCMV]);
+
+  const normalizeName = (name: string) => {
+    return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w\s-]/gi, '').toLowerCase().trim();
+  };
+
 
   // Navigation and active states
   const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual'>('paste');
@@ -141,7 +170,13 @@ const SalesImport: React.FC = () => {
       return;
     }
     const prod = products.find(p => p.id === selectedProductId);
-    if (!prod) return;
+    const combo = combos.find(c => c.id === selectedProductId);
+    
+    if (!prod && !combo) return;
+
+    let resolvedName = '';
+    if (prod) resolvedName = prod.name;
+    if (combo) resolvedName = combo.name;
 
     const qty = parseInt(manualQty) || 1;
     const pricePaid = parseFloat(manualPrice) || 0;
@@ -152,8 +187,8 @@ const SalesImport: React.FC = () => {
     const newTransaction: SalesTransaction = {
       id: Math.random().toString(36).substr(2, 9),
       date: manualDate,
-      productId: prod.id,
-      productName: prod.name,
+      productId: selectedProductId,
+      productName: resolvedName,
       qty,
       channel: manualChannel,
       pricePaidByCustomer: pricePaid,
@@ -175,7 +210,8 @@ const SalesImport: React.FC = () => {
     setManualOrderId('');
 
     // Let Xande celebrate
-    addXandeBotMessage(`Excelente! Registrei a venda de ${qty}x **${prod.name}** no canal **${manualChannel.toUpperCase()}**. O CMV teórico dos insumos deste item é **R$ ${(getProductCMV(prod) * qty).toFixed(2)}**.`);
+    const itemCmv = prod ? getProductCMV(prod) : (combo ? getComboCMV(combo) : 0);
+    addXandeBotMessage(`Excelente! Registrei a venda de ${qty}x **${resolvedName}** no canal **${manualChannel.toUpperCase()}**. O CMV teórico dos insumos deste item é **R$ ${(itemCmv * qty).toFixed(2)}**.`);
   };
 
   // Advanced pasted text auto-mapper (recognizes iFood, Saipos tables, TSV, or comma-separated CSV)
@@ -310,7 +346,8 @@ const SalesImport: React.FC = () => {
 
       if (productName) {
         // Resolve target product link
-        let targetProduct = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
+        let targetProduct: any = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
+        let targetCombo: any = null;
         
         if (!targetProduct) {
           targetProduct = products.find(p => 
@@ -318,11 +355,24 @@ const SalesImport: React.FC = () => {
             p.name.toLowerCase().includes(productName.toLowerCase())
           );
         }
+        
+        if (!targetProduct) {
+           const normInputName = normalizeName(productName);
+           targetCombo = combos.find(c => normalizeName(c.name) === normInputName);
+           if (!targetCombo) {
+              targetCombo = combos.find(c => 
+                 normInputName.includes(normalizeName(c.name)) || 
+                 normalizeName(c.name).includes(normInputName)
+              );
+           }
+        }
 
-        let productId = targetProduct ? targetProduct.id : 'temp_unregistered';
-        let resolvedName = targetProduct ? targetProduct.name : productName;
+        let targetEntity = targetProduct || targetCombo;
+        let productId = targetEntity ? targetEntity.id : 'temp_unregistered';
+        let resolvedName = targetEntity ? targetEntity.name : productName;
 
-        if (!targetProduct) fallbackCMVCount++;
+        if (!targetEntity) fallbackCMVCount++;
+
         
         if (finalFee === 0 && channel !== 'store') {
           finalFee = finalUnitPrice * (getChannelDefaultFeePercent(channel) / 100);
@@ -468,6 +518,13 @@ const SalesImport: React.FC = () => {
         itemCmvUnit = (t.pricePaidByCustomer) * 0.32;
       } else if (prod) {
         itemCmvUnit = getProductCMV(prod);
+      } else {
+        const combo = combos.find(c => c.id === t.productId);
+        if (combo) {
+           itemCmvUnit = getComboCMV(combo);
+        } else {
+           itemCmvUnit = (t.pricePaidByCustomer) * 0.32;
+        }
       }
       
       const itemTotalCmv = itemCmvUnit * t.qty;
@@ -512,11 +569,24 @@ const SalesImport: React.FC = () => {
   const deficitSales = useMemo(() => {
     return salesTransactions.filter(t => {
       const prod = products.find(p => p.id === t.productId);
-      const itemCmv = prod ? getProductCMV(prod) : (t.pricePaidByCustomer * 0.32);
+      const isUnregistered = t.productId === 'temp_unregistered';
+      
+      let itemCmv = 0;
+      if (prod) {
+        itemCmv = getProductCMV(prod);
+      } else {
+        const combo = combos.find(c => c.id === t.productId);
+        if (combo) {
+          itemCmv = getComboCMV(combo);
+        } else {
+          itemCmv = t.pricePaidByCustomer * 0.32;
+        }
+      }
+      
       const netReceivedUnit = (t.pricePaidByCustomer + t.platformSubsidy) - t.couponCostByStore - t.feePaid;
       return netReceivedUnit < itemCmv;
     });
-  }, [salesTransactions, products, getProductCMV]);
+  }, [salesTransactions, products, combos, getProductCMV, getComboCMV]);
 
   // Xande internal responses (dynamic simulation or real Gemini call)
   const addXandeBotMessage = (text: string) => {
@@ -932,10 +1002,19 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                     required
                     className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-950 dark:text-white rounded-lg p-2 text-xs outline-none focus:border-brand-red"
                   >
-                    <option value="">-- Selecione o Produto Cadastrado --</option>
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} (CMV Insumo: R$ {getProductCMV(p).toFixed(2)})</option>
-                    ))}
+                    <option value="">-- Selecione o Produto ou Combo --</option>
+                    <optgroup label="Produtos Individuais">
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} (CMV Insumo: R$ {getProductCMV(p).toFixed(2)})</option>
+                      ))}
+                    </optgroup>
+                    {combos && combos.length > 0 && (
+                      <optgroup label="Combos">
+                        {combos.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} (CMV Insumo: R$ {getComboCMV(c).toFixed(2)})</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
@@ -1199,7 +1278,17 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                   const isUnregistered = t.productId === 'temp_unregistered';
                   
                   // Insumos Cost
-                  let itemCmv = isUnregistered ? (t.pricePaidByCustomer * 0.32) : (prod ? getProductCMV(prod) : 0);
+                  let itemCmv = 0;
+                  if (prod) {
+                    itemCmv = getProductCMV(prod);
+                  } else {
+                    const combo = combos.find(c => c.id === t.productId);
+                    if (combo) {
+                      itemCmv = getComboCMV(combo);
+                    } else {
+                      itemCmv = t.pricePaidByCustomer * 0.32;
+                    }
+                  }
                   const totalCmvVal = itemCmv * t.qty;
 
                   // Revenues
