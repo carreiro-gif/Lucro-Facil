@@ -218,6 +218,8 @@ export interface SalesTransaction {
   couponCostByStore: number;
   feePaid: number;
   notes?: string;
+  isFourColumnsTotal?: boolean;
+  totalAmount?: number;
 }
 
 export interface GlobalState {

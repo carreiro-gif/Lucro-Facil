@@ -233,7 +233,11 @@ const SalesImport: React.FC = () => {
     let isHeaderLine = false;
     let delimiter = '\t';
     
-    if (flLower.includes('produto') && (flLower.includes('local pedido') || flLower.includes('categoria')) && flLower.includes('valor total')) {
+    if (flLower.includes('produto') && flLower.includes('quantidade') && flLower.includes('valor extra') && flLower.includes('valor total')) {
+      formatDetected = 'four_columns';
+      isHeaderLine = true;
+      delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    } else if (flLower.includes('produto') && (flLower.includes('local pedido') || flLower.includes('categoria')) && flLower.includes('valor total')) {
       formatDetected = 'format1'; // O formato com Valor Total
       isHeaderLine = true;
       delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
@@ -246,14 +250,18 @@ const SalesImport: React.FC = () => {
       isHeaderLine = true;
       delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ' ');
     } else {
-      // Fallback: check if row 0 has no headers but matches form1 or simple data visually
-      const colsTab = lines[0].split('\t');
-      if (colsTab.length >= 6 && !isNaN(parseBrOrUsMoney(colsTab[4])) && !isNaN(parseBrOrUsMoney(colsTab[5]))) {
-          formatDetected = 'format1'; 
-          delimiter = '\t';
+      // Fallback: check if row 0 has no headers but matches form1, simple or four_columns data visually
+      const delimiterCheck = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+      const colsParsed = lines[0].split(delimiterCheck);
+      if (colsParsed.length === 4) {
+        formatDetected = 'four_columns';
+        delimiter = delimiterCheck;
+      } else if (colsParsed.length >= 6 && !isNaN(parseBrOrUsMoney(colsParsed[4])) && !isNaN(parseBrOrUsMoney(colsParsed[5]))) {
+        formatDetected = 'format1'; 
+        delimiter = delimiterCheck;
       } else {
-          // Heuristic fallback
-          delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+        // Heuristic fallback
+        delimiter = delimiterCheck;
       }
     }
 
@@ -285,8 +293,31 @@ const SalesImport: React.FC = () => {
       let finalSubsidy = 0;
       let finalCoupon = 0;
       let finalFee = 0;
+      let valTotalOriginal: number | undefined = undefined;
 
-      if (formatDetected === 'format1') {
+      if (formatDetected === 'four_columns') {
+          // Produto [0], Quantidade [1], Valor Extra [2], Valor Total [3]
+          productName = cols[0] || '';
+          
+          const parsedQty = parseBrOrUsMoney(cols[1]);
+          qty = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+          
+          const valTotal = parseBrOrUsMoney(cols[3]);
+          valTotalOriginal = !isNaN(valTotal) ? valTotal : 0;
+          
+          // O faturamento de cada linha deve ser apenas o valor da coluna Valor Total sem multiplicar por nada.
+          // A coluna Valor Extra são adicionais do pedido e já estão incluídos no Valor Total, não some separadamente.
+          // O faturamento bruto total deve ser a soma simples de todos os valores da coluna Valor Total.
+          // finalUnitPrice deve ser valTotal / qty, para que ao multiplicar por qty no motor dê exatamente o Valor Total.
+          finalUnitPrice = !isNaN(valTotal) ? valTotal / qty : 0;
+          
+          const lowerLine = line.toLowerCase();
+          if (lowerLine.includes('ifood')) channel = 'ifood';
+          else if (lowerLine.includes('99') || lowerLine.includes('food99')) channel = 'food99';
+          else if (lowerLine.includes('keeta')) channel = 'keeta';
+          else channel = 'store';
+      } 
+      else if (formatDetected === 'format1') {
           // Produto [0], Categoria [1], Local Pedido [2], Valor Unitário [3], Valor Total [4], Quantidade [5]
           productName = cols[0];
           const rawLocal = (cols[2] || '').toLowerCase();
@@ -344,6 +375,15 @@ const SalesImport: React.FC = () => {
           finalUnitPrice = pricePaid;
       }
 
+      if (productName && (
+        productName.toLowerCase().trim() === 'taxa de serviço' || 
+        productName.toLowerCase().trim() === 'taxa de servico' || 
+        productName.toLowerCase().includes('taxa de serviço') || 
+        productName.toLowerCase().includes('taxa de servico')
+      )) {
+        continue;
+      }
+
       if (productName) {
         // Resolve target product link
         let targetProduct: any = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
@@ -389,7 +429,9 @@ const SalesImport: React.FC = () => {
           platformSubsidy: finalSubsidy,
           couponCostByStore: finalCoupon,
           feePaid: finalFee,
-          orderId: orderId || undefined
+          orderId: orderId || undefined,
+          isFourColumnsTotal: formatDetected === 'four_columns',
+          totalAmount: valTotalOriginal
         });
 
         successCount++;
@@ -542,10 +584,23 @@ const SalesImport: React.FC = () => {
       // Profit/Loss per item
       const itemNetProfit = netReceivedValue - itemTotalCmv - itemCfiCost;
 
-      grossRevenue += (finalGrossPaidValue * t.qty);
-      netRevenue += (netReceivedValue * t.qty);
+      let lineGrossRevenue = finalGrossPaidValue * t.qty;
+      let lineNetRevenue = netReceivedValue * t.qty;
+      let lineCfiCost = itemCfiCost * t.qty;
+
+      if (t.isFourColumnsTotal) {
+        const originalTotal = t.totalAmount ?? (t.pricePaidByCustomer * t.qty);
+        lineGrossRevenue = originalTotal;
+        const lineCouponVal = t.couponCostByStore * t.qty;
+        const lineFeeVal = t.feePaid * t.qty;
+        lineNetRevenue = originalTotal - lineCouponVal - lineFeeVal;
+        lineCfiCost = lineNetRevenue * (totalCfiPercent / 100);
+      }
+
+      grossRevenue += lineGrossRevenue;
+      netRevenue += lineNetRevenue;
       totalCmv += itemTotalCmv;
-      totalCfiCost += (itemCfiCost * t.qty);
+      totalCfiCost += lineCfiCost;
       salesCount += t.qty;
     });
 
@@ -675,7 +730,7 @@ const SalesImport: React.FC = () => {
       // Rules-based fallback if offline / key issues
       setTimeout(() => {
         if (textToSend.toLowerCase().includes('duplicad') || textToSend.toLowerCase().includes('pdv')) {
-          addXandeBotMessage("Se você importa as vendas do iFood e também seu relatório do PDV (como Saipos ou Consumer), as mesmas vendas do iFood vão aparecer duplicadas! Para evitar isso, eu criei uma rotina de limpeza do sistema. Ali em cima tem um alerta azul onde você clica e eu limpo as duplicidades em 1 segundo!");
+          addXandeBotMessage("Se você importa as vendas dos marketplaces e também o relatório do seu PDV, as mesmas vendas podem aparecer duplicadas! Para evitar isso, eu criei uma rotina de limpeza do sistema. Ali em cima tem um alerta azul onde você clica e eu limpo as duplicidades em 1 segundo!");
         } else if (textToSend.toLowerCase().includes('campanha') || textToSend.toLowerCase().includes('inteligente')) {
           addXandeBotMessage("A **Campanha Inteligente (CI)** do iFood funciona com subsídio parcial. Se o iFood vende o seu produto promocionado por **R$ 0,99**, mas te reembolsa **R$ 5,00**, para a sua loja a venda valeu **R$ 5,99**! Se você colocar no sistema apenas os R$ 0,99, seu lucro vai dar prejuízo. Use o campo 'Subsídio' no lançamento manual ou na planilha para que eu some esse extra na receita do produto!");
         } else if (textToSend.toLowerCase().includes('prejuízo') || textToSend.toLowerCase().includes('lucro')) {
@@ -728,15 +783,15 @@ const SalesImport: React.FC = () => {
       {showHelp && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 bg-gradient-to-r from-red-50/50 to-amber-50/50 dark:from-red-950/10 dark:to-orange-950/10 p-5 rounded-2xl border border-red-200/40 dark:border-red-900/40 text-gray-700 dark:text-gray-300">
           <div className="space-y-2">
-            <span className="text-xs font-bold bg-amber-100 dark:bg-yellow-950/50 text-amber-800 dark:text-yellow-400 px-2 py-0.5 rounded border border-amber-200/50">iFood & PDV</span>
+            <span className="text-xs font-bold bg-amber-100 dark:bg-yellow-950/50 text-amber-800 dark:text-yellow-400 px-2 py-0.5 rounded border border-amber-200/50">Marketplaces & PDV</span>
             <h3 className="font-extrabold text-sm dark:text-white uppercase">Duplicidade de Vendas</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Muitas vezes o PDV (Saipos/Consumer) registra o pedido do iFood de forma espelhada. Ao colocar os dois relatórios, as vendas duplicam automaticamente. O sistema ajuda a remover duplicados.
+              Muitas vezes o PDV ou sistema de frente de caixa registra o pedido do marketplace de forma espelhada. Ao colocar os dois relatórios, as vendas duplicam automaticamente. O sistema ajuda a remover duplicados.
             </p>
           </div>
           <div className="space-y-2">
             <span className="text-xs font-bold bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-400 px-2 py-0.5 rounded border border-red-200/50">Campanha Reembolsada</span>
-            <h3 className="font-extrabold text-sm dark:text-white uppercase">Promoção iFood Reembolsada</h3>
+            <h3 className="font-extrabold text-sm dark:text-white uppercase">Promoção Reembolsada</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Na **Campanha Inteligente (CI)** do iFood, se o cliente comprou por R$ 0,99 e o iFood subsidia R$ 5,00, some o subsídio na receita! Sem subsídio, o sistema interpretará como prejuízo gritante.
             </p>
@@ -913,9 +968,9 @@ const SalesImport: React.FC = () => {
           {activeSubTab === 'paste' && (
             <div className="space-y-4">
               <div className="bg-gray-50 dark:bg-[#1a2333]/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800 text-xs">
-                <span className="font-bold text-gray-700 dark:text-white block mb-1 uppercase tracking-wide">Como copiar/colar suas vendas do Saipos, iFood ou Excel:</span>
+                <span className="font-bold text-gray-700 dark:text-white block mb-1 uppercase tracking-wide">Como importar suas vendas do seu sistema de PDV, marketplaces ou Excel:</span>
                 <ol className="list-decimal pl-4 text-gray-500 dark:text-gray-400 space-y-1">
-                  <li>Abra o relatório de vendas diárias ou mensais no seu PDV ou no painel do iFood.</li>
+                  <li>Abra o relatório de vendas diárias ou mensais no seu PDV ou no painel do marketplace.</li>
                   <li>Selecione as colunas com o mouse e copie normalmente (Ctrl + C).</li>
                   <li>Cole no campo de texto abaixo e clique em <span className="font-bold text-brand-red">Processar Vendas</span>. O sistema mapeia os nomes de produtos e calcula taxas estimadas automaticamente. Cabeçalhos ideais: <code className="bg-gray-200 dark:bg-gray-800 px-1 rounded font-mono text-[10px]">Produto, Qtd, Preço, Canal, ID Pedido</code>.</li>
                 </ol>
@@ -1205,10 +1260,10 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
               onClick={() => handleSendXandeConsultation('Como funciona a Campanha Inteligente do iFood no cálculo de lucro?')}
               className="text-[10px] font-bold bg-gray-800 hover:bg-gray-700 transition px-2 py-1 rounded text-gray-300 border border-gray-700/40"
             >
-              💰 Campanha iFood
+              💰 Campanhas
             </button>
             <button 
-              onClick={() => handleSendXandeConsultation('Minhas vendas estão duplicando entre o Saipos e o iFood. O que eu faço?')}
+              onClick={() => handleSendXandeConsultation('Minhas vendas estão duplicando entre o PDV e os apps. O que eu faço?')}
               className="text-[10px] font-bold bg-gray-800 hover:bg-gray-700 transition px-2 py-1 rounded text-gray-300 border border-gray-700/40"
             >
               🔄 Duplicados do PDV
@@ -1252,7 +1307,7 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
             </div>
             <div>
               <h4 className="font-extrabold text-sm text-gray-800 dark:text-gray-200 uppercase">Nenhum pedido integrado ainda</h4>
-              <p className="text-xs text-gray-400 mt-1 max-w-sm">Cole dados de planilhas do iFood / Saipos ou preencha o formulário manual ao lado para visualizar a margem líquida real de suas vendas!</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-sm">Cole dados de planilhas de marketplaces / PDV ou preencha o formulário manual ao lado para visualizar a margem líquida real de suas vendas!</p>
             </div>
           </div>
         ) : (
@@ -1293,14 +1348,24 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
 
                   // Revenues
                   const customerGrossPaid = t.pricePaidByCustomer + t.platformSubsidy;
-                  const finalReceivedNet = customerGrossPaid - t.couponCostByStore - t.feePaid;
                   
-                  // CFI portion
-                  const itemCfiPortion = finalReceivedNet * (totalCfiPercent / 100);
+                  let displayGrossTotal = customerGrossPaid * t.qty;
+                  let displayFeeAndCouponTotal = (t.feePaid + t.couponCostByStore) * t.qty;
+                  let displayCfiTotal = (customerGrossPaid - t.couponCostByStore - t.feePaid) * (totalCfiPercent / 100) * t.qty;
+                  let itemProfitSum = (customerGrossPaid - t.couponCostByStore - t.feePaid - itemCmv - (customerGrossPaid - t.couponCostByStore - t.feePaid) * (totalCfiPercent / 100)) * t.qty;
 
-                  // True profit
-                  const netProfitValue = finalReceivedNet - itemCmv - itemCfiPortion;
-                  const itemProfitSum = netProfitValue * t.qty;
+                  if (t.isFourColumnsTotal) {
+                    const originalTotal = t.totalAmount ?? (t.pricePaidByCustomer * t.qty);
+                    displayGrossTotal = originalTotal;
+                    
+                    const lineCouponVal = t.couponCostByStore * t.qty;
+                    const lineFeeVal = t.feePaid * t.qty;
+                    displayFeeAndCouponTotal = lineCouponVal + lineFeeVal;
+                    
+                    const lineNetVal = originalTotal - displayFeeAndCouponTotal;
+                    displayCfiTotal = lineNetVal * (totalCfiPercent / 100);
+                    itemProfitSum = lineNetVal - totalCmvVal - displayCfiTotal;
+                  }
 
                   let channelBadge = 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300';
                   if (t.channel === 'ifood') channelBadge = 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-bold border border-red-200/20';
@@ -1338,19 +1403,19 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                         {t.date.split('-').reverse().join('/')}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white font-mono">
-                        {formatMoney(customerGrossPaid * t.qty)}
+                        {formatMoney(displayGrossTotal)}
                         {t.platformSubsidy > 0 && (
                           <div className="text-[8px] text-emerald-600 dark:text-emerald-400 font-black">+ subsídio R$ {t.platformSubsidy.toFixed(2)}</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400 font-mono">
-                        - {formatMoney((t.feePaid + t.couponCostByStore) * t.qty)}
+                        - {formatMoney(displayFeeAndCouponTotal)}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400 font-mono">
                         {formatMoney(totalCmvVal)}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400 font-mono">
-                        {formatMoney(itemCfiPortion * t.qty)}
+                        {formatMoney(displayCfiTotal)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
                         <div className={`font-black ${itemProfitSum >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
