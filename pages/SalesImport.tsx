@@ -22,6 +22,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
+import * as XLSX from 'xlsx';
 import { formatMoney, formatPercent } from '../constants';
 import { SalesTransaction } from '../types';
 
@@ -67,7 +68,7 @@ const SalesImport: React.FC = () => {
   const totalCfiPercent = calculateTotalCfiPercent();
 
   // Navigation and active states
-  const [activeSubTab, setActiveSubTab] = useState<'paste' | 'manual'>('paste');
+  const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual'>('paste');
   const [showHelp, setShowHelp] = useState(true);
 
   // Form states for manual entry
@@ -178,182 +179,139 @@ const SalesImport: React.FC = () => {
   };
 
   // Advanced pasted text auto-mapper (recognizes iFood, Saipos tables, TSV, or comma-separated CSV)
-  const handlePasteImport = () => {
-    if (!pasteContent.trim()) {
-      setImportLog({ success: false, message: 'Cole os dados da planilha antes de processar.' });
+  const processImportText = (textContent: string) => {
+    if (!textContent.trim()) {
+      setImportLog({ success: false, message: 'Nenhum dado encontrado para processar.' });
       return;
     }
 
-    const lines = pasteContent.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = textContent.split('\n').map(l => l.trim()).filter(Boolean);
     if (lines.length === 0) {
       setImportLog({ success: false, message: 'Nenhuma linha de texto válida encontrada.' });
       return;
     }
 
-    // Try finding delimiter for first few lines
-    const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    // Format detection based on first line
+    const flLower = lines[0].toLowerCase();
+    let formatDetected = 'heuristic';
+    let isHeaderLine = false;
+    let delimiter = '\t';
     
-    // Header tracking
-    let headerIndexMap: Record<string, number> = {
-      product: -1,
-      qty: -1,
-      price: -1,
-      channel: -1,
-      date: -1,
-      orderId: -1,
-      subsidy: -1,
-      coupon: -1,
-      fee: -1
-    };
+    if (flLower.includes('produto') && (flLower.includes('local pedido') || flLower.includes('categoria')) && flLower.includes('valor total')) {
+      formatDetected = 'format1'; // O formato com Valor Total
+      isHeaderLine = true;
+      delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    } else if (flLower.includes('nome do item') && flLower.includes('quantidade') && flLower.includes('preço')) {
+      formatDetected = 'ifood';
+      isHeaderLine = true;
+      delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+    } else if (flLower.includes('nome') && flLower.includes('quantidade') && flLower.includes('preço')) {
+      formatDetected = 'simple';
+      isHeaderLine = true;
+      delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ' ');
+    } else {
+      // Fallback: check if row 0 has no headers but matches form1 or simple data visually
+      const colsTab = lines[0].split('\t');
+      if (colsTab.length >= 6 && !isNaN(parseBrOrUsMoney(colsTab[4])) && !isNaN(parseBrOrUsMoney(colsTab[5]))) {
+          formatDetected = 'format1'; 
+          delimiter = '\t';
+      } else {
+          // Heuristic fallback
+          delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+      }
+    }
 
-    const firstLineCols = lines[0].split(delimiter).map(c => c.trim().toLowerCase());
-    
-    // Detect columns based on patterns
-    firstLineCols.forEach((col, idx) => {
-      // Product
-      if (col.includes('produto') || col.includes('item') || col.includes('descrição') || col.includes('nome')) {
-        headerIndexMap.product = idx;
-      }
-      // Quantity
-      else if (col.includes('qtd') || col.includes('quantidade') || col.includes('quant') || col === 'q') {
-        headerIndexMap.qty = idx;
-      }
-      // Price
-      else if (col.includes('preço') || col.includes('valor') || col.includes('total') || col.includes('pago') || col === 'pv') {
-        headerIndexMap.price = idx;
-      }
-      // Channel
-      else if (col.includes('canal') || col.includes('plataforma') || col.includes('origem') || col.includes('channel')) {
-        headerIndexMap.channel = idx;
-      }
-      // Date
-      else if (col.includes('data') || col.includes('date') || col.includes('dia')) {
-        headerIndexMap.date = idx;
-      }
-      // Order ID
-      else if (col.includes('pedido') || col.includes('id') || col.includes('código') || col.includes('order')) {
-        headerIndexMap.orderId = idx;
-      }
-      // Subsidy / Campanha Inteligente
-      else if (col.includes('ci') || col.includes('subsídio') || col.includes('subsidio') || col.includes('reembolso') || col.includes('campanha') || col.includes('ifood_reembolso')) {
-        headerIndexMap.subsidy = idx;
-      }
-      // Coupon
-      else if (col.includes('cupom') || col.includes('desconto') || col.includes('coupon')) {
-        headerIndexMap.coupon = idx;
-      }
-      // Fee
-      else if (col.includes('taxa') || col.includes('comissão') || col.includes('comissao') || col.includes('fee')) {
-        headerIndexMap.fee = idx;
-      }
-    });
-
-    // Check if we found product and price, else fall back to intelligent token tokenization (No-Headers parsing)
-    const hasHeaders = headerIndexMap.product !== -1 && (headerIndexMap.price !== -1 || headerIndexMap.qty !== -1);
-    
     const importedTransactions: SalesTransaction[] = [];
     let successCount = 0;
     let failedCount = 0;
     let fallbackCMVCount = 0;
 
-    const startLine = hasHeaders ? 1 : 0;
+    const startLine = isHeaderLine ? 1 : 0;
 
     for (let i = startLine; i < lines.length; i++) {
       const line = lines[i];
-      const cols = line.split(delimiter).map(c => c.trim());
+      let cols = line.split(delimiter).map(c => c.trim());
+      
+      // If it's the simple format by spaces without tabs, parse it carefully
+      if (formatDetected === 'simple' && delimiter === ' ') {
+         const match = line.match(/(.+?)\s+(\d+)\s+([\d.,R$\s]+)$/);
+         if (match) {
+             cols = [match[1].trim(), match[2], match[3].trim()];
+         }
+      }
       
       let productName = '';
       let qty = 1;
-      let pricePaid = 0;
+      let finalUnitPrice = 0;
       let channel: 'ifood' | 'food99' | 'keeta' | 'store' = 'ifood';
       let date = new Date().toISOString().split('T')[0];
       let orderId = '';
-      let subsidy = 0;
-      let coupon = 0;
-      let feePaid = 0;
+      let finalSubsidy = 0;
+      let finalCoupon = 0;
+      let finalFee = 0;
 
-      if (hasHeaders) {
-        // Direct Header Extract
-        if (headerIndexMap.product !== -1 && cols[headerIndexMap.product]) {
-          productName = cols[headerIndexMap.product];
-        }
-        if (headerIndexMap.qty !== -1 && cols[headerIndexMap.qty]) {
-          qty = parseBrOrUsMoney(cols[headerIndexMap.qty]) || 1;
-        }
-        if (headerIndexMap.price !== -1 && cols[headerIndexMap.price]) {
-          pricePaid = parseBrOrUsMoney(cols[headerIndexMap.price]);
-        }
-        if (headerIndexMap.channel !== -1 && cols[headerIndexMap.channel]) {
-          const ch = cols[headerIndexMap.channel].toLowerCase();
-          if (ch.includes('ifood')) channel = 'ifood';
-          else if (ch.includes('99') || ch.includes('food99')) channel = 'food99';
-          else if (ch.includes('keeta')) channel = 'keeta';
-          else if (ch.includes('loja') || ch.includes('físic') || ch.includes('mesa') || ch.includes('balcão') || ch.includes('store')) channel = 'store';
-        }
-        if (headerIndexMap.date !== -1 && cols[headerIndexMap.date]) {
-          // Keep if matches standard YYYY-MM-DD or attempt simple normalization
-          const rawDate = cols[headerIndexMap.date];
-          if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-            date = rawDate;
-          } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)) {
-            const [d, m, y] = rawDate.split('/');
-            date = `${y}-${m}-${d}`;
+      if (formatDetected === 'format1') {
+          // Produto [0], Categoria [1], Local Pedido [2], Valor Unitário [3], Valor Total [4], Quantidade [5]
+          productName = cols[0];
+          const rawLocal = (cols[2] || '').toLowerCase();
+          if (rawLocal.includes('ifood')) channel = 'ifood';
+          else if (rawLocal.includes('99') || rawLocal.includes('food99')) channel = 'food99';
+          else if (rawLocal.includes('keeta')) channel = 'keeta';
+          else if (rawLocal.includes('delivery') || rawLocal.includes('retirada') || rawLocal.includes('loja')) channel = 'store';
+          else channel = 'store';
+
+          const valTotal = parseBrOrUsMoney(cols[4]);
+          const parsedQty = parseBrOrUsMoney(cols[5]);
+          qty = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+          
+          // O total lido já vem da coluna Valor Total e está multiplicado pela quantidade.
+          // Para encaixar perfeitamente no motor (que faz base * qty = grossRevenue), calculamos o unitário.
+          // Assim o faturamento bruto final baterá EXATAMENTE com a soma da coluna Valor Total.
+          finalUnitPrice = !isNaN(valTotal) ? valTotal / qty : 0;
+      } 
+      else if (formatDetected === 'ifood' || formatDetected === 'simple') {
+          // Nome do item [0], Quantidade [1], Preço unitário [2]
+          productName = cols[0];
+          const parsedQty = parseBrOrUsMoney(cols[1]);
+          qty = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+          
+          const valUnit = parseBrOrUsMoney(cols[2]);
+          finalUnitPrice = !isNaN(valUnit) ? valUnit : 0;
+      } 
+      else {
+          // HEURISTIC / NO-HEADERS PARSE:
+          let foundProduct = false;
+          for (const p of products) {
+            if (line.toLowerCase().includes(p.name.toLowerCase())) {
+              productName = p.name;
+              foundProduct = true;
+              break;
+            }
           }
-        }
-        if (headerIndexMap.orderId !== -1 && cols[headerIndexMap.orderId]) {
-          orderId = cols[headerIndexMap.orderId];
-        }
-        if (headerIndexMap.subsidy !== -1 && cols[headerIndexMap.subsidy]) {
-          subsidy = parseBrOrUsMoney(cols[headerIndexMap.subsidy]);
-        }
-        if (headerIndexMap.coupon !== -1 && cols[headerIndexMap.coupon]) {
-          coupon = parseBrOrUsMoney(cols[headerIndexMap.coupon]);
-        }
-        if (headerIndexMap.fee !== -1 && cols[headerIndexMap.fee]) {
-          feePaid = parseBrOrUsMoney(cols[headerIndexMap.fee]);
-        }
-      } else {
-        // HEURISTIC / NO-HEADERS PARSE:
-        // Try finding product match inside the line
-        let foundProduct = false;
-        for (const p of products) {
-          if (line.toLowerCase().includes(p.name.toLowerCase())) {
-            productName = p.name;
-            foundProduct = true;
-            break;
+          if (!foundProduct) {
+            const alphaCols = cols.filter(c => /[a-zA-Z]/.test(c) && !c.includes('-') && !c.includes('/'));
+            productName = alphaCols[0] || 'Item Desconhecido';
           }
-        }
 
-        // If no matching registered product, take the first alphabetical segment as name
-        if (!foundProduct) {
-          const alphaCols = cols.filter(c => /[a-zA-Z]/.test(c) && !c.includes('-') && !c.includes('/'));
-          productName = alphaCols[0] || 'Item Desconhecido';
-        }
-
-        // Search for small integer for qty, and floats for prices
-        const numCols = cols.map(c => parseBrOrUsMoney(c)).filter(n => !isNaN(n));
-        
-        // Take integers under 50 as qty
-        const possibleQty = numCols.find(n => Number.isInteger(n) && n > 0 && n < 50);
-        qty = possibleQty || 1;
-
-        // Take larger float values as price
-        const prices = numCols.filter(n => n > 3);
-        pricePaid = prices[prices.length - 1] || 0;
-
-        // Guess channel
-        const lowerLine = line.toLowerCase();
-        if (lowerLine.includes('ifood')) channel = 'ifood';
-        else if (lowerLine.includes('99') || lowerLine.includes('food99')) channel = 'food99';
-        else if (lowerLine.includes('keeta')) channel = 'keeta';
-        else if (lowerLine.includes('loja') || lowerLine.includes('física') || lowerLine.includes('mesa') || lowerLine.includes('balcão')) channel = 'store';
+          const numCols = cols.map(c => parseBrOrUsMoney(c)).filter(n => !isNaN(n));
+          const possibleQty = numCols.find(n => Number.isInteger(n) && n > 0 && n < 50);
+          qty = possibleQty || 1;
+          const prices = numCols.filter(n => n > 3);
+          const pricePaid = prices[prices.length - 1] || 0;
+          
+          const lowerLine = line.toLowerCase();
+          if (lowerLine.includes('ifood')) channel = 'ifood';
+          else if (lowerLine.includes('99') || lowerLine.includes('food99')) channel = 'food99';
+          else if (lowerLine.includes('keeta')) channel = 'keeta';
+          else if (lowerLine.includes('loja') || lowerLine.includes('física') || lowerLine.includes('mesa') || lowerLine.includes('balcão')) channel = 'store';
+          
+          finalUnitPrice = pricePaid;
       }
 
       if (productName) {
         // Resolve target product link
         let targetProduct = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
         
-        // Substring resolution if not direct
         if (!targetProduct) {
           targetProduct = products.find(p => 
             productName.toLowerCase().includes(p.name.toLowerCase()) || 
@@ -365,52 +323,9 @@ const SalesImport: React.FC = () => {
         let resolvedName = targetProduct ? targetProduct.name : productName;
 
         if (!targetProduct) fallbackCMVCount++;
-
-        // Calculate default fee paid if header was missing or explicitly zero and it's a paid portal sale
-        if (feePaid === 0 && channel !== 'store') {
-          feePaid = pricePaid * (getChannelDefaultFeePercent(channel) / 100);
-        }
-
-        // Heuristic to detect if pasted prices are totals (due to POS exports)
-        let finalUnitPrice = pricePaid;
-        let finalSubsidy = subsidy;
-        let finalCoupon = coupon;
-        let finalFee = feePaid;
-
-        if (qty > 1) {
-            let isTotal = false;
-            if (hasHeaders && headerIndexMap.price !== -1) {
-                const headerName = firstLineCols[headerIndexMap.price] || '';
-                if (headerName.includes('total') || headerName.includes('faturamento') || headerName.includes('bruto')) {
-                    isTotal = true;
-                } else if (headerName.includes('unitário') || headerName.includes('unit')) {
-                    isTotal = false;
-                } else {
-                    // Check by expected base price
-                    if (targetProduct && targetProduct.fixedPriceStore) {
-                        const diffTotal = Math.abs((pricePaid / qty) - targetProduct.fixedPriceStore);
-                        const diffUnit = Math.abs(pricePaid - targetProduct.fixedPriceStore);
-                        if (diffTotal < diffUnit) isTotal = true;
-                    } else if (pricePaid > 100 && (pricePaid / qty) <= 100 && (pricePaid / qty) >= 5) {
-                        isTotal = true;
-                    }
-                }
-            } else {
-                if (targetProduct && targetProduct.fixedPriceStore) {
-                    const diffTotal = Math.abs((pricePaid / qty) - targetProduct.fixedPriceStore);
-                    const diffUnit = Math.abs(pricePaid - targetProduct.fixedPriceStore);
-                    if (diffTotal < diffUnit) isTotal = true;
-                } else if (pricePaid > 100 && (pricePaid / qty) <= 100 && (pricePaid / qty) >= 5) {
-                    isTotal = true;
-                }
-            }
-
-            if (isTotal) {
-                finalUnitPrice = pricePaid / qty;
-                finalSubsidy = subsidy / qty;
-                finalCoupon = coupon / qty;
-                finalFee = feePaid / qty;
-            }
+        
+        if (finalFee === 0 && channel !== 'store') {
+          finalFee = finalUnitPrice * (getChannelDefaultFeePercent(channel) / 100);
         }
 
         importedTransactions.push({
@@ -448,9 +363,35 @@ const SalesImport: React.FC = () => {
     } else {
       setImportLog({
         success: false,
-        message: 'Não conseguimos identificar nenhuma linha válida de produto ou venda. Certifique-se de que copiou o cabeçalho correto.'
+        message: 'Não conseguimos identificar nenhuma linha válida de produto ou venda. Certifique-se de que o cabeçalho está correto.'
       });
     }
+  };
+
+  const handlePasteImport = () => {
+    processImportText(pasteContent);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Convert sheet to tab-separated values
+      const tsvContent = XLSX.utils.sheet_to_csv(worksheet, { FS: '\t' });
+      
+      processImportText(tsvContent);
+    } catch (err) {
+      setImportLog({ success: false, message: 'Erro ao processar arquivo. Verifique se é uma planilha válida.' });
+    }
+    
+    // Clear input
+    e.target.value = '';
   };
 
   // Automated deduplication engine (iFood vs PDV / duplicated OrderIds)
@@ -514,7 +455,6 @@ const SalesImport: React.FC = () => {
     let netRevenue = 0;
     let totalCmv = 0;
     let totalCfiCost = 0;
-    let profitLoss = 0;
     let salesCount = 0;
 
     salesTransactions.forEach(t => {
@@ -549,9 +489,11 @@ const SalesImport: React.FC = () => {
       netRevenue += (netReceivedValue * t.qty);
       totalCmv += itemTotalCmv;
       totalCfiCost += (itemCfiCost * t.qty);
-      profitLoss += (itemNetProfit * t.qty);
       salesCount += t.qty;
     });
+
+    // O Lucro Líquido Real deve ser simplesmente: Faturamento Bruto menos CMV de Insumos menos CFI Integrado
+    const profitLoss = grossRevenue - totalCmv - totalCfiCost;
 
     const profitMargin = netRevenue > 0 ? (profitLoss / netRevenue) * 100 : 0;
 
@@ -876,6 +818,16 @@ const SalesImport: React.FC = () => {
               Copiar & Colar Planilha
             </button>
             <button 
+              onClick={() => { setActiveSubTab('file'); setImportLog(null); }}
+              className={`pb-2 px-4 text-sm font-black transition tracking-wider uppercase ${
+                activeSubTab === 'file' 
+                  ? 'border-b-2 border-brand-red text-brand-red' 
+                  : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
+              }`}
+            >
+              Importar Arquivo
+            </button>
+            <button 
               onClick={() => { setActiveSubTab('manual'); setImportLog(null); }}
               className={`pb-2 px-4 text-sm font-black transition tracking-wider uppercase ${
                 activeSubTab === 'manual' 
@@ -930,6 +882,41 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                 <PlusCircle className="h-4 w-4" />
                 Processar Vendas da Planilha
               </button>
+            </div>
+          )}
+
+          {/* Tab 3: File Upload */}
+          {activeSubTab === 'file' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="bg-gray-50 dark:bg-[#1a2333]/40 p-8 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-center flex flex-col items-center justify-center">
+                <FileText className="h-12 w-12 text-gray-400 mb-3" />
+                <span className="font-bold text-gray-700 dark:text-white block mb-1 uppercase tracking-wider text-sm">Importar Planilha</span>
+                <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
+                  Arraste e solte ou selecione seu relatório de vendas. O sistema detecta automaticamente o formato (<span className="font-semibold text-gray-600 dark:text-gray-300">.xlsx, .xls, .csv</span>).
+                </p>
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    accept=".xlsx, .xls, .csv"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="bg-brand-red hover:bg-red-700 text-white font-black px-6 py-2.5 rounded-xl transition text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm pointer-events-none">
+                    <Upload className="h-4 w-4" />
+                    Selecionar Arquivo
+                  </div>
+                </div>
+              </div>
+
+              {importLog && (
+                <div className={`p-3 rounded-lg text-xs leading-relaxed font-bold ${
+                  importLog.success 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50' 
+                    : 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border border-red-200/50'
+                }`}>
+                  {importLog.message}
+                </div>
+              )}
             </div>
           )}
 
