@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Calculator, DollarSign, Percent, Bike, Ticket, Info, Settings, HelpCircle, X, Package, ShieldAlert } from 'lucide-react';
 import { formatMoney } from '../constants';
+import { IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
 
 const SmartCalculator: React.FC = () => {
   const [activePlatform, setActivePlatform] = useState<'ifood' | '99food' | 'keeta'>('ifood');
@@ -129,7 +130,13 @@ const SmartCalculator: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
-            <Calculator className={activePlatform === 'ifood' ? 'text-[#ea1d2c]' : activePlatform === '99food' ? 'text-[#FFCC00]' : 'text-[#00E16A]'} size={32} />
+            {activePlatform === 'ifood' ? (
+              <IFoodLogo className="w-10 h-10 shrink-0 animate-pulse" />
+            ) : activePlatform === '99food' ? (
+              <Food99Logo className="w-10 h-10 shrink-0 animate-pulse" />
+            ) : (
+              <KeetaLogo className="w-10 h-10 shrink-0 animate-pulse" />
+            )}
             Calculadora Inteligente
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1 font-medium">
@@ -143,8 +150,9 @@ const SmartCalculator: React.FC = () => {
         <div className="flex items-center">
           <button 
             onClick={() => setActivePlatform('ifood')} 
-            className={`px-8 py-3 rounded-l-xl font-black uppercase tracking-wider text-sm transition-all ${activePlatform === 'ifood' ? 'bg-[#ea1d2c] text-white shadow-lg shadow-red-900/20 scale-105 z-10' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+            className={`px-6 py-3 rounded-l-xl font-black uppercase tracking-wider text-sm transition-all flex items-center gap-2 ${activePlatform === 'ifood' ? 'bg-[#ea1d2c] text-white shadow-lg shadow-red-900/20 scale-105 z-10' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
           >
+            <IFoodLogo className="w-5 h-5 shrink-0" />
             iFood
           </button>
           <button onClick={() => { setActivePlatform('ifood'); setIsHelpOpen(true); }} className={`px-3 py-3 rounded-r-xl transition-all flex items-center justify-center ${activePlatform === 'ifood' ? 'bg-[#c81624] text-white shadow-lg shadow-red-900/20 scale-105 z-10' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 hover:bg-gray-300 dark:hover:bg-gray-600'}`} title="Ajuda iFood">
@@ -155,8 +163,9 @@ const SmartCalculator: React.FC = () => {
         <div className="flex items-center ml-2">
           <button 
             onClick={() => setActivePlatform('99food')} 
-            className={`px-8 py-3 rounded-l-xl font-black uppercase tracking-wider text-sm transition-all ${activePlatform === '99food' ? 'bg-[#FFCC00] text-black shadow-lg shadow-yellow-900/20 scale-105 z-10' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+            className={`px-6 py-3 rounded-l-xl font-black uppercase tracking-wider text-sm transition-all flex items-center gap-2 ${activePlatform === '99food' ? 'bg-[#FFCC00] text-black shadow-lg shadow-yellow-900/20 scale-105 z-10' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
           >
+            <Food99Logo className="w-5 h-5 shrink-0" />
             99Food
           </button>
           <button onClick={() => { setActivePlatform('99food'); setIsHelpOpen(true); }} className={`px-3 py-3 rounded-r-xl transition-all flex items-center justify-center ${activePlatform === '99food' ? 'bg-[#e6b800] text-black shadow-lg shadow-yellow-900/20 scale-105 z-10' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 hover:bg-gray-300 dark:hover:bg-gray-600'}`} title="Ajuda 99Food">
@@ -167,8 +176,9 @@ const SmartCalculator: React.FC = () => {
         <div className="flex items-center ml-2">
           <button 
             onClick={() => setActivePlatform('keeta')} 
-            className={`px-8 py-3 rounded-l-xl font-black uppercase tracking-wider text-sm transition-all ${activePlatform === 'keeta' ? 'bg-[#00E16A] text-black shadow-lg shadow-green-900/20 scale-105 z-10' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+            className={`px-6 py-3 rounded-l-xl font-black uppercase tracking-wider text-sm transition-all flex items-center gap-2 ${activePlatform === 'keeta' ? 'bg-[#00E16A] text-black shadow-lg shadow-green-900/20 scale-105 z-10' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
           >
+            <KeetaLogo className="w-5 h-5 shrink-0" />
             Keeta
           </button>
           <button onClick={() => { setActivePlatform('keeta'); setIsHelpOpen(true); }} className={`px-3 py-3 rounded-r-xl transition-all flex items-center justify-center ${activePlatform === 'keeta' ? 'bg-[#00c95e] text-black shadow-lg shadow-green-900/20 scale-105 z-10' : 'bg-gray-200 dark:bg-gray-700 text-gray-500 hover:bg-gray-300 dark:hover:bg-gray-600'}`} title="Ajuda Keeta">

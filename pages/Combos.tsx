@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Combo, ComboItem } from '../types';
 import { formatPercent } from '../constants';
+import { IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
 
 const categoryColors = [
   'blue', 'green', 'purple', 'orange', 'cyan', 'pink', 'rose', 'fuchsia', 'indigo', 'teal', 'emerald', 'amber'
@@ -596,10 +597,30 @@ const Combos: React.FC = () => {
                       <th className="px-6 py-4 text-center">Lucro Estim.</th>
                       <th className="px-6 py-4 text-right">CMV Combo</th>
                       <th className="px-6 py-4 text-right">PV Loja</th>
-                      <th className="px-6 py-4 text-right text-[#E53935]">PV iFood</th>
-                      <th className="px-6 py-4 text-right text-[#B71C1C]">PV CI</th>
-                      <th className="px-6 py-4 text-right text-[#FBC02D]">PV 99</th>
-                      <th className="px-6 py-4 text-right text-[#43A047]">PV Keeta</th>
+                      <th className="px-6 py-4 text-right text-[#E53935]">
+                          <div className="flex items-center justify-end gap-1">
+                              <IFoodLogo className="w-3.5 h-3.5 inline shrink-0" />
+                              <span>PV iFood</span>
+                          </div>
+                      </th>
+                      <th className="px-6 py-4 text-right text-[#B71C1C]">
+                          <div className="flex items-center justify-end gap-1">
+                              <IFoodLogo className="w-3.5 h-3.5 inline shrink-0 opacity-90" />
+                              <span>PV CI</span>
+                          </div>
+                      </th>
+                      <th className="px-6 py-4 text-right text-[#FBC02D]">
+                          <div className="flex items-center justify-end gap-1 text-yellow-600 dark:text-[#FBC02D]">
+                              <Food99Logo className="w-3.5 h-3.5 inline shrink-0" />
+                              <span>PV 99</span>
+                          </div>
+                      </th>
+                      <th className="px-6 py-4 text-right text-[#43A047]">
+                          <div className="flex items-center justify-end gap-1">
+                              <KeetaLogo className="w-3.5 h-3.5 inline shrink-0" />
+                              <span>PV Keeta</span>
+                          </div>
+                      </th>
                       <th className="px-6 py-4 text-center">Ações</th>
                   </tr>
                 </thead>
@@ -844,7 +865,9 @@ const Combos: React.FC = () => {
               {/* iFood Global */}
               <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl space-y-6">
                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-[#E53935] rounded-lg flex items-center justify-center text-white font-bold">iF</div>
+                      <div className="w-10 h-10 bg-[#E53935]/10 rounded-lg flex items-center justify-center text-white">
+                          <IFoodLogo className="w-6 h-6 shrink-0" />
+                      </div>
                       <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-widest">iFood Global</h4>
                   </div>
                   <div className="space-y-4">
@@ -899,7 +922,9 @@ const Combos: React.FC = () => {
               {/* 99Food Global */}
               <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl space-y-6">
                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-[#FBC02D] rounded-lg flex items-center justify-center text-white font-bold">99</div>
+                      <div className="w-10 h-10 bg-[#FBC02D]/10 rounded-lg flex items-center justify-center text-white">
+                          <Food99Logo className="w-6 h-6 shrink-0" />
+                      </div>
                       <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-widest">99Food Global</h4>
                   </div>
                   <div className="space-y-4">
@@ -936,7 +961,9 @@ const Combos: React.FC = () => {
               {/* Keeta Global */}
               <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl space-y-6">
                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-[#43A047] rounded-lg flex items-center justify-center text-white font-bold">KT</div>
+                      <div className="w-10 h-10 bg-[#43A047]/10 rounded-lg flex items-center justify-center text-white">
+                          <KeetaLogo className="w-6 h-6 shrink-0" />
+                      </div>
                       <h4 className="font-black text-gray-900 dark:text-white uppercase tracking-widest">KeeTa Global</h4>
                   </div>
                   <div className="space-y-4">

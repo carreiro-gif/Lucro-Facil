@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import { formatPercent } from '../constants';
+import { IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
 
 const PricingTableHeader: React.FC = () => (
   <thead className="bg-gray-50 dark:bg-[#0f111a] text-gray-500 dark:text-gray-400 text-[10px] uppercase font-bold tracking-wider">
@@ -21,21 +22,41 @@ const PricingTableHeader: React.FC = () => (
           <th className="p-3 border-b border-red-100 dark:border-gray-800 bg-red-50 dark:bg-red-900/10 text-center w-20 text-red-900 dark:text-red-100 sticky top-0 z-20">Antec. %</th>
           <th className="p-3 border-b border-red-100 dark:border-gray-800 bg-red-50 dark:bg-red-900/10 text-center w-24 text-red-900 dark:text-red-100 sticky top-0 z-20">Entrega R$</th>
           <th className="p-3 border-b border-red-100 dark:border-gray-800 bg-red-50 dark:bg-red-900/10 text-center w-24 text-red-900 dark:text-red-100 sticky top-0 z-20">Cupom R$</th>
-          <th className="p-3 border-b border-red-200 dark:border-gray-800 bg-[#E53935] text-center text-white font-bold border-x border-red-300 dark:border-red-800 w-32 sticky top-0 z-20">PV Ifood</th>
+          <th className="p-3 border-b border-red-200 dark:border-gray-800 bg-[#E53935] text-center text-white font-bold border-x border-red-300 dark:border-red-800 w-32 sticky top-0 z-20">
+              <div className="flex items-center justify-center gap-1.5">
+                  <IFoodLogo className="w-4 h-4 shrink-0" />
+                  <span>PV Ifood</span>
+              </div>
+          </th>
           <th className="p-3 border-b border-purple-100 dark:border-gray-800 bg-purple-50 dark:bg-purple-900/10 text-center w-24 text-purple-900 dark:text-purple-100 sticky top-0 z-20">CI (R$)</th>
-          <th className="p-3 border-b border-purple-200 dark:border-gray-800 bg-[#B71C1C] text-center text-white font-bold border-x border-purple-300 dark:border-purple-800 w-32 sticky top-0 z-20">PV CI</th>
-          <th className="p-3 border-b border-yellow-100 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-20 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Taxa %</th>
-          <th className="p-3 border-b border-yellow-100 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-20 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Online %</th>
-          <th className="p-3 border-b border-yellow-100 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-24 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Entrega R$</th>
-          <th className="p-3 border-b border-yellow-100 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-20 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Antec. %</th>
-          <th className="p-3 border-b border-yellow-100 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-24 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Cupom R$</th>
-          <th className="p-3 border-b border-yellow-200 dark:border-gray-800 bg-[#FBC02D] text-center text-white font-bold border-x border-yellow-300 dark:border-yellow-700 w-32 sticky top-0 z-20">PV 99Food</th>
+          <th className="p-3 border-b border-purple-200 dark:border-gray-800 bg-[#B71C1C] text-center text-white font-bold border-x border-purple-300 dark:border-purple-800 w-32 sticky top-0 z-20">
+              <div className="flex items-center justify-center gap-1.5">
+                  <IFoodLogo className="w-4 h-4 shrink-0 opacity-90" />
+                  <span>PV CI</span>
+              </div>
+          </th>
+          <th className="p-3 border-b border-yellow-105 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-20 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Taxa %</th>
+          <th className="p-3 border-b border-yellow-105 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-20 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Online %</th>
+          <th className="p-3 border-b border-yellow-105 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-24 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Entrega R$</th>
+          <th className="p-3 border-b border-yellow-105 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-20 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Antec. %</th>
+          <th className="p-3 border-b border-yellow-105 dark:border-gray-800 bg-yellow-50 dark:bg-yellow-900/10 text-center w-24 text-yellow-900 dark:text-yellow-100 sticky top-0 z-20">Cupom R$</th>
+          <th className="p-3 border-b border-yellow-200 dark:border-gray-800 bg-[#FBC02D] text-center text-white font-bold border-x border-yellow-300 dark:border-yellow-700 w-32 sticky top-0 z-20">
+              <div className="flex items-center justify-center gap-1.5 text-black">
+                  <Food99Logo className="w-4 h-4 shrink-0" />
+                  <span>PV 99Food</span>
+              </div>
+          </th>
           <th className="p-3 border-b border-green-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10 text-center w-20 text-green-900 dark:text-green-100 sticky top-0 z-20">Taxa %</th>
           <th className="p-3 border-b border-green-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10 text-center w-20 text-green-900 dark:text-green-100 sticky top-0 z-20">Online %</th>
           <th className="p-3 border-b border-green-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10 text-center w-24 text-green-900 dark:text-green-100 sticky top-0 z-20">Entrega R$</th>
           <th className="p-3 border-b border-green-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10 text-center w-20 text-green-900 dark:text-green-100 sticky top-0 z-20">Antec. %</th>
           <th className="p-3 border-b border-green-100 dark:border-gray-800 bg-green-50 dark:bg-green-900/10 text-center w-24 text-green-900 dark:text-green-100 sticky top-0 z-20">Cupom R$</th>
-          <th className="p-3 border-b border-green-200 dark:border-gray-800 bg-[#43A047] text-center text-white font-bold border-x border-green-300 dark:border-green-700 w-32 sticky top-0 z-20">PV Keeta</th>
+          <th className="p-3 border-b border-green-200 dark:border-gray-800 bg-[#43A047] text-center text-white font-bold border-x border-green-300 dark:border-green-700 w-32 sticky top-0 z-20">
+              <div className="flex items-center justify-center gap-1.5">
+                  <KeetaLogo className="w-4 h-4 shrink-0" />
+                  <span>PV Keeta</span>
+              </div>
+          </th>
       </tr>
   </thead>
 );
@@ -404,21 +425,41 @@ const Pricing: React.FC = () => {
                                         <td className="p-3 text-center bg-red-50/30 dark:bg-red-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-red-300 dark:hover:border-gray-600 focus:border-brand-red" value={ifoodAntic} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.anticipation', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-red-50/30 dark:bg-red-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-red-300 dark:hover:border-gray-600 focus:border-brand-red" value={ifoodDel} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.delivery', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-red-50/30 dark:bg-red-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-red-300 dark:hover:border-gray-600 focus:border-brand-red" value={ifoodCoupon} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.coupon', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#E53935] border-x border-red-300 dark:border-red-800">R$ {ifoodPrice.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#E53935] border-x border-red-300 dark:border-red-800">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <IFoodLogo className="w-4 h-4 shrink-0 brightness-110" />
+                                                <span>R$ {ifoodPrice.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-3 text-center bg-purple-50/30 dark:bg-purple-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-purple-300 dark:hover:border-gray-600 focus:border-purple-500" value={ciVal} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.ciValue', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#B71C1C] border-x border-purple-300 dark:border-purple-800">R$ {ifoodCIPrice.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#B71C1C] border-x border-purple-300 dark:border-purple-800">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <IFoodLogo className="w-4 h-4 shrink-0 brightness-110 opacity-90" />
+                                                <span>R$ {ifoodCIPrice.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Fee} onChange={e => handleUpdate(product.id, 'pricing', 'food99.fee', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Online} onChange={e => handleUpdate(product.id, 'pricing', 'food99.onlinePayment', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Del} onChange={e => handleUpdate(product.id, 'pricing', 'food99.delivery', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Antic} onChange={e => handleUpdate(product.id, 'pricing', 'food99.anticipation', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Coupon} onChange={e => handleUpdate(product.id, 'pricing', 'food99.coupon', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#FBC02D] border-x border-yellow-300 dark:border-yellow-700">R$ {food99Price.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#FBC02D] border-x border-yellow-300 dark:border-yellow-700">
+                                            <div className="flex items-center justify-center gap-1.5 text-black">
+                                                <Food99Logo className="w-4 h-4 shrink-0" />
+                                                <span>R$ {food99Price.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaFee} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.fee', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaOnline} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.onlinePayment', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaDel} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.delivery', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaAntic} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.anticipation', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaCoupon} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.coupon', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#43A047] border-x border-green-300 dark:border-green-700">R$ {keetaPrice.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#43A047] border-x border-green-300 dark:border-green-700">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <KeetaLogo className="w-4 h-4 shrink-0" />
+                                                <span>R$ {keetaPrice.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -496,21 +537,41 @@ const Pricing: React.FC = () => {
                                         <td className="p-3 text-center bg-red-50/30 dark:bg-red-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-red-300 dark:hover:border-gray-600 focus:border-brand-red" value={ifoodAntic} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.anticipation', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-red-50/30 dark:bg-red-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-red-300 dark:hover:border-gray-600 focus:border-brand-red" value={ifoodDel} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.delivery', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-red-50/30 dark:bg-red-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-red-300 dark:hover:border-gray-600 focus:border-brand-red" value={ifoodCoupon} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.coupon', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#E53935] border-x border-red-300 dark:border-red-800">R$ {ifoodPrice.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#E53935] border-x border-red-300 dark:border-red-800">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <IFoodLogo className="w-4 h-4 shrink-0 brightness-110" />
+                                                <span>R$ {ifoodPrice.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-3 text-center bg-purple-50/30 dark:bg-purple-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-purple-300 dark:hover:border-gray-600 focus:border-purple-500" value={ciVal} onChange={e => handleUpdate(product.id, 'pricing', 'ifood.ciValue', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#B71C1C] border-x border-purple-300 dark:border-purple-800">R$ {ifoodCIPrice.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#B71C1C] border-x border-purple-300 dark:border-purple-800">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <IFoodLogo className="w-4 h-4 shrink-0 brightness-110 opacity-90" />
+                                                <span>R$ {ifoodCIPrice.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Fee} onChange={e => handleUpdate(product.id, 'pricing', 'food99.fee', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Online} onChange={e => handleUpdate(product.id, 'pricing', 'food99.onlinePayment', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Del} onChange={e => handleUpdate(product.id, 'pricing', 'food99.delivery', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Antic} onChange={e => handleUpdate(product.id, 'pricing', 'food99.anticipation', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-yellow-50/30 dark:bg-yellow-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-yellow-300 dark:hover:border-gray-600 focus:border-yellow-500" value={food99Coupon} onChange={e => handleUpdate(product.id, 'pricing', 'food99.coupon', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#FBC02D] border-x border-yellow-300 dark:border-yellow-700">R$ {food99Price.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#FBC02D] border-x border-yellow-300 dark:border-yellow-700">
+                                            <div className="flex items-center justify-center gap-1.5 text-black">
+                                                <Food99Logo className="w-4 h-4 shrink-0" />
+                                                <span>R$ {food99Price.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaFee} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.fee', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaOnline} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.onlinePayment', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaDel} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.delivery', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-10 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaAntic} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.anticipation', parseFloat(e.target.value))} /></td>
                                         <td className="p-3 text-center bg-green-50/30 dark:bg-green-900/5"><input type="number" step="0.1" className="w-12 bg-transparent text-gray-900 dark:text-gray-300 text-center outline-none border-b border-transparent hover:border-green-300 dark:hover:border-gray-600 focus:border-green-500" value={keetaCoupon} onChange={e => handleUpdate(product.id, 'pricing', 'keeta.coupon', parseFloat(e.target.value))} /></td>
-                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#43A047] border-x border-green-300 dark:border-green-700">R$ {keetaPrice.toFixed(2)}</td>
+                                        <td className="p-3 text-center font-bold text-lg text-white bg-[#43A047] border-x border-green-300 dark:border-green-700">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <KeetaLogo className="w-4 h-4 shrink-0" />
+                                                <span>R$ {keetaPrice.toFixed(2)}</span>
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}

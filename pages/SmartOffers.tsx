@@ -18,6 +18,7 @@ const SmartOffers: React.FC = () => {
   } = useApp();
 
   const [reguaDaCasa, setReguaDaCasa] = useState<number | null>(null);
+  const [dismissedAnchors, setDismissedAnchors] = useState<Set<string>>(new Set());
 
   // Helper calculating profit margin of a product
   const getProductMargin = (p: Product) => p.pricing?.profitMargin ?? cfi.profitMargin;
@@ -74,7 +75,23 @@ const SmartOffers: React.FC = () => {
 
   // For Section 2: Anchor Products
   const anchorProducts = products.filter(p => p.isAnchor);
-  const potentialAnchors = products.filter(p => !p.isAnchor && getProductMargin(p) >= currentRegua + 10);
+  
+  const potentialAnchors = useMemo(() => {
+    return products.filter(p => {
+      if (p.isAnchor) return false;
+      const cmvCost = getProductCMV(p);
+      const salePrice = p.fixedPriceStore || 0;
+      if (salePrice <= 0 || cmvCost <= 0) return false;
+      
+      const cmvPercent = (cmvCost / salePrice) * 100;
+      const margin = getProductMargin(p);
+      
+      return cmvPercent < 30 && margin >= (currentRegua + 10);
+    });
+  }, [products, currentRegua, getProductCMV]);
+
+  const visiblePotentialAnchors = potentialAnchors.filter(p => !dismissedAnchors.has(p.id));
+
   const toggleAnchor = (id: string, current: boolean) => updateProduct(id, { isAnchor: !current });
 
   const [isCreatingAnchor, setIsCreatingAnchor] = useState(false);
@@ -329,21 +346,56 @@ const SmartOffers: React.FC = () => {
           </div>
         )}
 
+        {/* Sugestões Inteligentes do Xande */}
+        <div className="mb-6">
+           <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase mb-3 flex items-center gap-2">
+             <Zap className="text-brand-yellow w-4 h-4" /> Sugestões Inteligentes do Xande
+           </h3>
+           {visiblePotentialAnchors.length > 0 ? (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {visiblePotentialAnchors.map(p => (
+                 <div key={p.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-xl relative shadow-sm">
+                   <div className="absolute top-3 right-3 text-blue-500 bg-blue-100 dark:bg-blue-900/50 dark:text-blue-400 p-1.5 rounded-full">
+                     <Anchor size={14} />
+                   </div>
+                   <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-2 pr-8">{p.name}</h4>
+                   <p className="text-xs text-blue-700 dark:text-blue-300 mb-4 leading-relaxed">
+                     Identifiquei este produto! Ele tem custo muito baixo (CMV {((getProductCMV(p) / (p.fixedPriceStore || 1)) * 100).toFixed(1)}%) e alta margem ({getProductMargin(p)}%), ideal para turbinar combos e aumentar seu lucro bancando ofertas.
+                   </p>
+                   <div className="flex gap-2">
+                     <button onClick={() => updateProduct(p.id, { isAnchor: true })} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                       Confirmar Âncora
+                     </button>
+                     <button onClick={() => setDismissedAnchors(prev => new Set(prev).add(p.id))} className="px-3 bg-white hover:bg-gray-50 border border-blue-200 text-blue-600 text-xs font-bold py-2 rounded-lg transition-colors">
+                       Descartar
+                     </button>
+                   </div>
+                 </div>
+               ))}
+             </div>
+           ) : (
+             <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                   Não encontrei candidatos automáticos no seu cardápio com CMV abaixo de 30% e alta margem.
+                   Sugiro criar novos produtos como batata frita, bebidas ou sobremesas para servirem como âncora!
+                </p>
+             </div>
+           )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Identificação de Âncoras Auto / Seleção */}
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase mb-4">Escolher do Cardápio</h3>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase mb-4">Escolher Manualmente do Cardápio</h3>
             <p className="text-xs text-gray-500 mb-4">Selecione produtos de baixo custo e alta margem para serem suas âncoras (ex: batatas, bebidas).</p>
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
               {products.map(p => {
-                const isAutoIdentified = !p.isAnchor && getProductMargin(p) >= (currentRegua + 10) && getProductCMV(p) > 0;
                 return (
                   <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 dark:border-gray-800/50 bg-gray-50 dark:bg-gray-800/30">
                     <div className="flex items-center gap-2">
                       <div>
                         <div className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1">
                           {p.name}
-                          {isAutoIdentified && <Anchor size={12} className="text-blue-500" title="Identificado Automaticamente pelo Sistema!" />}
                         </div>
                         <div className="text-[10px] text-gray-500">CMV: {formatMoney(getProductCMV(p))} • Lucro: {getProductMargin(p)}%</div>
                       </div>

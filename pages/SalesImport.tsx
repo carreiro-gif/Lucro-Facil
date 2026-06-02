@@ -25,6 +25,7 @@ import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
 import { formatMoney, formatPercent } from '../constants';
 import { SalesTransaction } from '../types';
+import { IFoodLogo, Food99Logo, KeetaLogo, WhatsAppLogo } from '../components/PlatformLogos';
 
 const parseBrOrUsMoney = (val: string): number => {
   if (!val) return 0;
@@ -1368,10 +1369,20 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                   }
 
                   let channelBadge = 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300';
-                  if (t.channel === 'ifood') channelBadge = 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-bold border border-red-200/20';
-                  else if (t.channel === 'food99') channelBadge = 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-bold border border-amber-200/20';
-                  else if (t.channel === 'keeta') channelBadge = 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-600 dark:text-cyan-400 font-bold border border-cyan-200/20';
-                  else if (t.channel === 'store') channelBadge = 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-200/20';
+                  let channelLogo = null;
+                  if (t.channel === 'ifood') {
+                    channelBadge = 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-bold border border-red-200/20';
+                    channelLogo = <IFoodLogo className="w-3.5 h-3.5 shrink-0" />;
+                  } else if (t.channel === 'food99') {
+                    channelBadge = 'bg-[#FFCC00]/10 dark:bg-yellow-950/30 text-yellow-600 dark:text-yellow-400 font-bold border border-yellow-250/25';
+                    channelLogo = <Food99Logo className="w-3.5 h-3.5 shrink-0" />;
+                  } else if (t.channel === 'keeta') {
+                    channelBadge = 'bg-cyan-50 dark:bg-cyan-950/30 text-cyan-600 dark:text-cyan-400 font-bold border border-cyan-200/20';
+                    channelLogo = <KeetaLogo className="w-3.5 h-3.5 shrink-0" />;
+                  } else if (t.channel === 'store') {
+                    channelBadge = 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-200/20';
+                    channelLogo = <WhatsAppLogo className="w-3.5 h-3.5 shrink-0" />;
+                  }
 
                   return (
                     <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
@@ -1394,9 +1405,10 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                           )}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-[9px] uppercase px-2 py-0.5 rounded ${channelBadge}`}>
-                          {t.channel === 'store' ? 'Loja/PDV' : t.channel.toUpperCase()}
+                      <td className="px-4 py-3 text-center text-xs">
+                        <span className={`inline-flex items-center gap-1 text-[9px] uppercase px-2 py-0.5 rounded ${channelBadge}`}>
+                          {channelLogo}
+                          <span>{t.channel === 'store' ? 'Loja/PDV' : t.channel === 'food99' ? '99Food' : t.channel.toUpperCase()}</span>
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-500 font-mono">

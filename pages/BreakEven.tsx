@@ -31,7 +31,10 @@ import {
     Zap,
     Scale,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Store,
+    Smartphone,
+    Globe
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -77,11 +80,137 @@ const BreakEven: React.FC = () => {
         monthlyRevenue, 
         expenses, 
         cfi, 
+        products,
+        getProductCMV,
+        platformConfig,
+        salesTransactions,
     } = useApp();
 
-    const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
-    const [ticketMedio, setTicketMedio] = useState<number>(35);
-    const [orderCount, setOrderCount] = useState<string>('');
+    const availableMonths = useMemo(() => {
+        if (!monthlyRevenue || monthlyRevenue.length === 0) return [];
+        return [...monthlyRevenue]
+            .filter(r => r.month)
+            .sort((a, b) => b.month.localeCompare(a.month));
+    }, [monthlyRevenue]);
+
+    const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+        if (monthlyRevenue && monthlyRevenue.length > 0) {
+            const sorted = [...monthlyRevenue]
+                .filter(r => r.month)
+                .sort((a, b) => b.month.localeCompare(a.month));
+            const withData = sorted.find(m => Number(m.revenue) > 0);
+            return withData ? withData.month : sorted[0].month;
+        }
+        return new Date().toISOString().slice(0, 7);
+    });
+
+    useEffect(() => {
+        if (availableMonths.length > 0) {
+            const exists = availableMonths.some(m => m.month === selectedMonth);
+            if (!selectedMonth || !exists) {
+                const withData = availableMonths.find(m => Number(m.revenue) > 0);
+                setSelectedMonth(withData ? withData.month : availableMonths[0].month);
+            }
+        }
+    }, [availableMonths, selectedMonth]);
+
+    const formatMonthLabel = (monthStr: string) => {
+        if (!monthStr) return '';
+        const [year, monthNum] = monthStr.split('-');
+        const monthsMap: Record<string, string> = {
+            '01': 'Janeiro',
+            '02': 'Fevereiro',
+            '03': 'Março',
+            '04': 'Abril',
+            '05': 'Maio',
+            '06': 'Junho',
+            '07': 'Julho',
+            '08': 'Agosto',
+            '09': 'Setembro',
+            '10': 'Outubro',
+            '11': 'Novembro',
+            '12': 'Dezembro'
+        };
+        const monthName = monthsMap[monthNum] || monthNum;
+        return `${monthName} de ${year}`;
+    };
+
+    // --- MONTHLY PERSISTENT DATA STATES ---
+    const [monthlyOrders, setMonthlyOrders] = useState<Record<string, string>>(() => {
+        const saved = localStorage.getItem('lucro_facil_be_monthly_orders_v1');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                // Ignore
+            }
+        }
+        return {};
+    });
+
+    const [monthlyTicketMedio, setMonthlyTicketMedio] = useState<Record<string, number>>(() => {
+        const saved = localStorage.getItem('lucro_facil_be_monthly_ticket_v1');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                // Ignore
+            }
+        }
+        return {};
+    });
+
+    useEffect(() => {
+        localStorage.setItem('lucro_facil_be_monthly_orders_v1', JSON.stringify(monthlyOrders));
+    }, [monthlyOrders]);
+
+    useEffect(() => {
+        localStorage.setItem('lucro_facil_be_monthly_ticket_v1', JSON.stringify(monthlyTicketMedio));
+    }, [monthlyTicketMedio]);
+
+    // Derived states
+    const revenue = useMemo(() => {
+        const rx = monthlyRevenue.find(r => r.month === selectedMonth);
+        return rx ? Number(rx.revenue) : 0;
+    }, [monthlyRevenue, selectedMonth]);
+
+    const orderCount = useMemo(() => monthlyOrders[selectedMonth] || '', [monthlyOrders, selectedMonth]);
+
+    const suggestedTicketMedio = useMemo(() => {
+        const oCount = parseFloat(orderCount) || 0;
+        if (revenue > 0 && oCount > 0) {
+            return revenue / oCount;
+        }
+        return null;
+    }, [revenue, orderCount]);
+
+    const ticketMedio = useMemo(() => {
+        if (monthlyTicketMedio[selectedMonth] !== undefined) {
+            return monthlyTicketMedio[selectedMonth];
+        }
+        if (suggestedTicketMedio !== null) {
+            return suggestedTicketMedio;
+        }
+        return 35; // Default fallback
+    }, [monthlyTicketMedio, selectedMonth, suggestedTicketMedio]);
+
+    const setOrderCount = (val: string) => {
+        setMonthlyOrders(prev => ({ ...prev, [selectedMonth]: val }));
+        
+        // Auto calculate Ticket Médio when orderCount is set
+        const orders = parseFloat(val) || 0;
+        if (orders >= 1 && revenue > 0) {
+            const calculated = parseFloat((revenue / orders).toFixed(2));
+            setMonthlyTicketMedio(prev => ({ ...prev, [selectedMonth]: calculated }));
+            setCalcSuccess(true);
+            setTimeout(() => setCalcSuccess(false), 2000);
+        }
+    };
+
+    const setTicketMedio = (val: number) => {
+        setMonthlyTicketMedio(prev => ({ ...prev, [selectedMonth]: val }));
+    };
+
     const [showHelp, setShowHelp] = useState(false);
     const [calcSuccess, setCalcSuccess] = useState(false);
     
@@ -92,6 +221,147 @@ const BreakEven: React.FC = () => {
     const [simulatedCmvDecrease, setSimulatedCmvDecrease] = useState<number>(0); // reduced overall %
     const [simulatedFixedCostDecrease, setSimulatedFixedCostDecrease] = useState<number>(0); // reduced R$ value
     const [simulatedTicketIncrease, setSimulatedTicketIncrease] = useState<number>(0); // added R$ value
+
+    // --- LOCAL STORAGE CHANNEL DISTRIBUTION ---
+    const [channelPercents, setChannelPercents] = useState<Record<string, number>>(() => {
+        const saved = localStorage.getItem('lucro_facil_channel_distribution_v2');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                // Ignore
+            }
+        }
+        return {
+            ifood: 0,
+            food99: 0,
+            keeta: 0,
+            whatsapp: 0,
+            physical: 0,
+            app_proprio: 0,
+            outros: 0
+        };
+    });
+
+    useEffect(() => {
+        localStorage.setItem('lucro_facil_channel_distribution_v2', JSON.stringify(channelPercents));
+    }, [channelPercents]);
+
+    const totalChannelPercent = useMemo(() => {
+        return Object.values(channelPercents).reduce((sum: number, v: any) => sum + (v as number || 0), 0);
+    }, [channelPercents]);
+
+    const CHANNELS = useMemo(() => [
+        { 
+            id: 'ifood', 
+            name: 'iFood', 
+            color: 'text-[#EA1D2C]', 
+            logo: (
+                <svg viewBox="0 0 100 100" className="w-6 h-6 shrink-0" aria-label="iFood">
+                    <circle cx="50" cy="50" r="48" fill="#EA1D2C" />
+                    {/* Eyes - slanted ovals */}
+                    <ellipse cx="36" cy="38" rx="10" ry="14" fill="white" transform="rotate(-15 36 38)" />
+                    <ellipse cx="62" cy="38" rx="10" ry="14" fill="white" transform="rotate(-15 62 38)" />
+                    {/* Smile and arrowhead */}
+                    <path d="M 22 55 C 26 73, 56 75, 68 57" fill="none" stroke="white" strokeWidth="8" strokeLinecap="round" />
+                    <path d="M 68 57 L 57 59 L 65 47 Z" fill="white" stroke="white" strokeWidth="1" strokeLinejoin="round" />
+                </svg>
+            ),
+            getRate: (cfg: any) => (cfg?.ifood?.fee ?? 0) + (cfg?.ifood?.onlinePayment ?? 0) + (cfg?.ifood?.anticipation ?? 0) 
+        },
+        { 
+            id: 'food99', 
+            name: '99Food', 
+            color: 'text-orange-500', 
+            logo: (
+                <svg viewBox="0 0 100 100" className="w-6 h-6 shrink-0" aria-label="99Food">
+                    <defs>
+                        <linearGradient id="grad99" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#FFF100" />
+                            <stop offset="100%" stopColor="#FF7A00" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="4" y="4" width="92" height="92" rx="24" fill="url(#grad99)" />
+                    <text x="50" y="70" fill="#000000" fontSize="56" fontWeight="900" textAnchor="middle" fontFamily="'Arial Black', 'Impact', sans-serif" letterSpacing="-4">99</text>
+                </svg>
+            ),
+            getRate: (cfg: any) => (cfg?.food99?.fee ?? 0) + (cfg?.food99?.onlinePayment ?? 0) + (cfg?.food99?.anticipation ?? 0) 
+        },
+        { 
+            id: 'keeta', 
+            name: 'Keeta', 
+            color: 'text-yellow-600', 
+            logo: (
+                <svg viewBox="0 0 100 100" className="w-6 h-6 shrink-0" aria-label="Keeta">
+                    <rect x="0" y="0" width="100" height="100" rx="20" fill="#00B195" />
+                    <path d="M 0 0 L 100 0 L 100 62 C 100 82, 0 82, 0 62 Z" fill="#FFD800" />
+                    <text x="50" y="50" fill="black" fontSize="24" fontWeight="900" textAnchor="middle" fontFamily="'Arial Black', Gadget, sans-serif" letterSpacing="-1">keeta</text>
+                    <path d="M 22 55 C 32 68, 55 68, 62 58" fill="none" stroke="black" strokeWidth="4.5" strokeLinecap="round" />
+                    <circle cx="68" cy="55" r="2.5" fill="black" />
+                    <circle cx="73" cy="51" r="2.5" fill="black" />
+                </svg>
+            ),
+            getRate: (cfg: any) => (cfg?.keeta?.fee ?? 0) + (cfg?.keeta?.onlinePayment ?? 0) + (cfg?.keeta?.anticipation ?? 0) 
+        },
+        { 
+            id: 'whatsapp', 
+            name: 'WhatsApp e Delivery Próprio', 
+            color: 'text-emerald-500', 
+            logo: (
+                <svg viewBox="0 0 100 100" className="w-6 h-6 shrink-0" aria-label="WhatsApp">
+                    <circle cx="50" cy="50" r="48" fill="#25D366" />
+                    <path d="M50 14 C30.1 14 14 30.1 14 50 C14 56.4 15.7 62.4 18.7 67.6 L14.5 83 L30.3 78.9 C35.2 81.6 40.8 83 46.5 83 L50 83 C69.9 83 86 66.9 86 47 C86 27.1 69.9 14 50 14 Z" fill="white" />
+                    <path d="M50 18 C32.3 18 18 32.3 18 50 C18 55.8 19.5 61.2 22.2 65.9 L19 77.5 L31 74.4 C35.5 76.9 40.7 78.2 46 78.2 L50 78.2 C67.7 78.2 82 63.9 82 46.2 C82 28.5 67.7 18 50 18 Z" fill="#25D366" />
+                    <path d="M63 56 C62 55.5 58 53.5 57 53 C56 52.8 55.5 52.5 55 53 C54.5 53.5 53 55.3 52.5 56 C52 56.5 51.5 56.8 50.5 56.2 C48 55 45.4 53.5 43.1 51.5 C41.2 49.8 39.7 47.9 39 46.8 C38.5 45.8 39 45.3 39.5 44.8 C40 44.3 40.5 43.7 41 43.2 C41.5 42.7 41.7 42.2 42 41.5 C42.2 41 42 40.2 41.8 39.8 C41.5 39.3 40 35.5 39.2 33.8 C38.5 32 37.8 32.2 37.2 32.2 C36.8 32.2 36.2 32.2 35.5 32.2 C34.8 32.2 33.8 32.5 33 33.2 C32.2 34 30.2 35.8 30.2 39.5 C30.2 43.2 32.8 46.8 33.2 47.2 C33.5 47.8 38.4 55.2 45.8 58.5 C47.5 59.2 49 59.8 50 60 C51.8 60.5 53.2 60.5 54.2 60.2 C55.5 60 58.2 58.5 58.8 56.8 C59.5 55 59.5 53.5 59.2 53.2 C59 52.8 58.5 52.5 57.5 52 Z" fill="white" />
+                </svg>
+            ),
+            getRate: () => 0 
+        },
+        { 
+            id: 'physical', 
+            name: 'Loja Física e Terminal', 
+            color: 'text-blue-500', 
+            logo: (
+                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <Store size={14} className="stroke-[2.5]" />
+                </div>
+            ),
+            getRate: () => 0 
+        },
+        { 
+            id: 'app_proprio', 
+            name: 'App Próprio e Mobile', 
+            color: 'text-indigo-500', 
+            logo: (
+                <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <Smartphone size={14} className="stroke-[2.5]" />
+                </div>
+            ),
+            getRate: () => 0 
+        },
+        { 
+            id: 'outros', 
+            name: 'Outros', 
+            color: 'text-gray-500', 
+            logo: (
+                <div className="w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <Globe size={14} className="stroke-[2.5]" />
+                </div>
+            ),
+            getRate: () => 0 
+        },
+    ], []);
+
+    const weightedPlatformFeePercent = useMemo(() => {
+        if (totalChannelPercent === 0) return 0;
+        let totalFee = 0;
+        CHANNELS.forEach(channel => {
+            const pct = channelPercents[channel.id] || 0;
+            const rate = channel.getRate(platformConfig);
+            totalFee += (pct / 100) * rate;
+        });
+        return totalChannelPercent > 0 ? (totalFee / (totalChannelPercent / 100)) : 0;
+    }, [channelPercents, platformConfig, totalChannelPercent, CHANNELS]);
 
     // --- LOCAL STORAGE DATA ---
     const [customCats, setCustomCats] = useState<CustomCategory[]>(() => {
@@ -132,9 +402,63 @@ const BreakEven: React.FC = () => {
     const [chartHelp, setChartHelp] = useState<string | null>(null);
 
     // --- LOGIC ---
-    const revenue = useMemo(() => monthlyRevenue.find(r => r.month === selectedMonth)?.revenue || 0, [monthlyRevenue, selectedMonth]);
     const fixedCosts = useMemo(() => expenses.filter(e => e.month === selectedMonth).reduce((s, e) => s + e.value, 0), [expenses, selectedMonth]);
     const avgCardRate = useMemo(() => (cfi.debitTax + cfi.creditTax) / 2, [cfi]);
+
+    const avgCmvPercent = useMemo(() => {
+        if (!products || products.length === 0) return 0.35; // Default 35% if no products
+
+        // Filter transactions for the selected month to get products sold and volumes
+        const monthTransactions = (salesTransactions || []).filter(tx => {
+            return tx.date && tx.date.startsWith(selectedMonth);
+        });
+
+        let totalWeightedCmvCost = 0;
+        let totalWeightedRevenue = 0;
+        let hasSalesData = false;
+
+        if (monthTransactions.length > 0) {
+            monthTransactions.forEach(tx => {
+                const prod = products.find(p => p.id === tx.productId);
+                if (prod) {
+                    const cost = getProductCMV(prod);
+                    const price = tx.pricePaidByCustomer || prod.fixedPriceStore || 0;
+                    totalWeightedCmvCost += cost * tx.qty;
+                    totalWeightedRevenue += price * tx.qty;
+                    hasSalesData = true;
+                }
+            });
+        }
+
+        if (hasSalesData && totalWeightedRevenue > 0) {
+            return totalWeightedCmvCost / totalWeightedRevenue;
+        }
+
+        // Fallback: Simple average of products with stored price (as implemented previously)
+        let totalCmvCost = 0;
+        let totalSalesPrice = 0;
+        let countedProducts = 0;
+
+        products.forEach(p => {
+            const cost = getProductCMV(p);
+            const price = p.fixedPriceStore || 0;
+            if (price > 0) {
+                totalCmvCost += cost;
+                totalSalesPrice += price;
+                countedProducts++;
+            }
+        });
+
+        if (totalSalesPrice > 0) {
+            return totalCmvCost / totalSalesPrice;
+        }
+
+        return 0.35; // Default 35% fallback
+    }, [products, getProductCMV, salesTransactions, selectedMonth]);
+
+    const defaultCmvValue = useMemo(() => {
+        return revenue * avgCmvPercent;
+    }, [revenue, avgCmvPercent]);
     
     const autoImposto = useMemo(() => revenue * (cfi.tax / 100), [revenue, cfi]);
     const autoCartao = useMemo(() => revenue * (avgCardRate / 100), [revenue, avgCardRate]);
@@ -144,12 +468,26 @@ const BreakEven: React.FC = () => {
     const dynamicTx = useMemo(() => localEntries.filter(e => e.category === 'Tx Entrega').reduce((s, e) => s + e.value, 0), [localEntries]);
     const dynamicExtras = useMemo(() => localEntries.filter(e => e.category !== 'Compras' && e.category !== 'Tx Entrega').reduce((s, e) => s + e.value, 0), [localEntries]);
 
-    const finalCmv = cmvOverride !== '' ? parseFloat(cmvOverride.toString()) || 0 : dynamicCmv;
+    const finalCmv = useMemo(() => {
+        const val = cmvOverride !== '' ? parseFloat(cmvOverride.toString()) || 0 : (dynamicCmv > 0 ? dynamicCmv : defaultCmvValue);
+        return parseFloat(val.toFixed(2));
+    }, [cmvOverride, dynamicCmv, defaultCmvValue]);
+
     const finalTx = txEntregaOverride !== '' ? parseFloat(txEntregaOverride.toString()) || 0 : dynamicTx;
 
-    const totalVarCosts = autoImposto + autoCartao + autoVoucher + finalCmv + finalTx + dynamicExtras;
-    const varPct = revenue > 0 ? (totalVarCosts / revenue) * 100 : 0;
-    const mcPct = 1 - (varPct / 100);
+    const autoPlataforma = useMemo(() => revenue * (weightedPlatformFeePercent / 100), [revenue, weightedPlatformFeePercent]);
+
+    const totalVarCosts = autoImposto + autoCartao + autoVoucher + finalCmv + finalTx + dynamicExtras + autoPlataforma;
+    
+    const varPct = useMemo(() => {
+        if (revenue > 0) {
+            return (totalVarCosts / revenue) * 100;
+        }
+        const cmvPct = avgCmvPercent * 100;
+        return cmvPct + cfi.tax + avgCardRate + cfi.voucherTax + weightedPlatformFeePercent;
+    }, [revenue, totalVarCosts, avgCmvPercent, cfi, avgCardRate, weightedPlatformFeePercent]);
+
+    const mcPct = useMemo(() => 1 - (varPct / 100), [varPct]);
     
     const breakEvenR$ = mcPct > 0 ? fixedCosts / mcPct : 0;
     const breakEvenUnits = (ticketMedio > 0 && mcPct > 0) ? breakEvenR$ / ticketMedio : 0;
@@ -162,13 +500,13 @@ const BreakEven: React.FC = () => {
     }, [fixedCosts, simulatedFixedCostDecrease]);
 
     const simulatedVarPct = useMemo(() => {
-        const baseCmvPercentage = revenue > 0 ? (finalCmv / revenue) * 100 : 35;
+        const baseCmvPercentage = revenue > 0 ? (finalCmv / revenue) * 100 : (avgCmvPercent * 100);
         const cmvDifference = Math.max(0, baseCmvPercentage - simulatedCmvDecrease);
         const dynamicSimulatedCmv = revenue > 0 ? (cmvDifference / 100) * revenue : 0;
         
-        const simulatedVarCost = autoImposto + autoCartao + autoVoucher + dynamicSimulatedCmv + finalTx + dynamicExtras;
+        const simulatedVarCost = autoImposto + autoCartao + autoVoucher + dynamicSimulatedCmv + finalTx + dynamicExtras + autoPlataforma;
         return revenue > 0 ? (simulatedVarCost / revenue) * 100 : Math.max(10, varPct - simulatedCmvDecrease);
-    }, [finalCmv, revenue, simulatedCmvDecrease, autoImposto, autoCartao, autoVoucher, finalTx, dynamicExtras, varPct]);
+    }, [finalCmv, revenue, simulatedCmvDecrease, autoImposto, autoCartao, autoVoucher, finalTx, dynamicExtras, varPct, avgCmvPercent, autoPlataforma]);
 
     const simulatedMcPct = useMemo(() => {
         return 1 - (simulatedVarPct / 100);
@@ -490,6 +828,16 @@ const BreakEven: React.FC = () => {
                 </div>
             )}
 
+            {revenue <= 0 && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-3 text-xs leading-relaxed text-amber-800 dark:text-amber-350 shadow-sm animate-fade-in no-print">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                        <strong className="text-amber-900 dark:text-amber-200 font-extrabold block mb-0.5">⚠️ Faturamento Zerado para {formatMonthLabel(selectedMonth)}!</strong>
+                        Não encontramos vendas registradas para o período selecionado no faturamento. Para que as simulações e diagnósticos do Xande reflitam a realidade da sua loja, acesse a aba de <strong className="text-brand-red font-black">Faturamento</strong> e registre as vendas.
+                    </div>
+                </div>
+            )}
+
             {/* Step 1: Configuration Card */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 no-print">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
@@ -498,13 +846,39 @@ const BreakEven: React.FC = () => {
                     </h3>
                     <div>
                         <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Mês de Referência</label>
-                        <input 
-                            type="month" 
+                        <select 
                             value={selectedMonth} 
                             onChange={e => setSelectedMonth(e.target.value)}
-                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-sm text-gray-900 dark:text-white outline-none focus:border-brand-red"
-                        />
+                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-brand-red cursor-pointer"
+                        >
+                            {availableMonths.length === 0 ? (
+                                <option value={new Date().toISOString().slice(0, 7)}>
+                                    {formatMonthLabel(new Date().toISOString().slice(0, 7))}
+                                </option>
+                            ) : (
+                                availableMonths.map(m => (
+                                    <option key={m.month} value={m.month}>
+                                        {formatMonthLabel(m.month)}
+                                    </option>
+                                ))
+                            )}
+                        </select>
                     </div>
+
+                    <div>
+                        <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Nº Pedidos no Mês</label>
+                        <div className="relative">
+                            <input 
+                                type="number" 
+                                placeholder="Quantidade de pedidos" 
+                                value={orderCount}
+                                onChange={e => setOrderCount(e.target.value)}
+                                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-brand-red outline-none"
+                            />
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-1">Insira para calcular o Ticket Médio automaticamente.</p>
+                    </div>
+
                     <div>
                         <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Ticket Médio (R$)</label>
                         <div className="relative">
@@ -518,75 +892,186 @@ const BreakEven: React.FC = () => {
                         </div>
                     </div>
                     
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-500/30 text-[10px] text-blue-800 dark:text-blue-200 animate-fade-in">
-                        <p className="mb-2 font-bold uppercase opacity-80">Não sabe o Ticket?</p>
-                        <div className="mb-2">
-                            <input 
-                                type="number" 
-                                placeholder="Nº Pedidos Mês" 
-                                value={orderCount}
-                                onChange={e => setOrderCount(e.target.value)}
-                                className={`w-full bg-white dark:bg-gray-800 p-1.5 rounded border outline-none text-sm ${parseInt(orderCount) < 1 ? 'border-red-400' : 'border-blue-200 dark:border-blue-800'}`}
-                            />
+                    {suggestedTicketMedio !== null && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800/40 text-xs text-blue-850 dark:text-blue-300 animate-fade-in flex flex-col gap-1.5">
+                            <span className="font-extrabold block text-[10px] uppercase text-blue-500">
+                                📊 Ticket Calculado
+                            </span>
+                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                                <span className="text-sm font-black italic">R$ {suggestedTicketMedio.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                                {monthlyTicketMedio[selectedMonth] !== undefined && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setMonthlyTicketMedio(prev => {
+                                                const copy = { ...prev };
+                                                delete copy[selectedMonth];
+                                                return copy;
+                                            });
+                                            setCalcSuccess(true);
+                                            setTimeout(() => setCalcSuccess(false), 2000);
+                                        }}
+                                        className="px-2 py-1 text-[9px] font-black uppercase bg-blue-600 hover:bg-blue-700 text-white rounded transition shrink-0"
+                                    >
+                                        Calcular de Novo
+                                    </button>
+                                )}
+                                {monthlyTicketMedio[selectedMonth] === undefined && (
+                                    <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-extrabold px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0 uppercase tracking-wider">
+                                        <Check size={10} /> Confirmado
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                        <button 
-                            onClick={handleCalculateTicket}
-                            disabled={!orderCount || parseInt(orderCount) < 1}
-                            className="w-full py-2 rounded font-black uppercase bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                            <Calculator size={12} /> Calcular Ticket
-                        </button>
-                    </div>
+                    )}
                 </div>
 
                 {/* Auto-filled Section */}
-                <div className="lg:col-span-3 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                    <h3 className="text-xs font-black uppercase text-gray-400 mb-4 flex items-center gap-2">
-                        <Info size={14}/> Custos Consolidados (Auto)
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                            <span className="text-[9px] uppercase font-bold text-gray-500">Faturamento</span>
-                            <p className="text-sm font-black text-gray-900 dark:text-white">R$ {revenue.toLocaleString('pt-BR')}</p>
+                <div className="lg:col-span-3 flex flex-col gap-6 font-sans">
+                    {/* Distribuição de Vendas por Canal */}
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-all">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-4">
+                            <div>
+                                <h3 className="text-xs font-black uppercase text-gray-400 flex items-center gap-2 tracking-wider">
+                                    <PieIcon className="text-brand-red h-4 w-4" /> Distribuição de Vendas por Canal
+                                </h3>
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    Informe a divisão percentual das suas vendas em cada canal para calcular o impacto ponderado das taxas.
+                                </p>
+                            </div>
+                            <div>
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                    totalChannelPercent === 100 
+                                        ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
+                                        : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
+                                }`}>
+                                    Total: {totalChannelPercent}% {totalChannelPercent === 100 ? '✅' : '⚠️'}
+                                </span>
+                            </div>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                            <span className="text-[9px] uppercase font-bold text-gray-500">Imposto ({formatPercent(cfi.tax)})</span>
-                            <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoImposto.toFixed(2)}</p>
+
+                        {totalChannelPercent !== 100 && (
+                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-[11px] text-red-700 dark:text-red-400 rounded-xl font-bold leading-normal">
+                                Atenção: A soma dos percentuais é de {totalChannelPercent}% e deve ser exatamente 100% para o cálculo ser válido! Ajuste os canais abaixo.
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {CHANNELS.map(ch => {
+                                const currentVal = channelPercents[ch.id] || 0;
+                                const rate = ch.getRate(platformConfig);
+                                return (
+                                    <div key={ch.id} className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800/80 flex flex-col justify-between gap-1.5 transition-colors hover:border-gray-200 dark:hover:border-gray-700">
+                                        <div className="flex justify-between items-center gap-2">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                {ch.logo}
+                                                <div className="min-w-0">
+                                                    <span className="text-[12px] font-extrabold text-gray-900 dark:text-gray-100 block truncate leading-tight">
+                                                        {ch.name}
+                                                    </span>
+                                                    <span className="text-[9px] text-gray-500 dark:text-gray-400 block font-bold leading-none mt-0.5">
+                                                        Taxa do Canal: {rate.toFixed(2)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    value={currentVal}
+                                                    onChange={e => {
+                                                        const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                        setChannelPercents(prev => ({ ...prev, [ch.id]: val }));
+                                                    }}
+                                                    className="w-14 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded px-1.5 py-0.5 text-xs text-right font-black focus:border-brand-red outline-none shadow-sm animate-fade-in"
+                                                />
+                                                <span className="text-[10px] font-bold text-gray-400">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-1.5">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                value={currentVal}
+                                                onChange={e => {
+                                                    const val = parseInt(e.target.value) || 0;
+                                                    setChannelPercents(prev => ({ ...prev, [ch.id]: val }));
+                                                }}
+                                                className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded appearance-none cursor-pointer accent-brand-red font-sans"
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                            <span className="text-[9px] uppercase font-bold text-gray-500">Cartão ({formatPercent(avgCardRate)})</span>
-                            <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoCartao.toFixed(2)}</p>
-                        </div>
-                        <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                            <span className="text-[9px] uppercase font-bold text-gray-500">Custo Fixo (R$)</span>
-                            <p className="text-sm font-black text-brand-red">R$ {fixedCosts.toLocaleString('pt-BR')}</p>
+
+                        {/* Summary indicator */}
+                        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div>
+                                <h4 className="text-[11px] font-black text-blue-900 dark:text-blue-300 uppercase">Impacto de Plataformas no seu Negócio</h4>
+                                <p className="text-[10px] text-blue-700 dark:text-blue-400 leading-normal">
+                                    Seu custo de delivery varia de acordo com as vendas de cada canal. Veja a média de taxas que as plataformas cobram de você:
+                                </p>
+                            </div>
+                            <div className="text-left sm:text-right shrink-0">
+                                <span className="text-[9px] uppercase font-bold text-blue-400 dark:text-blue-500 block">Custo Variável Médio Ponderado</span>
+                                <span className="text-sm font-black text-blue-700 dark:text-blue-300">
+                                    {weightedPlatformFeePercent.toFixed(2)}% do Faturamento
+                                </span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
-                        <div className="flex items-center justify-between bg-emerald-50/30 dark:bg-emerald-500/5 p-2 rounded-lg group">
-                            <div className="flex items-center gap-1">
-                                <span className="text-xs font-bold text-gray-600 dark:text-gray-300">CMV Total (R$)</span>
-                                {cmvOverride !== '' && <RotateCcw size={12} className="text-brand-red cursor-pointer" onClick={() => setCmvOverride('')}/>}
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <h3 className="text-xs font-black uppercase text-gray-400 mb-4 flex items-center gap-2">
+                            <Info size={14}/> Custos Consolidados (Auto)
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                            <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Faturamento</span>
+                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {revenue.toLocaleString('pt-BR')}</p>
                             </div>
-                            <input 
-                                type="number" 
-                                value={cmvOverride === '' ? finalCmv : cmvOverride}
-                                onChange={e => setCmvOverride(e.target.value)}
-                                className={`bg-white dark:bg-gray-800 border rounded p-1 text-xs w-28 text-right outline-none focus:border-emerald-500 ${cmvOverride !== '' ? 'border-brand-red font-bold' : 'border-emerald-200 dark:border-emerald-800'}`}
-                            />
+                            <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Imposto ({formatPercent(cfi.tax)})</span>
+                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoImposto.toFixed(2)}</p>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Cartão ({formatPercent(avgCardRate)})</span>
+                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoCartao.toFixed(2)}</p>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Custo Fixo (R$)</span>
+                                <p className="text-sm font-black text-brand-red">R$ {fixedCosts.toLocaleString('pt-BR')}</p>
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between bg-blue-50/30 dark:bg-blue-500/5 p-2 rounded-lg group">
-                            <div className="flex items-center gap-1">
-                                <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Tx Entrega (R$)</span>
-                                {txEntregaOverride !== '' && <RotateCcw size={12} className="text-brand-red cursor-pointer" onClick={() => setTxEntregaOverride('')}/>}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                            <div className="flex items-center justify-between bg-emerald-50/30 dark:bg-emerald-500/5 p-2 rounded-lg group">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">CMV Total (R$)</span>
+                                    {cmvOverride !== '' && <RotateCcw size={12} className="text-brand-red cursor-pointer" onClick={() => setCmvOverride('')}/>}
+                                </div>
+                                <input 
+                                    type="number" 
+                                    value={cmvOverride === '' ? finalCmv : cmvOverride}
+                                    onChange={e => setCmvOverride(e.target.value)}
+                                    className={`bg-white dark:bg-gray-800 border rounded p-1 text-xs w-28 text-right outline-none focus:border-emerald-500 ${cmvOverride !== '' ? 'border-brand-red font-bold' : 'border-emerald-200 dark:border-emerald-800'}`}
+                                />
                             </div>
-                            <input 
-                                type="number" 
-                                value={txEntregaOverride === '' ? finalTx : txEntregaOverride}
-                                onChange={e => setTxEntregaOverride(e.target.value)}
-                                className={`bg-white dark:bg-gray-800 border rounded p-1 text-xs w-28 text-right outline-none focus:border-blue-500 ${txEntregaOverride !== '' ? 'border-brand-red font-bold' : 'border-blue-200 dark:border-blue-800'}`}
-                            />
+                            <div className="flex items-center justify-between bg-blue-50/30 dark:bg-blue-500/5 p-2 rounded-lg group">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Tx Entrega (R$)</span>
+                                    {txEntregaOverride !== '' && <RotateCcw size={12} className="text-brand-red cursor-pointer" onClick={() => setTxEntregaOverride('')}/>}
+                                </div>
+                                <input 
+                                    type="number" 
+                                    value={txEntregaOverride === '' ? finalTx : txEntregaOverride}
+                                    onChange={e => setTxEntregaOverride(e.target.value)}
+                                    className={`bg-white dark:bg-gray-800 border rounded p-1 text-xs w-28 text-right outline-none focus:border-blue-500 ${txEntregaOverride !== '' ? 'border-brand-red font-bold' : 'border-blue-200 dark:border-blue-800'}`}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -596,7 +1081,7 @@ const BreakEven: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-center">
                     <span className="text-[9px] uppercase font-bold text-gray-400 mb-1">Custo Variável Total</span>
-                    <p className="text-lg font-black text-gray-900 dark:text-white">R$ {totalVarCosts.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                    <p className="text-lg font-black text-gray-900 dark:text-white">R$ {totalVarCosts.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-center">
                     <span className="text-[9px] uppercase font-bold text-gray-400 mb-1">% Custo Variável</span>
@@ -616,9 +1101,17 @@ const BreakEven: React.FC = () => {
                     <span className="text-[9px] uppercase font-black opacity-80 mb-1">Equilíbrio (Pedidos)</span>
                     <p className="text-xl font-black">{ticketMedio <= 0 || mcPct <= 0 ? "0 und" : `${Math.ceil(breakEvenUnits)} und`}</p>
                 </div>
-                <div className={`p-4 rounded-2xl border shadow-sm flex flex-col justify-center ${gapToBe > 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'}`}>
-                    <span className="text-[9px] uppercase font-bold mb-1">{gapToBe > 0 ? 'Falta para bater' : 'Status Mês'}</span>
-                    <p className="text-lg font-black">{gapToBe > 0 ? `R$ ${gapToBe.toLocaleString('pt-BR')}` : 'EQUILIBRADO'}</p>
+                <div className={`p-4 rounded-2xl border shadow-md flex flex-col justify-center text-white transition-all ${
+                    gapToBe > 0 
+                        ? 'bg-red-600 dark:bg-red-700 border-red-750' 
+                        : 'bg-emerald-600 dark:bg-emerald-700 border-emerald-750'
+                }`}>
+                    <span className="text-[9px] uppercase font-black opacity-90 mb-1">
+                        {gapToBe > 0 ? 'Status (Desequilibrado)' : 'Status (Equilibrado)'}
+                    </span>
+                    <p className="text-sm font-black uppercase tracking-tight">
+                        {gapToBe > 0 ? `DESEQUILIBRADO (Falta R$ ${gapToBe.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})` : 'EQUILIBRADO 🎉'}
+                    </p>
                 </div>
             </div>
 
@@ -680,7 +1173,9 @@ const BreakEven: React.FC = () => {
                                         icon: <Award className="text-emerald-500 h-8 w-8 shrink-0 animate-bounce" />,
                                         badge: "Perfeito (ZONA DE SEGURANÇA)",
                                         text: `Você alcança o ponto de equilíbrio no dia ${days} do mês! Os outros ${30 - days} dias representam lucro limpo e abundância para sua empresa. Continue com as rédeas firmes no CFI!`,
-                                        colorClass: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-350"
+                                        bgClass: "bg-emerald-50/10 border-emerald-500/30 dark:bg-emerald-950/20 dark:border-emerald-800/60",
+                                        titleClass: "text-emerald-600 dark:text-emerald-400 font-extrabold",
+                                        textClass: "text-emerald-800 dark:text-emerald-100 font-medium"
                                     };
 
                                     if (days > 10 && days <= 20) {
@@ -688,23 +1183,27 @@ const BreakEven: React.FC = () => {
                                             icon: <TrendingUp className="text-amber-500 h-8 w-8 shrink-0" />,
                                             badge: "Alerta Médio (ZONA RETRANCADA)",
                                             text: `Você leva ${days} dias do mês para pagar o aluguel e as contas faturadas. Sobram apenas ${30 - days} dias para gerar lucro real. Recomendo usar o Simulador de Alavancas ao lado para baixar para 10 dias!`,
-                                            colorClass: "bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-800/40 text-amber-800 dark:text-amber-350"
+                                            bgClass: "bg-amber-50/10 border-amber-500/30 dark:bg-amber-950/20 dark:border-amber-800/60",
+                                            titleClass: "text-amber-600 dark:text-amber-400 font-extrabold",
+                                            textClass: "text-amber-800 dark:text-amber-100 font-medium"
                                         };
                                     } else if (days > 20) {
                                         rating = {
                                             icon: <AlertTriangle className="text-brand-red h-8 w-8 shrink-0 animate-pulse" />,
                                             badge: "Alerta Crítico (ZONA DE PERIGO)",
                                             text: `Você passa ${days} dias do mês trabalhando puramente no vermelho! Se houver uma semana de chuva ou quebra de máquina, você cai no prejuízo. Seu foco de vida deve ser diminuir despesas fixas ou bater metas de CMV urgente!`,
-                                            colorClass: "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-800/40 text-red-800 dark:text-red-350"
+                                            bgClass: "bg-red-500/10 border-red-500/40 dark:bg-red-950/40 dark:border-red-900/60",
+                                            titleClass: "text-red-600 dark:text-red-400 font-black",
+                                            textClass: "text-red-900 dark:text-red-100 font-medium"
                                         };
                                     }
 
                                     return (
-                                        <div className={`p-4 rounded-xl border flex gap-3 items-start leading-snug animate-fade-in ${rating.colorClass}`}>
+                                        <div className={`p-4 rounded-xl border flex gap-3 items-start leading-snug animate-fade-in ${rating.bgClass}`}>
                                             {rating.icon}
                                             <div className="space-y-1">
-                                                <span className="text-[10px] font-black uppercase tracking-widest block">{rating.badge}</span>
-                                                <p className="text-xs font-sans leading-relaxed">{rating.text}</p>
+                                                <span className={`text-[11px] uppercase tracking-widest block ${rating.titleClass}`}>{rating.badge}</span>
+                                                <p className={`text-xs font-sans leading-relaxed ${rating.textClass}`}>{rating.text}</p>
                                             </div>
                                         </div>
                                     );
@@ -725,7 +1224,7 @@ const BreakEven: React.FC = () => {
                         <div className="flex items-center gap-2 mb-4">
                             <Sparkles className="text-[#D90429] h-5 w-5" />
                             <div>
-                                <h3 className="text-xs font-black uppercase text-gray-400 tracking-wider">Odin / Simulador Otimizador do Xande ("E Se...?")</h3>
+                                <h3 className="text-xs font-black uppercase text-gray-400 tracking-wider">Simulador do Xande ("E Se...?")</h3>
                                 <p className="text-[10px] text-gray-500">Mude os parâmetros para simular metas fáceis de CMV e ticket</p>
                             </div>
                         </div>
