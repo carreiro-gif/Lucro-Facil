@@ -223,6 +223,51 @@ const BreakEven: React.FC = () => {
     const [simulatedTicketIncrease, setSimulatedTicketIncrease] = useState<number>(0); // added R$ value
 
     // --- LOCAL STORAGE CHANNEL DISTRIBUTION ---
+    const [channelMode, setChannelMode] = useState<'qty' | 'pct'>('qty');
+    
+    const [monthlyChannelQtys, setMonthlyChannelQtys] = useState<Record<string, Record<string, number>>>(() => {
+        const saved = localStorage.getItem('lucro_facil_channel_qtys_monthly_v1');
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) {}
+        }
+        return {};
+    });
+
+    useEffect(() => {
+        localStorage.setItem('lucro_facil_channel_qtys_monthly_v1', JSON.stringify(monthlyChannelQtys));
+    }, [monthlyChannelQtys]);
+
+    const currentChannelQtys = useMemo(() => {
+        return monthlyChannelQtys[selectedMonth] || {
+            ifood: 0,
+            food99: 0,
+            keeta: 0,
+            whatsapp: 0,
+            physical: 0,
+            app_proprio: 0,
+            outros: 0
+        };
+    }, [monthlyChannelQtys, selectedMonth]);
+
+    const totalChannelQty = useMemo(() => {
+        return (Object.values(currentChannelQtys) as number[]).reduce((sum: number, v: number) => sum + (v || 0), 0) as number;
+    }, [currentChannelQtys]);
+
+    const updateChannelQty = (id: string, val: number) => {
+        setMonthlyChannelQtys(prev => {
+            const current = prev[selectedMonth] || {};
+            const next = { ...current, [id]: val };
+            
+            // Auto update total orders
+            const newTotal = (Object.values(next) as number[]).reduce((s: number, v: number) => s + (v || 0), 0) as number;
+            if (newTotal > 0) {
+                setOrderCount(newTotal.toString());
+            }
+
+            return { ...prev, [selectedMonth]: next };
+        });
+    };
+
     const [channelPercents, setChannelPercents] = useState<Record<string, number>>(() => {
         const saved = localStorage.getItem('lucro_facil_channel_distribution_v2');
         if (saved) {
@@ -248,8 +293,11 @@ const BreakEven: React.FC = () => {
     }, [channelPercents]);
 
     const totalChannelPercent = useMemo(() => {
+        if (channelMode === 'qty') {
+            return totalChannelQty > 0 ? 100 : 0;
+        }
         return Object.values(channelPercents).reduce((sum: number, v: any) => sum + (v as number || 0), 0);
-    }, [channelPercents]);
+    }, [channelPercents, channelMode, totalChannelQty]);
 
     const CHANNELS = useMemo(() => [
         { 
@@ -353,6 +401,18 @@ const BreakEven: React.FC = () => {
     ], []);
 
     const weightedPlatformFeePercent = useMemo(() => {
+        if (channelMode === 'qty') {
+            if (totalChannelQty === 0) return 0;
+            let totalFee = 0;
+            CHANNELS.forEach(channel => {
+                const qty = currentChannelQtys[channel.id] || 0;
+                const pct = (qty / totalChannelQty);
+                const rate = channel.getRate(platformConfig);
+                totalFee += pct * rate;
+            });
+            return totalFee;
+        }
+
         if (totalChannelPercent === 0) return 0;
         let totalFee = 0;
         CHANNELS.forEach(channel => {
@@ -361,7 +421,7 @@ const BreakEven: React.FC = () => {
             totalFee += (pct / 100) * rate;
         });
         return totalChannelPercent > 0 ? (totalFee / (totalChannelPercent / 100)) : 0;
-    }, [channelPercents, platformConfig, totalChannelPercent, CHANNELS]);
+    }, [channelPercents, platformConfig, totalChannelPercent, CHANNELS, channelMode, currentChannelQtys, totalChannelQty]);
 
     // --- LOCAL STORAGE DATA ---
     const [customCats, setCustomCats] = useState<CustomCategory[]>(() => {
@@ -434,18 +494,16 @@ const BreakEven: React.FC = () => {
             return totalWeightedCmvCost / totalWeightedRevenue;
         }
 
-        // Fallback: Simple average of products with stored price (as implemented previously)
+        // Fallback: Weighted average of all products
         let totalCmvCost = 0;
         let totalSalesPrice = 0;
-        let countedProducts = 0;
 
         products.forEach(p => {
             const cost = getProductCMV(p);
-            const price = p.fixedPriceStore || 0;
-            if (price > 0) {
+            if (cost > 0) {
+                const price = p.fixedPriceStore && p.fixedPriceStore > 0 ? p.fixedPriceStore : (cost / 0.35); // Fallback assumption
                 totalCmvCost += cost;
                 totalSalesPrice += price;
-                countedProducts++;
             }
         });
 
@@ -895,7 +953,7 @@ const BreakEven: React.FC = () => {
                     {suggestedTicketMedio !== null && (
                         <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800/40 text-xs text-blue-850 dark:text-blue-300 animate-fade-in flex flex-col gap-1.5">
                             <span className="font-extrabold block text-[10px] uppercase text-blue-500">
-                                📊 Ticket Calculado
+                                📊 Ticket Médio calculado automaticamente
                             </span>
                             <div className="flex items-center justify-between gap-2 mt-0.5">
                                 <span className="text-sm font-black italic">R$ {suggestedTicketMedio.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
@@ -930,36 +988,59 @@ const BreakEven: React.FC = () => {
                 <div className="lg:col-span-3 flex flex-col gap-6 font-sans">
                     {/* Distribuição de Vendas por Canal */}
                     <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-all">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                             <div>
                                 <h3 className="text-xs font-black uppercase text-gray-400 flex items-center gap-2 tracking-wider">
                                     <PieIcon className="text-brand-red h-4 w-4" /> Distribuição de Vendas por Canal
                                 </h3>
                                 <p className="text-[10px] text-gray-500 mt-1">
-                                    Informe a divisão percentual das suas vendas em cada canal para calcular o impacto ponderado das taxas.
+                                    {channelMode === 'qty' ? 'Informe a quantidade de pedidos em cada canal.' : 'Informe a divisão percentual das suas vendas em cada canal.'}
                                 </p>
                             </div>
-                            <div>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                {/* Toggle Mode */}
+                                <div className="flex p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg shrink-0">
+                                    <button 
+                                        onClick={() => setChannelMode('qty')}
+                                        className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${channelMode === 'qty' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Modo Quantidade
+                                    </button>
+                                    <button 
+                                        onClick={() => setChannelMode('pct')}
+                                        className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${channelMode === 'pct' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Modo Percentual
+                                    </button>
+                                </div>
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
                                     totalChannelPercent === 100 
                                         ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
                                         : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                                 }`}>
-                                    Total: {totalChannelPercent}% {totalChannelPercent === 100 ? '✅' : '⚠️'}
+                                    {channelMode === 'qty' ? (
+                                        <>Total Pedidos: {totalChannelQty}</>
+                                    ) : (
+                                        <>Total: {totalChannelPercent}% {totalChannelPercent === 100 ? '✅' : '⚠️'}</>
+                                    )}
                                 </span>
                             </div>
                         </div>
 
-                        {totalChannelPercent !== 100 && (
+                        {channelMode === 'pct' && totalChannelPercent !== 100 && (
                             <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 text-[11px] text-red-700 dark:text-red-400 rounded-xl font-bold leading-normal">
                                 Atenção: A soma dos percentuais é de {totalChannelPercent}% e deve ser exatamente 100% para o cálculo ser válido! Ajuste os canais abaixo.
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                             {CHANNELS.map(ch => {
-                                const currentVal = channelPercents[ch.id] || 0;
+                                const currentPct = channelPercents[ch.id] || 0;
+                                const currentQty = currentChannelQtys[ch.id] || 0;
                                 const rate = ch.getRate(platformConfig);
+                                
+                                const calculatedPct = totalChannelQty > 0 ? (currentQty / totalChannelQty) * 100 : 0;
+
                                 return (
                                     <div key={ch.id} className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800/80 flex flex-col justify-between gap-1.5 transition-colors hover:border-gray-200 dark:hover:border-gray-700">
                                         <div className="flex justify-between items-center gap-2">
@@ -974,34 +1055,64 @@ const BreakEven: React.FC = () => {
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-1 shrink-0">
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    value={currentVal}
-                                                    onChange={e => {
-                                                        const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                                        setChannelPercents(prev => ({ ...prev, [ch.id]: val }));
-                                                    }}
-                                                    className="w-14 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded px-1.5 py-0.5 text-xs text-right font-black focus:border-brand-red outline-none shadow-sm animate-fade-in"
-                                                />
-                                                <span className="text-[10px] font-bold text-gray-400">%</span>
+                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                                {channelMode === 'pct' ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            value={currentPct}
+                                                            onChange={e => {
+                                                                const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                                setChannelPercents(prev => ({ ...prev, [ch.id]: val }));
+                                                            }}
+                                                            className="w-14 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded px-1.5 py-0.5 text-xs text-right font-black focus:border-brand-red outline-none shadow-sm animate-fade-in"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-gray-400">%</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            value={currentQty}
+                                                            onChange={e => {
+                                                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                                updateChannelQty(ch.id, val);
+                                                            }}
+                                                            className="w-16 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded px-1.5 py-0.5 text-xs text-right font-black focus:border-brand-red outline-none shadow-sm animate-fade-in"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-gray-400">pedidos</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="mt-1.5">
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="100"
-                                                value={currentVal}
-                                                onChange={e => {
-                                                    const val = parseInt(e.target.value) || 0;
-                                                    setChannelPercents(prev => ({ ...prev, [ch.id]: val }));
-                                                }}
-                                                className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded appearance-none cursor-pointer accent-brand-red font-sans"
-                                            />
-                                        </div>
+                                        
+                                        {channelMode === 'pct' ? (
+                                            <div className="mt-1.5">
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    value={currentPct}
+                                                    onChange={e => {
+                                                        const val = parseInt(e.target.value) || 0;
+                                                        setChannelPercents(prev => ({ ...prev, [ch.id]: val }));
+                                                    }}
+                                                    className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded appearance-none cursor-pointer accent-brand-red font-sans"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="mt-1.5 flex items-center justify-between">
+                                                <div className="flex-1 mr-3 relative h-1.5 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden flex">
+                                                    <div className={`h-full bg-brand-red`} style={{ width: `${calculatedPct}%` }} />
+                                                </div>
+                                                <span className="text-[10px] font-bold text-gray-500 w-10 text-right">
+                                                    {calculatedPct.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -1102,15 +1213,17 @@ const BreakEven: React.FC = () => {
                     <p className="text-xl font-black">{ticketMedio <= 0 || mcPct <= 0 ? "0 und" : `${Math.ceil(breakEvenUnits)} und`}</p>
                 </div>
                 <div className={`p-4 rounded-2xl border shadow-md flex flex-col justify-center text-white transition-all ${
+                    revenue <= 0 ? 'bg-slate-500 dark:bg-slate-700 border-slate-600' :
                     gapToBe > 0 
                         ? 'bg-red-600 dark:bg-red-700 border-red-750' 
                         : 'bg-emerald-600 dark:bg-emerald-700 border-emerald-750'
                 }`}>
                     <span className="text-[9px] uppercase font-black opacity-90 mb-1">
-                        {gapToBe > 0 ? 'Status (Desequilibrado)' : 'Status (Equilibrado)'}
+                        {revenue <= 0 ? 'Status' : (gapToBe > 0 ? 'Status (Desequilibrado)' : 'Status (Equilibrado)')}
                     </span>
                     <p className="text-sm font-black uppercase tracking-tight">
-                        {gapToBe > 0 ? `DESEQUILIBRADO (Falta R$ ${gapToBe.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})` : 'EQUILIBRADO 🎉'}
+                        {revenue <= 0 ? 'Aguardando Faturamento' : 
+                         (gapToBe > 0 ? `DESEQUILIBRADO (Falta R$ ${gapToBe.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})` : 'EQUILIBRADO 🎉')}
                     </p>
                 </div>
             </div>
