@@ -84,6 +84,8 @@ const BreakEven: React.FC = () => {
         getProductCMV,
         platformConfig,
         salesTransactions,
+        getCmvAvgPercent,
+        calculateBreakEven
     } = useApp();
 
     const availableMonths = useMemo(() => {
@@ -466,53 +468,8 @@ const BreakEven: React.FC = () => {
     const avgCardRate = useMemo(() => (cfi.debitTax + cfi.creditTax) / 2, [cfi]);
 
     const avgCmvPercent = useMemo(() => {
-        if (!products || products.length === 0) return 0.35; // Default 35% if no products
-
-        // Filter transactions for the selected month to get products sold and volumes
-        const monthTransactions = (salesTransactions || []).filter(tx => {
-            return tx.date && tx.date.startsWith(selectedMonth);
-        });
-
-        let totalWeightedCmvCost = 0;
-        let totalWeightedRevenue = 0;
-        let hasSalesData = false;
-
-        if (monthTransactions.length > 0) {
-            monthTransactions.forEach(tx => {
-                const prod = products.find(p => p.id === tx.productId);
-                if (prod) {
-                    const cost = getProductCMV(prod);
-                    const price = tx.pricePaidByCustomer || prod.fixedPriceStore || 0;
-                    totalWeightedCmvCost += cost * tx.qty;
-                    totalWeightedRevenue += price * tx.qty;
-                    hasSalesData = true;
-                }
-            });
-        }
-
-        if (hasSalesData && totalWeightedRevenue > 0) {
-            return totalWeightedCmvCost / totalWeightedRevenue;
-        }
-
-        // Fallback: Weighted average of all products
-        let totalCmvCost = 0;
-        let totalSalesPrice = 0;
-
-        products.forEach(p => {
-            const cost = getProductCMV(p);
-            if (cost > 0) {
-                const price = p.fixedPriceStore && p.fixedPriceStore > 0 ? p.fixedPriceStore : (cost / 0.35); // Fallback assumption
-                totalCmvCost += cost;
-                totalSalesPrice += price;
-            }
-        });
-
-        if (totalSalesPrice > 0) {
-            return totalCmvCost / totalSalesPrice;
-        }
-
-        return 0.35; // Default 35% fallback
-    }, [products, getProductCMV, salesTransactions, selectedMonth]);
+        return getCmvAvgPercent() / 100;
+    }, [getCmvAvgPercent]);
 
     const defaultCmvValue = useMemo(() => {
         return revenue * avgCmvPercent;
@@ -547,7 +504,9 @@ const BreakEven: React.FC = () => {
 
     const mcPct = useMemo(() => 1 - (varPct / 100), [varPct]);
     
-    const breakEvenR$ = mcPct > 0 ? fixedCosts / mcPct : 0;
+    const breakEvenR$ = useMemo(() => {
+        return calculateBreakEven(selectedMonth);
+    }, [calculateBreakEven, selectedMonth]);
     const breakEvenUnits = (ticketMedio > 0 && mcPct > 0) ? breakEvenR$ / ticketMedio : 0;
     const gapToBe = Math.max(0, breakEvenR$ - revenue);
     const progressPct = breakEvenR$ > 0 ? (revenue / breakEvenR$) * 100 : 0;

@@ -7,20 +7,52 @@ import { formatPercent } from '../constants';
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const Dashboard: React.FC = () => {
-  const { monthlyRevenue, expenses, cfi, products, getProductCMV, ingredients, calculateTotalCfiPercent } = useApp();
+  const { 
+    monthlyRevenue, 
+    expenses, 
+    cfi, 
+    products, 
+    getProductCMV, 
+    ingredients, 
+    calculateTotalCfiPercent,
+    storeInfo,
+    getCmvAvgPercent,
+    calculateBreakEven
+  } = useApp();
   
-  const [monthlyGoal, setMonthlyGoal] = useState<number>(() => {
-    const saved = localStorage.getItem('lucro_facil_dashboard_monthly_goal_v1');
-    return saved ? Number(saved) : 50000;
+  const storeId = storeInfo?.id || '1';
+  const localStorageKey = `lucro_facil_dashboard_monthly_goal_v1_${storeId}`;
+
+  const [monthlyGoal, setMonthlyGoal] = useState<number | null>(() => {
+    const saved = localStorage.getItem(localStorageKey);
+    return saved ? Number(saved) : null;
   });
   const [isEditingGoal, setIsEditingGoal] = useState(false);
-  const [tempGoal, setTempGoal] = useState(monthlyGoal.toString());
+  const [tempGoal, setTempGoal] = useState(monthlyGoal !== null ? monthlyGoal.toString() : '');
+
+  useEffect(() => {
+    const saved = localStorage.getItem(localStorageKey);
+    const loadedGoal = saved ? Number(saved) : null;
+    setMonthlyGoal(loadedGoal);
+    setTempGoal(loadedGoal !== null ? loadedGoal.toString() : '');
+  }, [storeId, localStorageKey]);
 
   const handleSaveGoal = () => {
+    if (tempGoal.trim() === '') {
+      setMonthlyGoal(null);
+      localStorage.removeItem(localStorageKey);
+      setIsEditingGoal(false);
+      return;
+    }
     const val = Number(tempGoal);
-    if (!isNaN(val) && val > 0) {
-      setMonthlyGoal(val);
-      localStorage.setItem('lucro_facil_dashboard_monthly_goal_v1', val.toString());
+    if (!isNaN(val) && val >= 0) {
+      if (val === 0) {
+        setMonthlyGoal(null);
+        localStorage.removeItem(localStorageKey);
+      } else {
+        setMonthlyGoal(val);
+        localStorage.setItem(localStorageKey, val.toString());
+      }
     }
     setIsEditingGoal(false);
   };
@@ -47,20 +79,34 @@ const Dashboard: React.FC = () => {
   // 2. Costs & Profit Math
   const monthFixedCosts = expenses.filter(e => e.month === latestMonthKey || !e.month).reduce((s, e) => s + e.value, 0);
 
-  const avgCmvPercent = useMemo(() => {
-    if (products.length === 0) return 35; // Fallback
-    let totalPercent = 0;
-    let counted = 0;
+  const avgCmvPercentResult = useMemo(() => {
+    let totalCmvCost = 0;
+    let totalSalesPrice = 0;
+    let count = 0;
+    
     products.forEach(p => {
       const cost = getProductCMV(p);
-      const price = p.fixedPriceStore || (cost > 0 ? cost / 0.35 : 0); // simulated price
-      if (cost > 0 && price > 0) {
-        totalPercent += (cost / price) * 100;
-        counted++;
+      const price = p.fixedPriceStore || 0;
+      if (p.ingredients && p.ingredients.length > 0 && cost > 0 && price > 0) {
+        totalCmvCost += cost;
+        totalSalesPrice += price;
+        count++;
       }
     });
-    return counted > 0 ? totalPercent / counted : 35;
+
+    if (count > 0 && totalSalesPrice > 0) {
+      return {
+        value: (totalCmvCost / totalSalesPrice) * 100,
+        hasData: true
+      };
+    }
+    return {
+      value: 0,
+      hasData: false
+    };
   }, [products, getProductCMV]);
+
+  const avgCmvPercent = avgCmvPercentResult.hasData ? avgCmvPercentResult.value : 35;
 
   const totalCmvValue = monthRevenue * (avgCmvPercent / 100);
   const realProfit = monthRevenue - totalCmvValue - monthFixedCosts;
@@ -68,10 +114,7 @@ const Dashboard: React.FC = () => {
 
   // 3. Break Even 
   const totalCfiPercent = calculateTotalCfiPercent();
-  const avgCardRate = (cfi.debitTax + cfi.creditTax) / 2;
-  const varPctTotal = avgCardRate + cfi.tax + cfi.royalties + cfi.marketing + cfi.voucherTax + avgCmvPercent;
-  const mcPct = 1 - (varPctTotal / 100);
-  const breakEvenR$ = mcPct > 0 ? monthFixedCosts / mcPct : 0;
+  const breakEvenR$ = calculateBreakEven(latestMonthKey);
   const gapToBe = Math.max(0, breakEvenR$ - monthRevenue);
 
   // 4. Ticket Médio
@@ -95,8 +138,8 @@ const Dashboard: React.FC = () => {
   const maxDays = new Date(currentDateObj.getFullYear(), currentDateObj.getMonth() + 1, 0).getDate();
   const currentDay = currentDateObj.getDate();
   const daysLeft = maxDays - currentDay;
-  const goalProgress = Math.min(100, (monthRevenue / monthlyGoal) * 100);
-  const dailyNeeded = daysLeft > 0 ? Math.max(0, monthlyGoal - monthRevenue) / daysLeft : 0;
+  const goalProgress = monthlyGoal && monthlyGoal > 0 ? Math.min(100, (monthRevenue / monthlyGoal) * 100) : 0;
+  const dailyNeeded = monthlyGoal && monthlyGoal > 0 && daysLeft > 0 ? Math.max(0, monthlyGoal - monthRevenue) / daysLeft : 0;
 
   // Operacional
   const productsWithFicha = products.filter(p => getProductCMV(p) > 0).length;
@@ -107,7 +150,7 @@ const Dashboard: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase mb-1">Visão Geral</h2>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase mb-1">Dashboard</h2>
           <p className="text-gray-500 dark:text-gray-400">Radiografia completa da saúde financeira da sua loja.</p>
         </div>
       </div>
@@ -213,11 +256,13 @@ const Dashboard: React.FC = () => {
 
         {/* CMV Médio Atual */}
         <div className={`p-6 rounded-2xl border bg-white dark:bg-gray-900 shadow-sm transition-transform hover:scale-105 duration-300 ${
+            !avgCmvPercentResult.hasData ? 'border-gray-200 dark:border-gray-800' :
             avgCmvPercent <= 35 ? 'border-emerald-400 dark:border-emerald-500/50' : 
             avgCmvPercent <= 38 ? 'border-amber-400 dark:border-amber-500/50' : 'border-red-400 dark:border-red-500/50'
         }`}>
             <div className="flex justify-between items-start mb-4">
               <div className={`p-3 rounded-xl border shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] ${
+                !avgCmvPercentResult.hasData ? 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' :
                 avgCmvPercent <= 35 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
                 avgCmvPercent <= 38 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800' : 
                                      'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
@@ -226,16 +271,24 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">CMV Médio (Fichas Técnicas)</p>
-            <div className="flex items-end gap-2">
-                 <h3 className={`text-3xl font-black ${
-                     avgCmvPercent <= 35 ? 'text-emerald-600 dark:text-emerald-400' : 
-                     avgCmvPercent <= 38 ? 'text-amber-600 dark:text-amber-400' : 
-                                          'text-red-600 dark:text-red-400'
-                 }`}>{avgCmvPercent.toFixed(1)}%</h3>
-            </div>
-            <p className="text-[10px] uppercase font-bold mt-2 text-gray-400 dark:text-gray-500">
-                {avgCmvPercent < 35 ? 'Nível Muito Saudável' : avgCmvPercent <= 38 ? 'Em Alerta de Risco' : 'NÍVEL DE PERIGO / PREJUÍZO'}
-            </p>
+            {avgCmvPercentResult.hasData ? (
+              <>
+                <div className="flex items-end gap-2">
+                     <h3 className={`text-3xl font-black ${
+                         avgCmvPercent <= 35 ? 'text-emerald-600 dark:text-emerald-400' : 
+                         avgCmvPercent <= 38 ? 'text-amber-600 dark:text-amber-400' : 
+                                              'text-red-600 dark:text-red-400'
+                     }`}>{avgCmvPercent.toFixed(1)}%</h3>
+                </div>
+                <p className="text-[10px] uppercase font-bold mt-2 text-gray-400 dark:text-gray-500">
+                    {avgCmvPercent < 35 ? 'Nível Muito Saudável' : avgCmvPercent <= 38 ? 'Em Alerta de Risco' : 'NÍVEL DE PERIGO / PREJUÍZO'}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mt-2 leading-tight">
+                Cadastre preços na tela de Preço de Venda para ver seu CMV médio
+              </p>
+            )}
         </div>
       </div>
 
@@ -371,6 +424,7 @@ const Dashboard: React.FC = () => {
                             value={tempGoal}
                             onChange={(e) => setTempGoal(e.target.value)}
                             className="w-full bg-transparent p-1 rounded font-bold text-gray-900 dark:text-white outline-none"
+                            placeholder="Digite a meta"
                         />
                         <button onClick={handleSaveGoal} className="px-3 py-1.5 bg-brand-red text-white text-xs font-bold rounded-lg hover:bg-red-700 transition shadow-sm">OK</button>
                     </div>
@@ -382,14 +436,26 @@ const Dashboard: React.FC = () => {
                        </div>
                        <div className="flex justify-between items-baseline mb-4">
                            <span className="text-3xl font-black text-gray-900 dark:text-white leading-none">{formatMoney(monthRevenue)}</span>
-                           <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(monthlyGoal)}</span>
+                           <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                             {monthlyGoal !== null ? formatMoney(monthlyGoal) : 'Não definida'}
+                           </span>
                        </div>
-                       <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
-                           <div className="bg-brand-red h-full rounded-full transition-all duration-1000 relative" style={{ width: `${goalProgress}%` }}>
-                               <div className="absolute inset-0 bg-white/20 w-full h-full" style={{backgroundImage: 'linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent)', backgroundSize: '1rem 1rem'}}></div>
+                       {monthlyGoal !== null ? (
+                         <>
+                           <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
+                               <div className="bg-brand-red h-full rounded-full transition-all duration-1000 relative" style={{ width: `${goalProgress}%` }}>
+                                   <div className="absolute inset-0 bg-white/20 w-full h-full" style={{backgroundImage: 'linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent)', backgroundSize: '1rem 1rem'}}></div>
+                               </div>
                            </div>
-                       </div>
-                       <p className="text-[11px] font-black text-right text-brand-red uppercase">{goalProgress.toFixed(1)}% atingido</p>
+                           <p className="text-[11px] font-black text-right text-brand-red uppercase">{goalProgress.toFixed(1)}% atingido</p>
+                         </>
+                       ) : (
+                         <div className="bg-slate-50 dark:bg-slate-800/10 p-4 rounded-xl border border-dashed border-gray-200 dark:border-gray-800 text-center">
+                           <p className="text-xs text-gray-500 dark:text-gray-400 font-medium leading-relaxed font-sans">
+                             Defina sua meta de faturamento mensal clicando no ícone de configurações acima para acompanhar o ritmo das suas vendas!
+                           </p>
+                         </div>
+                       )}
                     </div>
                 )}
             </div>
@@ -408,7 +474,9 @@ const Dashboard: React.FC = () => {
                </div>
                <div className="flex justify-between items-center">
                    <span className="text-xs font-bold text-blue-900 dark:text-blue-200 leading-tight pr-4">Faturamento Diário Necessário<br/><span className="font-normal text-[10px] opacity-80">(Para bater a meta)</span></span>
-                   <span className="text-sm font-black text-brand-red bg-white dark:bg-slate-900/50 px-2 py-1 rounded shadow-sm">{formatMoney(dailyNeeded)}/dia</span>
+                   <span className="text-sm font-black text-brand-red bg-white dark:bg-slate-900/50 px-2 py-1 rounded shadow-sm">
+                     {monthlyGoal !== null ? `${formatMoney(dailyNeeded)}/dia` : '--'}
+                   </span>
                </div>
             </div>
         </div>

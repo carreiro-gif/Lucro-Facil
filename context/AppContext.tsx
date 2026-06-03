@@ -63,6 +63,8 @@ interface AppContextType extends GlobalState {
   calculateFixedCostPercent: (currentMonth?: string) => number;
   calculateTotalCfiPercent: () => number;
   getSortedProducts: () => Product[];
+  getCmvAvgPercent: () => number;
+  calculateBreakEven: (month: string) => number;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -494,6 +496,42 @@ export const AppProvider: React.FC<{
       });
   };
 
+  const getCmvAvgPercent = (): number => {
+    let totalCmvCost = 0;
+    let totalSalesPrice = 0;
+    let count = 0;
+
+    const safeProducts = state.products || [];
+    safeProducts.forEach(p => {
+      const cost = getProductCMV(p);
+      const price = p.fixedPriceStore || 0;
+      if (p.ingredients && p.ingredients.length > 0 && cost > 0 && price > 0) {
+        totalCmvCost += cost;
+        totalSalesPrice += price;
+        count++;
+      }
+    });
+
+    if (count > 0 && totalSalesPrice > 0) {
+      return (totalCmvCost / totalSalesPrice) * 100;
+    }
+    return 35; // Default fallback to 35% if no valid complete data exists
+  };
+
+  const calculateBreakEven = (month: string): number => {
+    const safeExpenses = state.expenses || [];
+    const fixedCosts = safeExpenses
+      .filter(e => e.month === month || !e.month)
+      .reduce((sum, e) => sum + Number(e.value), 0);
+
+    const avgCmvPercent = getCmvAvgPercent();
+    const avgCardRate = (state.cfi.debitTax + state.cfi.creditTax) / 2;
+    const totalVarCostsPct = avgCardRate + state.cfi.tax + state.cfi.royalties + state.cfi.marketing + state.cfi.voucherTax;
+
+    const mcPct = 1 - ((avgCmvPercent + totalVarCostsPct) / 100);
+    return mcPct > 0 ? fixedCosts / mcPct : 0;
+  };
+
   return (
     <AppContext.Provider value={{
       ...state,
@@ -510,7 +548,9 @@ export const AppProvider: React.FC<{
       addSalesTransaction, addSalesTransactionsBatch, deleteSalesTransaction, clearSalesTransactions,
       setFixedCostMode, resetSystem, updateResetPassword,
       getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
-      getSortedProducts
+      getSortedProducts,
+      getCmvAvgPercent,
+      calculateBreakEven
     }}>
       {children}
     </AppContext.Provider>
