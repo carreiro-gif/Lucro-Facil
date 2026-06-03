@@ -345,8 +345,16 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
 
   useEffect(() => {
     const handleOpenXande = () => setShowGlobalXande(true);
+    const handleChangeTab = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        if (customEvent.detail) setActiveTab(customEvent.detail);
+    };
     window.addEventListener('open-global-xande', handleOpenXande);
-    return () => window.removeEventListener('open-global-xande', handleOpenXande);
+    window.addEventListener('change-tab', handleChangeTab);
+    return () => {
+        window.removeEventListener('open-global-xande', handleOpenXande);
+        window.removeEventListener('change-tab', handleChangeTab);
+    };
   }, []);
 
   const renderContent = () => {

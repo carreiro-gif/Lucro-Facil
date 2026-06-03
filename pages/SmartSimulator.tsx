@@ -29,6 +29,7 @@ const SmartSimulator: React.FC = () => {
   const { 
     products, 
     getProductCMV, 
+    getSortedProducts,
     calculateTotalCfiPercent,
     salesTransactions = [],
     monthlyRevenue = [],
@@ -865,9 +866,14 @@ const SmartSimulator: React.FC = () => {
                       className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-950 dark:text-white rounded-lg p-2.5 text-xs outline-none focus:border-brand-red font-bold"
                     >
                       <option value="">-- Escolher Produto --</option>
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} (CMV: R$ {getProductCMV(p).toFixed(2)})</option>
-                      ))}
+                      {getSortedProducts().map(p => {
+                        const cmv = getProductCMV(p);
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (CMV {formatMoney(cmv)})
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
