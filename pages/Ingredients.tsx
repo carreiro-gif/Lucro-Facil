@@ -704,17 +704,18 @@ const Ingredients: React.FC = () => {
               {/* Rodapé Fixado - shrink-0 e bg sólido para não transparecer conteúdo do scroll */}
               <div className="p-4 sm:p-5 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 shrink-0 bg-white dark:bg-[#0f111a] z-10 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)]">
                  <button 
+                    type="button"
                     onClick={closeModal} 
                     className="px-5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-extrabold uppercase tracking-widest text-[9px] transition-all active:scale-95"
                  >
-                    Descartar
+                    Cancelar
                  </button>
                  <button 
                     form="ingredient-form" 
                     type="submit" 
-                    className="px-8 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white font-extrabold uppercase tracking-widest text-[9px] shadow-lg shadow-red-900/15 transition-all transform hover:scale-[1.03] active:scale-95"
+                    className={`px-8 py-2.5 rounded-xl text-white font-extrabold uppercase tracking-widest text-[9px] shadow-lg transition-all transform hover:scale-[1.03] active:scale-95 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-900/15' : 'bg-brand-red hover:bg-red-700 shadow-red-900/15'}`}
                  >
-                    Salvar Insumo
+                    {editingId ? 'Salvar Alterações' : 'Salvar Insumo'}
                  </button>
               </div>
 
