@@ -386,7 +386,7 @@ const Products: React.FC = () => {
              onClick={() => setIsCatModalOpen(false)}
            >
                <div 
-                 className="bg-white dark:bg-[#111827] w-full max-w-lg max-h-[85vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col relative overflow-hidden animate-fade-in"
+                 className="bg-white dark:bg-[#111827] w-full max-w-lg max-h-[90vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col relative overflow-hidden animate-fade-in"
                  onClick={(e) => e.stopPropagation()}
                >
                     <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50 dark:bg-[#0f111a]">
@@ -515,11 +515,11 @@ const Products: React.FC = () => {
        {/* MODAL FICHA TÉCNICA (FIXED OVERLAY INDEPENDENT) */}
        {isModalOpen && (
          <div 
-           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-start z-[9999] p-4 overflow-y-auto pt-10 sm:pt-20"
+           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[9999] p-4"
            onClick={() => setIsModalOpen(false)}
          >
             <div 
-              className="bg-white dark:bg-[#111827] w-full max-w-3xl max-h-[85vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] flex flex-col relative overflow-hidden animate-fade-in"
+              className="bg-white dark:bg-[#111827] w-full max-w-3xl max-h-[90vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] flex flex-col relative overflow-hidden animate-fade-in"
               onClick={(e) => e.stopPropagation()}
             >
                {/* Header Fixado */}
