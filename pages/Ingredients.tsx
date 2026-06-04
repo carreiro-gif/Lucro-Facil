@@ -442,11 +442,11 @@ const Ingredients: React.FC = () => {
       {/* Editor Modal - AJUSTADO PARA ALINHAMENTO AO TOPO (items-start) E RESPIRO VERTICAL */}
       {isModalOpen && (
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex justify-center items-start pt-6 sm:pt-12 z-[9991] p-4 overflow-hidden animate-fade-in"
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex justify-center items-center z-[9991] p-4 overflow-hidden animate-fade-in"
           onClick={closeModal}
         >
            <div 
-              className="bg-white dark:bg-[#111827] w-full max-w-2xl max-h-[85vh] flex flex-col relative overflow-hidden rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] border border-gray-200 dark:border-gray-800 animate-slide-up"
+              className="bg-white dark:bg-[#111827] w-full max-w-2xl max-h-[90vh] flex flex-col relative overflow-hidden rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] border border-gray-200 dark:border-gray-800 animate-slide-up"
               onClick={(e) => e.stopPropagation()}
            >
               
