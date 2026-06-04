@@ -17,7 +17,8 @@ const Dashboard: React.FC = () => {
     calculateTotalCfiPercent,
     storeInfo,
     getCmvAvgPercent,
-    calculateBreakEven
+    calculateBreakEven,
+    salesTransactions
   } = useApp();
   
   const storeId = storeInfo?.id || '1';
@@ -80,29 +81,69 @@ const Dashboard: React.FC = () => {
   const monthFixedCosts = expenses.filter(e => e.month === latestMonthKey || !e.month).reduce((s, e) => s + e.value, 0);
 
   const avgCmvPercentResult = useMemo(() => {
-    let totalCmvCost = 0;
-    let totalSalesPrice = 0;
+    let totalPct = 0;
     let count = 0;
+
+    let burgerPct = 0;
+    let burgerCount = 0;
+
+    let drinksSidesPct = 0;
+    let drinksSidesCount = 0;
     
     products.forEach(p => {
       const cost = getProductCMV(p);
       const price = p.fixedPriceStore || 0;
       if (p.ingredients && p.ingredients.length > 0 && cost > 0 && price > 0) {
-        totalCmvCost += cost;
-        totalSalesPrice += price;
+        const pct = (cost / price) * 100;
+        totalPct += pct;
         count++;
+
+        const cat = (p.category || '').toLowerCase();
+        const name = (p.name || '').toLowerCase();
+        
+        const isBurger = cat.includes('hamb') || cat.includes('burger') || cat.includes('lanche') || name.includes('burger') || name.includes('hamb');
+        const isDrinkOrSide = cat.includes('bebida') || cat.includes('acompanhamento') || cat.includes('porç') || cat.includes('beb') || cat.includes('refri') || name.includes('coca') || name.includes('guaran') || name.includes('frita') || name.includes('porç') || name.includes('suco');
+
+        if (isBurger) {
+          burgerPct += pct;
+          burgerCount++;
+        }
+        if (isDrinkOrSide) {
+          drinksSidesPct += pct;
+          drinksSidesCount++;
+        }
       }
     });
 
-    if (count > 0 && totalSalesPrice > 0) {
+    const highCmvProducts = products
+      .filter(p => {
+        const cost = getProductCMV(p);
+        const price = p.fixedPriceStore || 0;
+        return p.ingredients && p.ingredients.length > 0 && cost > 0 && price > 0;
+      })
+      .map(p => ({
+        name: p.name,
+        cmv: ((getProductCMV(p) / (p.fixedPriceStore || 1)) * 100)
+      }))
+      .filter(p => p.cmv > 35)
+      .sort((a, b) => b.cmv - a.cmv)
+      .slice(0, 5);
+
+    if (count > 0) {
       return {
-        value: (totalCmvCost / totalSalesPrice) * 100,
-        hasData: true
+        value: totalPct / count,
+        hasData: true,
+        burgerValue: burgerCount > 0 ? burgerPct / burgerCount : null,
+        drinksSidesValue: drinksSidesCount > 0 ? drinksSidesPct / drinksSidesCount : null,
+        highCmvProducts
       };
     }
     return {
       value: 0,
-      hasData: false
+      hasData: false,
+      burgerValue: null,
+      drinksSidesValue: null,
+      highCmvProducts: []
     };
   }, [products, getProductCMV]);
 
@@ -126,6 +167,7 @@ const Dashboard: React.FC = () => {
      } catch(e) {}
      return o;
   }, [latestMonthKey]);
+  // If orderCount is 0, we can fallback to monthRevenue / 35 something, but estimatedTicket is standard:
   const estimatedTicket = orderCount > 0 ? monthRevenue / orderCount : 0;
 
   // Navigation Helper (Dispatch event for App.tsx)
@@ -273,16 +315,46 @@ const Dashboard: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">CMV Médio (Fichas Técnicas)</p>
             {avgCmvPercentResult.hasData ? (
               <>
-                <div className="flex items-end gap-2">
-                     <h3 className={`text-3xl font-black ${
-                         avgCmvPercent <= 35 ? 'text-emerald-600 dark:text-emerald-400' : 
-                         avgCmvPercent <= 38 ? 'text-amber-600 dark:text-amber-400' : 
-                                              'text-red-600 dark:text-red-400'
-                     }`}>{avgCmvPercent.toFixed(1)}%</h3>
+                {/* Categorized CMV */}
+                <div className="flex flex-col gap-2 mt-2">
+                  {avgCmvPercentResult.burgerValue !== null ? (
+                    <div className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
+                      <span className="text-gray-500 dark:text-gray-400 font-bold">🍔 Hambúrgueres:</span>
+                      <span className={`font-black text-xl ${avgCmvPercentResult.burgerValue <= 35 ? 'text-emerald-600 dark:text-emerald-400' : avgCmvPercentResult.burgerValue <= 38 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {avgCmvPercentResult.burgerValue.toFixed(1)}%
+                      </span>
+                    </div>
+                  ) : null}
+                  {avgCmvPercentResult.drinksSidesValue !== null ? (
+                    <div className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
+                      <span className="text-gray-500 dark:text-gray-400 font-bold">🥤 Bebidas/Acomp:</span>
+                      <span className={`font-black text-xl ${avgCmvPercentResult.drinksSidesValue <= 35 ? 'text-emerald-600 dark:text-emerald-400' : avgCmvPercentResult.drinksSidesValue <= 38 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {avgCmvPercentResult.drinksSidesValue.toFixed(1)}%
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-                <p className="text-[10px] uppercase font-bold mt-2 text-gray-400 dark:text-gray-500">
+
+                <p className="text-[10px] uppercase font-bold mt-2 text-gray-400 dark:text-gray-500 pb-2 border-b border-gray-100 dark:border-gray-800">
                     {avgCmvPercent < 35 ? 'Nível Muito Saudável' : avgCmvPercent <= 38 ? 'Em Alerta de Risco' : 'NÍVEL DE PERIGO / PREJUÍZO'}
                 </p>
+
+                {avgCmvPercentResult.highCmvProducts.length > 0 && (
+                  <details className="mt-2 group">
+                    <summary className="text-[10px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 cursor-pointer uppercase py-1 list-none flex items-center justify-between">
+                      <span>Top 5 Maiores CMV</span>
+                      <span className="transition-transform group-open:rotate-180">▼</span>
+                    </summary>
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      {avgCmvPercentResult.highCmvProducts.map((p, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[10px] bg-red-50 dark:bg-red-900/10 p-1.5 rounded">
+                          <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px]" title={p.name}>{p.name}</span>
+                          <span className="font-bold text-red-600 dark:text-red-400">{p.cmv.toFixed(1)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </>
             ) : (
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mt-2 leading-tight">

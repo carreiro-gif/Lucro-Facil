@@ -5,6 +5,8 @@ import { ScrollText, Info, HelpCircle, X } from 'lucide-react';
 import { formatPercent } from '../constants';
 import { Product, Combo } from '../types';
 
+const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 type MergedItem = {
     type: 'product' | 'combo';
     data: Product | Combo;
@@ -259,6 +261,13 @@ const Profit: React.FC = () => {
                                                                         return `${it.quantity}x ${p ? p.name : '?'}`;
                                                                     }).join(', ')}
                                                                 </span>
+                                                            )}
+                                                            {statusLabel === 'PREJUÍZO' && (
+                                                                <div className="mt-1 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-md p-2 text-xs">
+                                                                    <span className="font-bold text-red-700 dark:text-red-400 block mb-0.5">⚠️ ALERTA DE PREJUÍZO</span>
+                                                                    <span className="text-red-600 dark:text-red-300 block">Você perde <b className="font-black">{formatMoney(Math.abs(profitValue))}</b> a cada venda.</span>
+                                                                    <span className="text-red-600 dark:text-red-300 block mt-0.5">Preço mínimo p/ zerar (com suas taxas atuais): <b className="font-black">{formatMoney((cmv + deliveryCost) / (1 - (totalCfiPercent / 100)))}</b></span>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </td>

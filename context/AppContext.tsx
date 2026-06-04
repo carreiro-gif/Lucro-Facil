@@ -497,8 +497,7 @@ export const AppProvider: React.FC<{
   };
 
   const getCmvAvgPercent = (): number => {
-    let totalCmvCost = 0;
-    let totalSalesPrice = 0;
+    let totalPct = 0;
     let count = 0;
 
     const safeProducts = state.products || [];
@@ -506,14 +505,13 @@ export const AppProvider: React.FC<{
       const cost = getProductCMV(p);
       const price = p.fixedPriceStore || 0;
       if (p.ingredients && p.ingredients.length > 0 && cost > 0 && price > 0) {
-        totalCmvCost += cost;
-        totalSalesPrice += price;
+        totalPct += (cost / price) * 100;
         count++;
       }
     });
 
-    if (count > 0 && totalSalesPrice > 0) {
-      return (totalCmvCost / totalSalesPrice) * 100;
+    if (count > 0) {
+      return totalPct / count;
     }
     return 35; // Default fallback to 35% if no valid complete data exists
   };
