@@ -442,11 +442,12 @@ const Ingredients: React.FC = () => {
       {/* Editor Modal - AJUSTADO PARA ALINHAMENTO AO TOPO (items-start) E RESPIRO VERTICAL */}
       {isModalOpen && (
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex justify-center items-center z-[9991] p-4 overflow-hidden animate-fade-in"
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9991] animate-fade-in"
           onClick={closeModal}
         >
            <div 
-              className="bg-white dark:bg-[#111827] w-full max-w-2xl max-h-[90vh] flex flex-col relative overflow-hidden rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] border border-gray-200 dark:border-gray-800 animate-slide-up"
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-[#111827] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] border border-gray-200 dark:border-gray-800 animate-slide-up m-auto"
+              style={{ width: 'calc(100% - 32px)' }}
               onClick={(e) => e.stopPropagation()}
            >
               
@@ -702,7 +703,7 @@ const Ingredients: React.FC = () => {
               </div>
 
               {/* Rodapé Fixado - shrink-0 e bg sólido para não transparecer conteúdo do scroll */}
-              <div className="p-4 sm:p-5 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 shrink-0 bg-white dark:bg-[#0f111a] z-10 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)]">
+              <div className="sticky bottom-0 p-4 sm:p-5 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 shrink-0 bg-white dark:bg-[#0f111a] z-10 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)]">
                  <button 
                     type="button"
                     onClick={closeModal} 
