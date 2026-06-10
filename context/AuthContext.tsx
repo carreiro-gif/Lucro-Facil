@@ -25,6 +25,12 @@ export interface UserProfile {
   role: 'admin' | 'client';
   createdAt: string;
   defaultStoreName?: string;
+  plan?: 'admin' | 'starter' | 'growth' | 'pro';
+  status?: 'active' | 'trial' | 'expired' | 'cancelled';
+  trialStart?: string;
+  trialEnd?: string;
+  planExpiry?: string;
+  maxStores?: number;
 }
 
 interface AuthContextType {
@@ -39,6 +45,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshClients: () => Promise<void>;
+  checkAccess: (currentStoreCount: number) => boolean;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,14 +76,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const q = collection(db, 'users');
       const snap = await getDocs(q);
       const list: UserProfile[] = [];
-      snap.forEach(doc => {
-        const d = doc.data();
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
         if (d.userId) {
           list.push({
             userId: d.userId,
             email: d.email || '',
             role: d.role || 'client',
-            createdAt: d.createdAt || ''
+            createdAt: d.createdAt || '',
+            plan: d.plan || 'starter',
+            status: d.status || 'trial',
+            trialStart: d.trialStart || '',
+            trialEnd: d.trialEnd || '',
+            planExpiry: d.planExpiry || '',
+            maxStores: d.maxStores !== undefined ? d.maxStores : 1,
+            defaultStoreName: d.defaultStoreName
           });
         }
       });
@@ -93,6 +108,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (firebaseUser) {
         setUser(firebaseUser);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const isDefaultAdmin = firebaseUser.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
         
         try {
           // Wrap getDoc with a 5-second timeout to prevent permanent lock if Firebase connection hangs
@@ -104,15 +120,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           };
 
           let userSnap = await getDocWithTimeout(userDocRef) as any;
+          const now = new Date();
           
           if (!userSnap.exists()) {
             // First time self sign-up bootstrap logic
-            const isDefaultAdmin = firebaseUser.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
+            const trialStart = now.toISOString();
+            const trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
             const newProfile: UserProfile = {
               userId: firebaseUser.uid,
               email: firebaseUser.email || '',
               role: isDefaultAdmin ? 'admin' : 'client',
-              createdAt: new Date().toISOString()
+              plan: isDefaultAdmin ? 'admin' : 'starter',
+              status: isDefaultAdmin ? 'active' : 'trial',
+              trialStart: isDefaultAdmin ? '' : trialStart,
+              trialEnd: isDefaultAdmin ? '' : trialEnd,
+              planExpiry: '',
+              maxStores: isDefaultAdmin ? 999 : 1,
+              createdAt: now.toISOString()
             };
             try {
               await setDoc(userDocRef, newProfile);
@@ -121,22 +146,74 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
             setProfile(newProfile);
           } else {
-            const data = userSnap.data();
+            let data = userSnap.data();
+
+            // Daily Check Expiration Upon Login/Access (only for standard tiers)
+            if (!isDefaultAdmin && data.plan !== 'admin') {
+              let updatedStatus = data.status || 'trial';
+              if (updatedStatus === 'trial' && data.trialEnd) {
+                const end = new Date(data.trialEnd);
+                if (now > end) {
+                  updatedStatus = 'expired';
+                }
+              } else if (updatedStatus === 'active' && data.planExpiry) {
+                const expiry = new Date(data.planExpiry);
+                if (now > expiry) {
+                  updatedStatus = 'expired';
+                }
+              }
+
+              if (updatedStatus !== data.status) {
+                try {
+                  await setDoc(userDocRef, { status: updatedStatus }, { merge: true });
+                  data.status = updatedStatus;
+                } catch (e) {
+                  console.error("Error setting expired status:", e);
+                }
+              }
+            } else if (isDefaultAdmin && (data.plan !== 'admin' || data.status !== 'active' || data.maxStores !== 999)) {
+              // Secure Default Admin profile override values
+              const adminUpdates = {
+                plan: 'admin',
+                status: 'active',
+                maxStores: 999,
+                role: 'admin'
+              };
+              try {
+                await setDoc(userDocRef, adminUpdates, { merge: true });
+                data = { ...data, ...adminUpdates };
+              } catch (e) {
+                console.error("Failed to restore default admin attributes:", e);
+              }
+            }
+
             setProfile({
               userId: data.userId || firebaseUser.uid,
               email: data.email || firebaseUser.email || '',
               role: data.role || 'client',
-              createdAt: data.createdAt || ''
+              createdAt: data.createdAt || '',
+              plan: data.plan || 'starter',
+              status: data.status || 'trial',
+              trialStart: data.trialStart || '',
+              trialEnd: data.trialEnd || '',
+              planExpiry: data.planExpiry || '',
+              maxStores: data.maxStores !== undefined ? data.maxStores : 1,
+              defaultStoreName: data.defaultStoreName
             });
           }
         } catch (err) {
           console.error("Error reading/writing user profile doc (falling back to local default): ", err);
           // Resilient fallback profile using firebase login info
-          const isDefaultAdmin = firebaseUser.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
           setProfile({
             userId: firebaseUser.uid,
             email: firebaseUser.email || '',
             role: isDefaultAdmin ? 'admin' : 'client',
+            plan: isDefaultAdmin ? 'admin' : 'starter',
+            status: isDefaultAdmin ? 'active' : 'trial',
+            trialStart: '',
+            trialEnd: '',
+            planExpiry: '',
+            maxStores: isDefaultAdmin ? 999 : 1,
             createdAt: new Date().toISOString()
           });
         }
@@ -176,15 +253,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signUp = async (email: string, password: string, storeName: string) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Create user profile immediately with store name
+      // Create user profile immediately with store name and subscription parameters
       const isDefaultAdmin = email.toLowerCase().trim() === 'espacocarreiro@gmail.com';
+      
+      const now = new Date();
+      const trialStart = now.toISOString();
+      const trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
       const newProfile: UserProfile = {
         userId: userCredential.user.uid,
         email: email,
         role: isDefaultAdmin ? 'admin' : 'client',
-        createdAt: new Date().toISOString(),
+        plan: isDefaultAdmin ? 'admin' : 'starter',
+        status: isDefaultAdmin ? 'active' : 'trial',
+        trialStart: isDefaultAdmin ? '' : trialStart,
+        trialEnd: isDefaultAdmin ? '' : trialEnd,
+        planExpiry: '',
+        maxStores: isDefaultAdmin ? 999 : 1,
+        createdAt: now.toISOString(),
         defaultStoreName: storeName
       };
+
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       await setDoc(userDocRef, newProfile);
       setProfile(newProfile);
@@ -209,6 +298,46 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const checkAccess = (currentStoreCount: number): boolean => {
+    if (!profile) return false;
+    // Admins bypass
+    if (profile.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com' || profile.plan === 'admin' || profile.role === 'admin') {
+      return true;
+    }
+    // Block if expired or cancelled
+    if (profile.status === 'expired' || profile.status === 'cancelled') {
+      return false;
+    }
+    // Limit check
+    const limit = profile.maxStores ?? 1;
+    return currentStoreCount < limit;
+  };
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    const targetId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
+    if (!targetId) return;
+
+    try {
+      const userDocRef = doc(db, 'users', targetId);
+      await setDoc(userDocRef, updates, { merge: true });
+      
+      setProfile(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          ...updates
+        };
+      });
+
+      if (profile?.role === 'admin') {
+        await refreshClients();
+      }
+    } catch (e) {
+      console.error("Failed to update profile:", e);
+      throw e;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -221,7 +350,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       signUp,
       signOut,
       resetPassword,
-      refreshClients
+      refreshClients,
+      checkAccess,
+      updateProfile
     }}>
       {children}
     </AuthContext.Provider>

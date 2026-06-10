@@ -23,6 +23,7 @@ import SmartSimulator from './pages/SmartSimulator';
 import SalesImport from './pages/SalesImport';
 import ConsultingReport from './pages/ConsultingReport';
 import BuffetSimulator from './pages/BuffetSimulator';
+import { PlansPricing } from './pages/PlansPricing';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE, INITIAL_MENU_CATEGORIES, INITIAL_INGREDIENT_CATEGORIES } from './constants';
@@ -31,6 +32,7 @@ import { useAuth } from './context/AuthContext';
 import { db } from './firebase';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { AuthScreen } from './components/AuthScreen';
+import { SubscriptionBlockScreen } from './components/SubscriptionBlockScreen';
 import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu } from 'lucide-react';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
@@ -342,6 +344,15 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGlobalXande, setShowGlobalXande] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const { profile } = useAuth();
+
+  const diffDays = React.useMemo(() => {
+    if (!profile || profile.status !== 'trial' || !profile.trialEnd) return null;
+    const now = new Date();
+    const end = new Date(profile.trialEnd);
+    const diffTime = end.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }, [profile]);
 
   useEffect(() => {
     const handleOpenXande = () => setShowGlobalXande(true);
@@ -379,6 +390,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'calculator': return <SmartCalculator />;
       case 'help': return <Help />;
       case 'shopping-list': return <ShoppingList />;
+      case 'plans': return <PlansPricing />;
       default: return <Dashboard />;
     }
   };
@@ -404,7 +416,8 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       'smart-simulator': 'Simular Descontos',
       calculator: 'Calculadora',
       'shopping-list': 'Lista de Compras',
-      help: 'Central de Ajuda'
+      help: 'Central de Ajuda',
+      plans: 'Planos & Preços'
     };
     return map[tab] || 'Lucro Fácil';
   };
@@ -451,6 +464,29 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       
       <main className="flex-1 w-full flex flex-col bg-transparent overflow-y-auto min-h-0">
         <div className="flex-1 w-full max-w-none flex flex-col p-4 md:p-6 pt-20 md:pt-6">
+          {/* Trial Warning Banner */}
+          {profile?.status === 'trial' && diffDays !== null && diffDays >= 0 && diffDays <= 3 && profile.email?.toLowerCase().trim() !== 'espacocarreiro@gmail.com' && activeTab !== 'plans' && (
+            <div id="trial-warning-banner" className="bg-gradient-to-r from-[#1E1B4B] via-[#0F172A] to-[#1E1B4B] border-2 border-brand-yellow/30 p-4 rounded-xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="bg-brand-yellow/15 border border-brand-yellow/20 p-2.5 text-brand-yellow rounded-full shrink-0 flex items-center justify-center">
+                  <span className="font-extrabold text-sm font-mono">⚠️</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white">Seu período de teste grátis está chegando ao fim!</h4>
+                  <p className="text-xs text-slate-400">
+                    Restam apenas <strong className="text-brand-yellow">{diffDays} {diffDays === 1 ? 'dia' : 'dias'}</strong> do seu trial de 14 dias. Assine o Lucro Fácil hoje para blindar suas margens.
+                  </p>
+                </div>
+              </div>
+              <button
+                id="btn-ver-planos"
+                onClick={() => setActiveTab('plans')}
+                className="bg-brand-yellow hover:bg-yellow-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-xs uppercase tracking-wider shadow-md shrink-0 transition"
+              >
+                Ver Planos
+              </button>
+            </div>
+          )}
           {renderContent()}
         </div>
         <GlobalFooter />
@@ -462,7 +498,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
 };
 
 const App: React.FC = () => {
-  const { user, profile, loading: authLoading, emulatedUser, setEmulatedUser, clients, signOut } = useAuth();
+  const { user, profile, loading: authLoading, emulatedUser, setEmulatedUser, clients, signOut, checkAccess, updateProfile } = useAuth();
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [dbLoading, setDbLoading] = useState(false);
   const [stores, setStores] = useState<StoreInfo[]>([]);
@@ -978,6 +1014,26 @@ const App: React.FC = () => {
   // 2. Authentication Block
   if (!user) {
     return <AuthScreen />;
+  }
+
+  // 2.5 Subscription Expired/Cancelled Interception
+  const isDefaultAdmin = user.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
+  if (!isDefaultAdmin && profile?.plan !== 'admin' && (profile?.status === 'expired' || profile?.status === 'cancelled')) {
+    const handleRenew = async (plan: 'starter' | 'growth' | 'pro', maxStores: number) => {
+      if (updateProfile) {
+        const now = new Date();
+        const planExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        await updateProfile({
+          plan,
+          status: 'active',
+          planExpiry,
+          maxStores
+        });
+      }
+    };
+    return (
+      <SubscriptionBlockScreen profile={profile} onSignOut={signOut} onRenew={handleRenew} />
+    );
   }
 
   // 3. Database Syncing Splash

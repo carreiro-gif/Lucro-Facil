@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { Plus, Store, ArrowRight, MapPin, Edit2, Upload, X, Copy, CheckCircle, Trash2, AlertTriangle, Tags, TrendingUp, RotateCcw, Wand2 } from 'lucide-react';
 import { StoreInfo } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface StoreListProps {
   stores: StoreInfo[];
@@ -47,6 +48,8 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { checkAccess } = useAuth();
+
   // --- Store Handlers ---
   const handleOpenModal = (store?: StoreInfo) => {
     if (store) {
@@ -55,6 +58,10 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
       setAddress(store.address || '');
       setLogo(store.logo || '');
     } else {
+      if (checkAccess && !checkAccess(stores.length)) {
+        alert("Atingiu o limite de lojas do seu plano atual! Altere ou renove o seu plano para poder gerenciar mais lojas.");
+        return;
+      }
       setEditingStore(null);
       setName('');
       setAddress('');

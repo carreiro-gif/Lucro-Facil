@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   Receipt, 
@@ -164,6 +165,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClose
 }) => {
   const { storeInfo, updateStoreInfo, resetSystem, updateResetPassword, resetPassword } = useApp();
+  const { profile } = useAuth();
+
+  const diffDays = React.useMemo(() => {
+    if (!profile || profile.status !== 'trial' || !profile.trialEnd) return null;
+    const now = new Date();
+    const end = new Date(profile.trialEnd);
+    const diffTime = end.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }, [profile]);
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [lastSaved, setLastSaved] = useState<string>('');
@@ -630,6 +641,43 @@ const Sidebar: React.FC<SidebarProps> = ({
                </div>
              )}
           </div>
+
+          {/* Subscription/Plans widget in sidebar */}
+          {profile && profile.email?.toLowerCase().trim() !== 'espacocarreiro@gmail.com' && (
+            <div className="mx-2 mb-4 bg-black/10 dark:bg-white/5 border border-brand-yellow/30 p-3 rounded-xl shadow-md relative overflow-hidden shrink-0">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-brand-yellow/5 rounded-full blur-xl pointer-events-none"></div>
+              <div className="relative z-10 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block tracking-wider">
+                      Seu Plano ATUAL
+                    </span>
+                    <span className="text-sm font-black text-white capitalize">
+                      {profile.plan || 'Trial'}
+                    </span>
+                  </div>
+                  {profile.status === 'trial' && diffDays !== null && diffDays >= 0 && (
+                    <span className="text-[10px] bg-brand-yellow/20 border border-brand-yellow text-brand-yellow px-2 py-0.5 rounded-full font-extrabold shadow-sm animate-pulse">
+                      {diffDays} {diffDays === 1 ? 'dia' : 'dias'} rest.
+                    </span>
+                  )}
+                </div>
+                
+                {profile.plan !== 'pro' && (
+                  <button 
+                    id="sidebar-upgrade-btn"
+                    onClick={() => {
+                      setActiveTab('plans');
+                      onClose?.();
+                    }}
+                    className="w-full bg-brand-yellow hover:bg-yellow-400 text-slate-950 font-black text-[11px] py-2 rounded-lg transition text-center uppercase tracking-wider shadow-sm animate-bounce"
+                  >
+                    {profile.status === 'trial' ? '🛡️ Assinar Agora' : '🚀 Fazer Upgrade'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {onLogout && (
               <button 
