@@ -441,6 +441,20 @@ export const EMPTY_STATE: GlobalState = {
   menuCategories: INITIAL_MENU_CATEGORIES,
   expenses: [],
   monthlyRevenue: [],
+  cfi: {
+    debitTax: 0,
+    creditTax: 0,
+    voucherTax: 0,
+    tax: 0,
+    royalties: 0,
+    marketing: 0,
+    profitMargin: 0,
+  },
+  platformConfig: {
+    ifood: { fee: 0, onlinePayment: 0, anticipation: 0, delivery: 0, ciValue: 0 },
+    food99: { fee: 0, onlinePayment: 0, anticipation: 0, delivery: 0 },
+    keeta: { fee: 0, onlinePayment: 0, anticipation: 0, delivery: 0 }
+  },
   purchaseEntries: [],
   supplierMappings: [],
   resetPassword: '1234',
