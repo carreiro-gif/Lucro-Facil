@@ -287,7 +287,7 @@ const Combos: React.FC = () => {
       setFood99Delivery(platformConfig.food99.delivery);
       setFood99Coupon(0);
       setKeetaFee(keetaTotalFeeDefault);
-      setKeetaDelivery(platformConfig.keeta.delivery);
+      setKeetaDelivery(0);
       setKeetaCoupon(0);
       setCiVal(platformConfig.ifood.ciValue);
     }

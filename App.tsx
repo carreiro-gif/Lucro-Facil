@@ -24,6 +24,7 @@ import SalesImport from './pages/SalesImport';
 import ConsultingReport from './pages/ConsultingReport';
 import BuffetSimulator from './pages/BuffetSimulator';
 import { PlansPricing } from './pages/PlansPricing';
+import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE, INITIAL_MENU_CATEGORIES, INITIAL_INGREDIENT_CATEGORIES } from './constants';
@@ -493,6 +494,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       </main>
       <FloatingChat activeTab={activeTab} />
       <XandePanel isOpen={showGlobalXande} onClose={() => setShowGlobalXande(false)} />
+      <OnboardingModal setActiveTab={setActiveTab} />
     </div>
   );
 };

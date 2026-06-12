@@ -31,6 +31,7 @@ export interface UserProfile {
   trialEnd?: string;
   planExpiry?: string;
   maxStores?: number;
+  onboardingComplete?: boolean;
 }
 
 interface AuthContextType {
@@ -198,7 +199,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               trialEnd: data.trialEnd || '',
               planExpiry: data.planExpiry || '',
               maxStores: data.maxStores !== undefined ? data.maxStores : 1,
-              defaultStoreName: data.defaultStoreName
+              defaultStoreName: data.defaultStoreName,
+              onboardingComplete: data.onboardingComplete !== undefined ? data.onboardingComplete : false
             });
           }
         } catch (err) {
@@ -271,7 +273,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         planExpiry: '',
         maxStores: isDefaultAdmin ? 999 : 1,
         createdAt: now.toISOString(),
-        defaultStoreName: storeName
+        defaultStoreName: storeName,
+        onboardingComplete: isDefaultAdmin ? true : false
       };
 
       const userDocRef = doc(db, 'users', userCredential.user.uid);

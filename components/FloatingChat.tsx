@@ -110,6 +110,14 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
   
   const appState = useApp();
 
+  useEffect(() => {
+    const handleOpenFloatingChat = () => setIsOpen(true);
+    window.addEventListener('open-floating-chat', handleOpenFloatingChat);
+    return () => {
+      window.removeEventListener('open-floating-chat', handleOpenFloatingChat);
+    };
+  }, []);
+
   // Handle first open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
