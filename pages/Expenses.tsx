@@ -51,6 +51,7 @@ const Expenses: React.FC = () => {
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [showInstallmentPrompt, setShowInstallmentPrompt] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
+  const [showOverdueModal, setShowOverdueModal] = useState(false);
 
   // Form States
   const [formMonthStr, setFormMonthStr] = useState(`${currentYear}-${MONTHS[currentMonthIdx].value}`);
@@ -68,6 +69,17 @@ const Expenses: React.FC = () => {
   const currentExpenses = useMemo(() => 
     expenses.filter(e => e.month === selectedMonthKey),
   [expenses, selectedMonthKey]);
+
+  // Filter all overdue expenses across all months/years
+  const overdueExpenses = useMemo(() => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return expenses.filter(e => {
+      if (e.paid || !e.dueDate) return false;
+      const due = new Date(e.dueDate + 'T00:00:00');
+      return due.getTime() < today.getTime();
+    }).sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+  }, [expenses]);
 
   // Calculate Average Cost based on Last 12 Months rule (Strict Revenue > 0 check)
   const last12MonthsMetrics = useMemo(() => {
@@ -246,16 +258,25 @@ const Expenses: React.FC = () => {
             return (
                 <div className="flex flex-col gap-2">
                     {overdueCount > 0 && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-xl flex items-center justify-between shadow-sm animate-fade-in">
+                        <div 
+                            onClick={() => setShowOverdueModal(true)}
+                            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-xl flex items-center justify-between shadow-sm animate-fade-in cursor-pointer hover:bg-red-100/30 dark:hover:bg-red-900/30 transition group"
+                        >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+                                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center text-red-600 dark:text-red-400 shrink-0 group-hover:scale-105 transition">
                                     <AlertTriangle size={20} />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-red-800 dark:text-red-300 text-sm">Atenção! Despesas Vencidas</h4>
+                                    <h4 className="font-bold text-red-800 dark:text-red-300 text-sm flex items-center gap-2">
+                                        Atenção! Despesas Vencidas
+                                        <span className="text-[10px] bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-350 px-2 py-0.5 rounded-full font-bold">Clique para ver</span>
+                                    </h4>
                                     <p className="text-xs text-red-600 dark:text-red-400">Você tem <strong>{overdueCount}</strong> {overdueCount === 1 ? 'despesa' : 'despesas'} com pagamento atrasado.</p>
                                 </div>
                             </div>
+                            <button className="text-xs font-bold text-red-700 dark:text-red-400 underline group-hover:text-red-900 dark:group-hover:text-red-300 transition">
+                                Ver Detalhes
+                            </button>
                         </div>
                     )}
                     
@@ -670,7 +691,7 @@ const Expenses: React.FC = () => {
                             setShowInstallmentPrompt(false);
                             setIsModalOpen(false);
                         }}
-                        className="w-full py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg font-bold"
+                        className="w-full py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-350 rounded-lg font-bold"
                     >
                         Só a Atual
                     </button>
@@ -683,6 +704,104 @@ const Expenses: React.FC = () => {
                 </div>
             </div>
         </div>
+       )}
+
+       {/* OVERDUE EXPENSES MODAL */}
+       {showOverdueModal && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-gray-900 w-full max-w-2xl rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col max-h-[90vh]">
+                 <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-red-50/50 dark:bg-red-950/20 rounded-t-xl">
+                     <h3 className="text-xl font-bold text-red-800 dark:text-red-400 flex items-center gap-2">
+                         <AlertTriangle size={24} className="text-red-600 dark:text-red-400 animate-pulse" />
+                         Despesas Vencidas ({overdueExpenses.length})
+                     </h3>
+                     <button onClick={() => setShowOverdueModal(false)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white"><X size={24}/></button>
+                 </div>
+                 
+                 <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                     <p className="text-sm text-gray-600 dark:text-gray-400">
+                         Estas despesas estão com a data de vencimento ultrapassada e ainda não foram marcadas como pagas. Você pode pagá-las diretamente aqui ou clicar em editar.
+                     </p>
+                     
+                     {overdueExpenses.length === 0 ? (
+                         <div className="text-center py-8 text-gray-500">
+                             <CheckCircle size={48} className="mx-auto mb-2 text-emerald-500" />
+                             <p className="font-bold text-lg text-emerald-600">Parabéns!</p>
+                             <p className="text-sm">Nenhuma despesa vencida no momento.</p>
+                         </div>
+                     ) : (
+                         <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden divide-y divide-gray-200 dark:divide-gray-800">
+                             {overdueExpenses.map(exp => {
+                                 const [yearStr, monthStr] = exp.month.split('-');
+                                 const monthLabel = MONTHS.find(m => m.value === monthStr)?.label || monthStr;
+                                 const dueFormatted = exp.dueDate 
+                                   ? exp.dueDate.split('-').reverse().join('/') 
+                                   : 'N/A';
+
+                                 return (
+                                     <div key={exp.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                         <div className="space-y-1">
+                                             <div className="flex items-center gap-2 flex-wrap">
+                                                 <span className="font-bold text-gray-950 dark:text-white text-base">{exp.description}</span>
+                                                 <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded font-mono font-bold uppercase">
+                                                     {exp.category}
+                                                 </span>
+                                             </div>
+                                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                                 <span>Competência: <strong className="text-gray-700 dark:text-gray-300">{monthLabel}/{yearStr}</strong></span>
+                                                 <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold">
+                                                     <AlertTriangle size={12} />
+                                                     Venceu em: {dueFormatted}
+                                                 </span>
+                                             </div>
+                                         </div>
+                                         
+                                         <div className="flex items-center gap-4 shrink-0 justify-between sm:justify-end w-full sm:w-auto">
+                                             <span className="text-lg font-bold text-gray-900 dark:text-white font-mono">
+                                                 R$ {Number(exp.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                             </span>
+                                             
+                                             <div className="flex items-center gap-2">
+                                                 <button
+                                                     onClick={() => {
+                                                         togglePaid(exp);
+                                                     }}
+                                                     title="Marcar como Paga"
+                                                     className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 p-2 rounded-lg border border-emerald-200 dark:border-emerald-500/20 font-bold text-xs flex items-center gap-1.5 transition"
+                                                 >
+                                                     <CheckCircle size={16} />
+                                                     <span>Pagar</span>
+                                                 </button>
+                                                 
+                                                 <button
+                                                     onClick={() => {
+                                                         setShowOverdueModal(false);
+                                                         openEditModal(exp);
+                                                     }}
+                                                     title="Editar Despesa"
+                                                     className="bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 p-2 rounded-lg border border-gray-200 dark:border-gray-700 transition"
+                                                 >
+                                                     <Edit2 size={16} />
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                     )}
+                 </div>
+                 
+                 <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end">
+                     <button
+                         onClick={() => setShowOverdueModal(false)}
+                         className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-350 rounded-xl font-bold transition text-sm"
+                     >
+                         Fechar
+                     </button>
+                 </div>
+             </div>
+         </div>
        )}
     </div>
   );

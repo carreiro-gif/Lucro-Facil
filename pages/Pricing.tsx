@@ -94,6 +94,44 @@ const Pricing: React.FC = () => {
     getProductCMV
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [tableHeight, setTableHeight] = useState('calc(100vh - 420px)');
+
+  React.useEffect(() => {
+    const updateHeight = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const offsetFromViewportTop = rect.top;
+        const availableHeight = window.innerHeight - offsetFromViewportTop - 24;
+        
+        if (availableHeight > 200) {
+          setTableHeight(`${availableHeight}px`);
+        } else {
+          setTableHeight('calc(100vh - 420px)');
+        }
+      }
+    };
+
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current?.parentElement) {
+      observer = new ResizeObserver(() => {
+        updateHeight();
+      });
+      observer.observe(containerRef.current.parentElement);
+    }
+
+    const timeoutId = setTimeout(updateHeight, 150);
+
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      if (observer) observer.disconnect();
+      clearTimeout(timeoutId);
+    };
+  }, [products, showHelp]);
+
   const [selectedBulkKey, setSelectedBulkKey] = useState('profitMargin');
   const [bulkValString, setBulkValString] = useState('');
   const [bulkStatusMsg, setBulkStatusMsg] = useState('');
@@ -356,7 +394,11 @@ const Pricing: React.FC = () => {
         <span>DESLIZE AS TABELAS PARA A DIREITA PARA COMPARAR OS CANAIS DE VENDA</span>
       </div>
 
-      <div className="bg-transparent border border-transparent rounded-xl shadow-none overflow-hidden max-h-[calc(100vh-220px)] flex flex-col">
+      <div 
+        ref={containerRef}
+        className="bg-transparent border border-transparent rounded-xl shadow-none overflow-hidden flex flex-col"
+        style={{ maxHeight: tableHeight }}
+      >
         <div className="overflow-x-auto overflow-y-auto pb-8 flex-1 space-y-12" style={{ scrollbarGutter: 'stable' }}>
             {sortedCategories.map(cat => {
                 const groupItems = filteredProductsByGroup[cat.name] || [];
