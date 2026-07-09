@@ -94,7 +94,7 @@ const BuffetSimulator: React.FC = () => {
   const [chartView, setChartView] = useState<'composition' | 'profiles'>('composition');
 
   // Mode state
-  const [buffetType, setBuffetType] = useState<'dog' | 'lunch' | 'custom'>('dog');
+  const [buffetType, setBuffetType] = useState<'dog' | 'lunch' | 'custom'>('custom');
   
   // Tab selector between Free Buffet Simulator and Balance Scale Calculator
   const [activeTab, setActiveTab] = useState<'free_buffet' | 'balance_scale'>('free_buffet');
@@ -125,7 +125,7 @@ const BuffetSimulator: React.FC = () => {
   const [showTutorial, setShowTutorial] = useState<boolean>(true);
 
   // Ingredients state
-  const [ingredients, setIngredients] = useState<BuffetIngredient[]>(TEMPLATE_DOG);
+  const [ingredients, setIngredients] = useState<BuffetIngredient[]>([]);
 
   const activeCfi = customCfi;
 
@@ -816,6 +816,34 @@ const BuffetSimulator: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {ingredients.length === 0 && (
+                <div className="text-center p-8 bg-gray-55 dark:bg-gray-900/40 rounded-xl border border-dashed border-gray-200 dark:border-gray-800 space-y-4">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-bold leading-relaxed max-w-md mx-auto">
+                    A sua pista de buffet livre está vazia. Comece a montar o prato padrão do seu cliente do zero ou carregue nosso exemplo de Hotdog para simular!
+                  </p>
+                  <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
+                    <button
+                      onClick={() => handleTemplateChange('dog')}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-white text-xs font-black rounded-lg uppercase tracking-wider transition border border-gray-250 dark:border-slate-700 flex items-center gap-1.5 shadow-sm"
+                    >
+                      🌭 Usar Exemplo de Hotdog
+                    </button>
+                    <button
+                      onClick={() => {
+                        const el = document.getElementById('new-ing-name-input');
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth' });
+                          el.focus();
+                        }
+                      }}
+                      className="px-4 py-2 bg-brand-red hover:bg-brand-red/90 text-white text-xs font-black rounded-lg uppercase tracking-wider transition flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Adicionar Insumo à Pista
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Quick adding line */}
@@ -828,6 +856,7 @@ const BuffetSimulator: React.FC = () => {
                 <div className="sm:col-span-4">
                   <label className="text-[10px] text-gray-400 font-bold block mb-1">Nome do Insumo</label>
                   <input 
+                    id="new-ing-name-input"
                     type="text" 
                     placeholder="Ex: Salsicha Premium, Purê de Batatas, Queijo Prato" 
                     className="w-full bg-gray-55 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-xs font-bold outline-none focus:border-brand-red"

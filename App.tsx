@@ -34,7 +34,7 @@ import { db } from './firebase';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { AuthScreen } from './components/AuthScreen';
 import { SubscriptionBlockScreen } from './components/SubscriptionBlockScreen';
-import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu } from 'lucide-react';
+import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
@@ -506,6 +506,86 @@ const App: React.FC = () => {
   const [stores, setStores] = useState<StoreInfo[]>([]);
   const [storesData, setStoresData] = useState<Record<string, GlobalState>>({});
   const [showOfflineFallback, setShowOfflineFallback] = useState(false);
+
+  // States and effects for Stone subscription checkout simulations
+  const [showSimulatedModal, setShowSimulatedModal] = useState(false);
+  const [simulatedPlan, setSimulatedPlan] = useState<string | null>(null);
+  const [simulatedUserId, setSimulatedUserId] = useState<string | null>(null);
+  const [simulatedBillingCycle, setSimulatedBillingCycle] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [simulatingPayment, setSimulatingPayment] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const simulated = params.get('simulated_checkout');
+      const userIdParam = params.get('userId');
+      const planParam = params.get('plan');
+      const billingCycleParam = params.get('billingCycle');
+      const paymentStatus = params.get('payment_status');
+
+      if (simulated === 'true' && userIdParam && planParam) {
+        setSimulatedUserId(userIdParam);
+        setSimulatedPlan(planParam);
+        setSimulatedBillingCycle(billingCycleParam || 'monthly');
+        setShowSimulatedModal(true);
+      } else if (paymentStatus === 'success') {
+        setShowSuccessModal(true);
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    }
+  }, []);
+
+  const handleConfirmSimulatedPayment = async () => {
+    if (!simulatedUserId || !simulatedPlan) return;
+    setSimulatingPayment(true);
+    try {
+      const response = await fetch('/api/simulate-payment-success', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: simulatedUserId,
+          plan: simulatedPlan,
+          billingCycle: simulatedBillingCycle
+        })
+      });
+
+      if (response.ok) {
+        setShowSimulatedModal(false);
+        setShowSuccessModal(true);
+        
+        if (updateProfile) {
+          const maxStoresMap: Record<string, number> = {
+            starter: 1,
+            growth: 5,
+            pro: 999
+          };
+          const now = new Date();
+          const days = simulatedBillingCycle === 'yearly' ? 365 : 30;
+          const expiryDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+          await updateProfile({
+            plan: simulatedPlan as any,
+            status: 'active',
+            planExpiry: expiryDate,
+            maxStores: maxStoresMap[simulatedPlan] || 1
+          });
+        }
+        
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      } else {
+        alert("Erro ao confirmar simulação de faturamento.");
+      }
+    } catch (err) {
+      console.error("Erro na simulação:", err);
+      alert("Falha de comunicação para o faturamento simulado.");
+    } finally {
+      setSimulatingPayment(false);
+    }
+  };
   
   const [bgColor, setBgColor] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1213,6 +1293,121 @@ const App: React.FC = () => {
           />
           <UpdateNotification />
         </AppProvider>
+      )}
+
+      {/* MODALS PARA PAGAMENTO E SIMULAÇÃO STONE */}
+      {showSimulatedModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6 relative overflow-hidden font-sans">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div className="text-center space-y-3">
+              <div className="mx-auto w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center justify-center">
+                <AlertTriangle size={24} />
+              </div>
+              <h3 className="text-lg font-black text-white">Ambiente de Teste Stone</h3>
+              <p className="text-xs text-slate-400">
+                O <code className="bg-slate-950 px-1.5 py-0.5 rounded text-red-400 font-mono">STONE_SECRET_KEY</code> não está configurado. O sistema ativou o fluxo de simulação de assinatura.
+              </p>
+            </div>
+
+            <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800/80 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">ID Usuário:</span>
+                <span className="text-slate-300 font-mono font-bold">{simulatedUserId?.substring(0, 8)}...</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Plano Escolhido:</span>
+                <span className="text-brand-yellow font-bold uppercase">{simulatedPlan}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Valor Estimado:</span>
+                <span className="text-white font-bold">
+                  {simulatedBillingCycle === 'yearly' ? (
+                    <>
+                      {simulatedPlan === 'starter' ? 'R$ 299,00' : simulatedPlan === 'growth' ? 'R$ 499,00' : 'R$ 599,00'} / ano
+                    </>
+                  ) : (
+                    <>
+                      {simulatedPlan === 'starter' ? 'R$ 29,90' : simulatedPlan === 'growth' ? 'R$ 49,90' : 'R$ 59,90'} / mês
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSimulatedModal(false);
+                  const newUrl = window.location.pathname;
+                  window.history.replaceState({}, document.title, newUrl);
+                }}
+                className="flex-1 py-3 rounded-xl border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition text-xs font-bold uppercase tracking-wider"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmSimulatedPayment}
+                disabled={simulatingPayment}
+                className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10"
+              >
+                {simulatingPayment ? (
+                  <>
+                    <Loader className="animate-spin text-slate-950" size={14} /> Ativando...
+                  </>
+                ) : (
+                  'Aprovar Teste'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-brand-yellow/30 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center space-y-6 relative overflow-hidden font-sans">
+            <div className="absolute top-0 left-0 w-32 h-32 bg-brand-yellow/15 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div className="mx-auto w-14 h-14 bg-brand-yellow/10 border border-brand-yellow/40 text-brand-yellow rounded-full flex items-center justify-center animate-bounce">
+              <ShieldCheck size={32} />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-black text-white tracking-tight">Assinatura Ativada com Sucesso!</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Parabéns! Sua conta foi atualizada com sucesso. Agora suas margens estão blindadas e seu faturamento está pronto para decolar!
+              </p>
+            </div>
+
+            <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800/80 text-xs text-left space-y-2.5">
+              <div className="flex items-center gap-2 text-slate-300">
+                <span className="text-brand-yellow font-bold">✓</span>
+                <span>Acesso total ilimitado liberado</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-300">
+                <span className="text-brand-yellow font-bold">✓</span>
+                <span>Consultor Financeiro Xande ativo</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-300">
+                <span className="text-brand-yellow font-bold">✓</span>
+                <span>Sincronização em nuvem robusta</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+              }}
+              className="w-full py-4 bg-brand-yellow hover:bg-yellow-400 text-slate-950 transition rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-brand-yellow/15"
+            >
+              Começar a Lucrar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
