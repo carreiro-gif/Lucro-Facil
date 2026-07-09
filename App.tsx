@@ -550,47 +550,43 @@ const App: React.FC = () => {
     if (!simulatedUserId || !simulatedPlan) return;
     setSimulatingPayment(true);
     try {
-      const response = await fetch(getApiUrl('/api/simulate-payment-success'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: simulatedUserId,
-          plan: simulatedPlan,
-          billingCycle: simulatedBillingCycle
-        })
-      });
+      const now = new Date();
+      const days = simulatedBillingCycle === 'yearly' ? 365 : 30;
+      const expiryDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+      
+      const maxStoresMap: Record<string, number> = {
+        starter: 1,
+        growth: 5,
+        pro: 999
+      };
+      const maxStores = maxStoresMap[simulatedPlan.toLowerCase()] || 1;
 
-      if (response.ok) {
-        setShowSimulatedModal(false);
-        setShowSuccessModal(true);
-        
-        if (updateProfile) {
-          const maxStoresMap: Record<string, number> = {
-            starter: 1,
-            growth: 5,
-            pro: 999
-          };
-          const now = new Date();
-          const days = simulatedBillingCycle === 'yearly' ? 365 : 30;
-          const expiryDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
-          await updateProfile({
-            plan: simulatedPlan as any,
-            status: 'active',
-            planExpiry: expiryDate,
-            maxStores: maxStoresMap[simulatedPlan] || 1
-          });
-        }
-        
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
-      } else {
-        alert("Erro ao confirmar simulação de faturamento.");
+      // Escreve diretamente utilizando a instância autenticada do Firestore no cliente
+      const userRef = doc(db, "users", simulatedUserId);
+      await setDoc(userRef, {
+        plan: simulatedPlan.toLowerCase(),
+        status: "active",
+        planExpiry: expiryDate,
+        maxStores: maxStores
+      }, { merge: true });
+
+      if (updateProfile) {
+        await updateProfile({
+          plan: simulatedPlan as any,
+          status: 'active',
+          planExpiry: expiryDate,
+          maxStores: maxStores
+        });
       }
-    } catch (err) {
-      console.error("Erro na simulação:", err);
-      alert("Falha de comunicação para o faturamento simulado.");
+
+      setShowSimulatedModal(false);
+      setShowSuccessModal(true);
+      
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    } catch (err: any) {
+      console.error("Erro na simulação direta pelo cliente:", err);
+      alert(`Falha ao processar simulação de faturamento diretamente no banco: ${err.message || err}`);
     } finally {
       setSimulatingPayment(false);
     }
