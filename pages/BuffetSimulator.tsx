@@ -20,7 +20,11 @@ import {
   Settings,
   Users,
   Layers,
-  Sparkle
+  Sparkle,
+  Scale,
+  Plus,
+  Trash2,
+  Coins
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import { formatMoney } from '../constants';
@@ -32,6 +36,12 @@ interface BuffetIngredient {
   unit: 'KG' | 'UN' | 'G';
   dose: number; // quantidade da dose em g ou un no prato padrão
   isProtein: boolean; // se é um ingrediente caro ou proteína
+}
+
+interface WeightItem {
+  id: string;
+  name: string;
+  costPerKg: number;
 }
 
 const TEMPLATE_DOG = [
@@ -54,12 +64,49 @@ const TEMPLATE_ALMOCO = [
   { id: '7', name: 'Sobremesa ou Pastelzinho', costPerUnit: 16.00, unit: 'KG', dose: 40, isProtein: false },
 ] as BuffetIngredient[];
 
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-xl shadow-xl text-xs space-y-1.5 text-white max-w-[240px] z-50">
+        <p className="font-black uppercase tracking-wider text-brand-yellow text-[10px]">
+          {data.fullName || data.name}
+        </p>
+        <p className="font-bold text-slate-200">
+          Valor: <span className="font-mono text-emerald-400 text-sm font-black">{formatMoney(payload[0].value)}</span>
+        </p>
+        {data.description && (
+          <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+            {data.description}
+          </p>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
 const BuffetSimulator: React.FC = () => {
   const { cfi, calculateTotalCfiPercent } = useApp();
   const cfiPercentContext = calculateTotalCfiPercent();
 
+  // View mode for Recharts BI chart
+  const [chartView, setChartView] = useState<'composition' | 'profiles'>('composition');
+
   // Mode state
   const [buffetType, setBuffetType] = useState<'dog' | 'lunch' | 'custom'>('dog');
+  
+  // Tab selector between Free Buffet Simulator and Balance Scale Calculator
+  const [activeTab, setActiveTab] = useState<'free_buffet' | 'balance_scale'>('free_buffet');
+
+  // Balance weight calculator states
+  const [weightItems, setWeightItems] = useState<WeightItem[]>([]);
+  const [newWeightName, setNewWeightName] = useState<string>('');
+  const [newWeightCost, setNewWeightCost] = useState<number | ''>('');
+
+  const [weightCfi, setWeightCfi] = useState<number>(37); // CFI%
+  const [weightLucro, setWeightLucro] = useState<number>(20); // Lucro%
+  const [weightDesperdicio, setWeightDesperdicio] = useState<number>(13); // Desperdício%
   
   // Custom states for financial sliders
   const [sellingPrice, setSellingPrice] = useState<number>(29.90);
@@ -108,6 +155,56 @@ const BuffetSimulator: React.FC = () => {
       // KG, convert dose in grams to kg
       return (ing.costPerUnit / 1000) * ing.dose;
     }
+  };
+
+  // Balance calculator math
+  const sumTotalCost = useMemo(() => {
+    return weightItems.reduce((sum, item) => sum + item.costPerKg, 0);
+  }, [weightItems]);
+
+  const costMedioKg = useMemo(() => {
+    if (weightItems.length === 0) return 0;
+    return sumTotalCost / weightItems.length;
+  }, [weightItems, sumTotalCost]);
+
+  const weightDivisor = useMemo(() => {
+    const sum = (weightCfi + weightLucro + weightDesperdicio) / 100;
+    const div = 1 - sum;
+    return div > 0 ? div : 0.01; // Avoid divide by zero
+  }, [weightCfi, weightLucro, weightDesperdicio]);
+
+  const recommendedPricePerKg = useMemo(() => {
+    return costMedioKg / weightDivisor;
+  }, [costMedioKg, weightDivisor]);
+
+  const recommendedPricePer100g = useMemo(() => {
+    return recommendedPricePerKg / 10;
+  }, [recommendedPricePerKg]);
+
+  const addWeightItem = () => {
+    if (!newWeightName.trim()) return;
+    const cost = typeof newWeightCost === 'number' ? newWeightCost : 0;
+    const newItem: WeightItem = {
+      id: `w-${Date.now()}`,
+      name: newWeightName.trim(),
+      costPerKg: cost
+    };
+    setWeightItems([...weightItems, newItem]);
+    setNewWeightName('');
+    setNewWeightCost('');
+  };
+
+  const removeWeightItem = (id: string) => {
+    setWeightItems(weightItems.filter(item => item.id !== id));
+  };
+
+  const updateWeightItemField = (id: string, field: 'name' | 'costPerKg', value: any) => {
+    setWeightItems(weightItems.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
   };
 
   // 1. Custo Real por dose padrão total
@@ -337,13 +434,73 @@ const BuffetSimulator: React.FC = () => {
 
   const activeTourStepData = ONBOARDING_STEPS[activeStep];
 
+  // Estimativa de desperdício mensal para o Ralo do Dinheiro
+  const rampaProducaoMensalEst = useMemo(() => {
+    // Estimativa de 1500 refeições/mês (50 refeições por dia x 30 dias)
+    return baseStandardCost * 1500;
+  }, [baseStandardCost]);
+
+  const custoDesperdicioMensal = useMemo(() => {
+    return rampaProducaoMensalEst * (wasteRate / 100);
+  }, [rampaProducaoMensalEst, wasteRate]);
+
+  // Dados para o Gráfico de Composição do Preço Praticado
+  const decompositionChartData = useMemo(() => {
+    const impostoValor = sellingPrice * 0.05; // 5% de impostos e maquininha de forma estatística coerente
+    const lucroLimpoValor = sellingPrice - weightedCost - cfiValueReal - impostoValor;
+
+    const data = [
+      { 
+        name: 'Insumos', 
+        fullName: 'Insumos (Ingredientes / CMV)', 
+        value: parseFloat(weightedCost.toFixed(2)), 
+        color: '#ef4444', 
+        description: 'Custo médio ponderado dos alimentos consumidos por cliente.'
+      },
+      { 
+        name: 'Custos Fixos', 
+        fullName: 'Custos Fixos (Aluguel/Luz/Equipe - CFI)', 
+        value: parseFloat(cfiValueReal.toFixed(2)), 
+        color: '#3b82f6', 
+        description: 'Sua parcela de despesas fixas da rampa / CFI alocada a esta venda.'
+      },
+      { 
+        name: 'Impostos', 
+        fullName: 'Impostos & Maquininha (Est.)', 
+        value: parseFloat(impostoValor.toFixed(2)), 
+        color: '#f59e0b', 
+        description: 'Estimativa de impostos sobre a venda e taxas de cartão.'
+      }
+    ];
+
+    if (lucroLimpoValor >= 0) {
+      data.push({
+        name: 'Lucro Limpo',
+        fullName: 'Seu Lucro Limpo Estimado',
+        value: parseFloat(lucroLimpoValor.toFixed(2)),
+        color: '#10b981',
+        description: 'O dinheiro que efetivamente sobra no seu bolso após pagar tudo.'
+      });
+    } else {
+      data.push({
+        name: 'Prejuízo',
+        fullName: 'Prejuízo Real Estimado',
+        value: parseFloat(Math.abs(lucroLimpoValor).toFixed(2)),
+        color: '#b91c1c',
+        description: 'Você está pagando para o cliente comer! Reajuste o preço ou reduza desperdícios.'
+      });
+    }
+
+    return data;
+  }, [sellingPrice, weightedCost, cfiValueReal]);
+
   // Recharts profiles cost comparisons
-  const profileChartData = [
-    { name: 'Passarinho', 'Custo Total': parseFloat(passarinhoCost.toFixed(2)), color: '#10b981' },
-    { name: 'Mix Padrão', 'Custo Total': parseFloat(normalCost.toFixed(2)), color: '#3b82f6' },
-    { name: 'Cliente Ogro', 'Custo Total': parseFloat(ogroCost.toFixed(2)), color: '#dc2626' },
-    { name: 'Preço Praticado', 'Custo Total': parseFloat(sellingPrice.toFixed(2)), color: '#f59e0b' },
-  ];
+  const profileChartData = useMemo(() => [
+    { name: 'Passarinho', 'Custo Total': parseFloat(passarinhoCost.toFixed(2)), color: '#10b981', fullName: 'Cliente Passarinho (Baixo Volume)', description: 'Clientes de baixa ingestão que comem menos carboidrato e proteínas caras.' },
+    { name: 'Mix Padrão', 'Custo Total': parseFloat(normalCost.toFixed(2)), color: '#3b82f6', fullName: 'Mix Padrão (Equilibrado)', description: 'Estatística média equilibrada para somar 100% de clientes pagantes.' },
+    { name: 'Cliente Ogro', 'Custo Total': parseFloat(ogroCost.toFixed(2)), color: '#dc2626', fullName: 'Cliente Ogro (Alto Consumo)', description: 'Estimativa de famintos que consomem muito mais carnes e queijos.' },
+    { name: 'Preço Praticado', 'Custo Total': parseFloat(sellingPrice.toFixed(2)), color: '#f59e0b', fullName: 'Preço Praticado Atual', description: 'O preço fixo cobrado por pessoa para usufruir da rampa livre.' },
+  ], [passarinhoCost, normalCost, ogroCost, sellingPrice]);
 
   return (
     <div className="space-y-6 pb-20 no-print">
@@ -361,39 +518,67 @@ const BuffetSimulator: React.FC = () => {
         </div>
 
         {/* Action controls */}
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setShowTutorial(!showTutorial)}
-            className={`px-4 py-2 text-xs font-black rounded-xl border transition flex items-center gap-1.5 ${
-              showTutorial 
-                ? 'bg-brand-red/10 border-brand-red/30 text-brand-red' 
-                : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-800 dark:border-gray-700 dark:text-white'
-            }`}
-          >
-            <HelpCircle className="h-4 w-4" />
-            {showTutorial ? "Ocultar Guia Educativo" : "Mostrar Guia do Xande"}
-          </button>
+        {activeTab === 'free_buffet' && (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowTutorial(!showTutorial)}
+              className={`px-4 py-2 text-xs font-black rounded-xl border transition flex items-center gap-1.5 ${
+                showTutorial 
+                  ? 'bg-brand-red/10 border-brand-red/30 text-brand-red' 
+                  : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-800 dark:border-gray-700 dark:text-white'
+              }`}
+            >
+              <HelpCircle className="h-4 w-4" />
+              {showTutorial ? "Ocultar Guia Educativo" : "Mostrar Guia do Xande"}
+            </button>
 
-          {/* Templates selector tabs */}
-          <div className="flex bg-gray-155 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700">
-            <button 
-              onClick={() => handleTemplateChange('dog')}
-              className={`px-3 py-1.5 text-xs font-black rounded-lg transition ${buffetType === 'dog' ? 'bg-white dark:bg-gray-700 text-brand-red shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
-            >
-              Cachorro-Quente
-            </button>
-            <button 
-              onClick={() => handleTemplateChange('lunch')}
-              className={`px-3 py-1.5 text-xs font-black rounded-lg transition ${buffetType === 'lunch' ? 'bg-white dark:bg-gray-700 text-brand-red shadow-sm' : 'text-gray-200 hover:text-white'}`}
-            >
-              Almoço Buffet
-            </button>
+            {/* Templates selector tabs */}
+            <div className="flex bg-gray-155 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700">
+              <button 
+                onClick={() => handleTemplateChange('dog')}
+                className={`px-3 py-1.5 text-xs font-black rounded-lg transition ${buffetType === 'dog' ? 'bg-white dark:bg-gray-700 text-brand-red shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+              >
+                Cachorro-Quente
+              </button>
+              <button 
+                onClick={() => handleTemplateChange('lunch')}
+                className={`px-3 py-1.5 text-xs font-black rounded-lg transition ${buffetType === 'lunch' ? 'bg-white dark:bg-gray-700 text-brand-red shadow-sm' : 'text-gray-200 hover:text-white'}`}
+              >
+                Almoço Buffet
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex bg-gray-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-gray-200 dark:border-slate-800 w-full sm:w-fit gap-1.5 shadow-xs">
+        <button
+          onClick={() => setActiveTab('free_buffet')}
+          className={`flex-1 sm:flex-initial px-5 py-3 text-xs sm:text-sm font-black rounded-xl transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'free_buffet'
+              ? 'bg-brand-red text-white shadow-md shadow-brand-red/10'
+              : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-slate-800/50'
+          }`}
+        >
+          <Utensils className="h-4 w-4" />
+          Simulador de Buffet Livre / À Vontade
+        </button>
+        <button
+          onClick={() => setActiveTab('balance_scale')}
+          className={`flex-1 sm:flex-initial px-5 py-3 text-xs sm:text-sm font-black rounded-xl transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'balance_scale'
+              ? 'bg-brand-red text-white shadow-md shadow-brand-red/10'
+              : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-slate-800/50'
+          }`}
+        >
+          <Scale className="h-4 w-4" />
+          Calculadora de Equilíbrio para Balança (Quilo/Açaí)
+        </button>
       </div>
 
       {/* INTERACTIVE MULTI-STEP EDUCATION WALKTHROUGH PANEL */}
-      {showTutorial && (
+      {showTutorial && activeTab === 'free_buffet' && (
         <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 shadow-xl relative overflow-hidden transition-all duration-300">
           {/* Background graphical effects */}
           <div className="absolute right-0 top-0 w-64 h-64 bg-brand-red/5 rounded-full blur-3xl pointer-events-none" />
@@ -544,8 +729,8 @@ const BuffetSimulator: React.FC = () => {
         </div>
       )}
 
-      {/* Main Grid: Control Panel vs Live Output */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {activeTab === 'free_buffet' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left Side: General Controls & Sliders */}
         <div className="lg:col-span-8 space-y-6">
@@ -754,6 +939,18 @@ const BuffetSimulator: React.FC = () => {
                     className="w-full accent-brand-yellow cursor-pointer"
                   />
                   <span className="text-[9px] text-gray-400 leading-tight block mt-1">Porcentagem descartada de sobras no fim de dia. Aplicado no CMV.</span>
+
+                  {/* Alerta do "Ralo do Dinheiro" */}
+                  <div className="mt-3 p-2.5 bg-red-50/50 dark:bg-red-950/15 border border-red-500/10 dark:border-red-900/20 rounded-xl flex items-start gap-2">
+                    <span className="text-red-500 text-xs shrink-0 mt-0.5">⚠️</span>
+                    <p className="text-[10px] sm:text-[11px] leading-relaxed text-gray-600 dark:text-gray-300 font-medium">
+                      Esse nível de desperdício representa{' '}
+                      <strong className={`font-black ${wasteRate > 10 ? 'text-red-500' : 'text-amber-500 dark:text-amber-400'}`}>
+                        {formatMoney(custoDesperdicioMensal)}
+                      </strong>{' '}
+                      de comida jogada diretamente no lixo este mês.
+                    </p>
+                  </div>
                 </div>
 
                 {/* CFI */}
@@ -1023,13 +1220,40 @@ const BuffetSimulator: React.FC = () => {
 
           {/* BLOCK B: REALISTIC COST BY VISUAL PROFILE CHART */}
           <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-5 space-y-4">
-            <h3 className="font-extrabold text-xs text-gray-800 dark:text-white uppercase tracking-wider">Custo Unitário real por Perfil de Consumo</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-150 dark:border-gray-850 pb-3">
+              <h3 className="font-extrabold text-xs text-gray-850 dark:text-white uppercase tracking-wider">
+                {chartView === 'composition' ? 'Composição do Preço Praticado' : 'Custos por Perfil de Cliente'}
+              </h3>
+              
+              <div className="flex bg-gray-50 dark:bg-gray-900 p-0.5 rounded-lg border border-gray-200/50 dark:border-gray-800/60 shrink-0">
+                <button
+                  onClick={() => setChartView('composition')}
+                  className={`px-2.5 py-1 text-[9px] sm:text-[10px] font-black rounded-md transition-all ${
+                    chartView === 'composition' 
+                      ? 'bg-white dark:bg-gray-800 text-brand-red shadow-xs' 
+                      : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  Composição (BI)
+                </button>
+                <button
+                  onClick={() => setChartView('profiles')}
+                  className={`px-2.5 py-1 text-[9px] sm:text-[10px] font-black rounded-md transition-all ${
+                    chartView === 'profiles' 
+                      ? 'bg-white dark:bg-gray-800 text-brand-red shadow-xs' 
+                      : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  Perfis de Cliente
+                </button>
+              </div>
+            </div>
             
             <div className="h-64 w-full" style={{ minHeight: '250px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart 
-                  data={profileChartData}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 30 }}
+                  data={chartView === 'composition' ? decompositionChartData : profileChartData}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 10 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
                   <XAxis 
@@ -1044,9 +1268,9 @@ const BuffetSimulator: React.FC = () => {
                     axisLine={false}
                     tickLine={false}
                   />
-                  <Tooltip formatter={(value: any) => [`R$ ${value}`, 'Custo Unitário']} />
-                  <Bar dataKey="Custo Total" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                    {profileChartData.map((entry, index) => (
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey={chartView === 'composition' ? 'value' : 'Custo Total'} fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                    {(chartView === 'composition' ? decompositionChartData : profileChartData).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Bar>
@@ -1104,6 +1328,328 @@ const BuffetSimulator: React.FC = () => {
         </div>
 
       </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Bloco Superior (A Ajuda do Xande) */}
+          <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 shadow-xl relative overflow-hidden transition-all duration-300">
+            {/* Background graphical effects */}
+            <div className="absolute right-0 top-0 w-64 h-64 bg-brand-red/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute left-1/3 bottom-0 w-80 h-32 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="bg-slate-950 rounded-2xl p-5 border border-slate-850 grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+              
+              {/* Xande Avatar representation */}
+              <div className="md:col-span-3 lg:col-span-2 flex flex-col items-center justify-center text-center p-3 py-4 bg-slate-900/60 rounded-xl border border-slate-800 shrink-0">
+                <div className="relative">
+                  <div className="h-16 w-16 bg-slate-850 rounded-full border-2 border-brand-red flex items-center justify-center text-center text-3xl font-black font-sans text-brand-red">
+                    X
+                  </div>
+                  <div className="absolute bottom-0 right-0 h-4 w-4 bg-emerald-500 rounded-full border-2 border-slate-900" />
+                </div>
+                <span className="text-xs font-black text-brand-yellow uppercase mt-2.5">Consultor Xande</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Mentor Financeiro</span>
+              </div>
+
+              {/* Content tip explanation */}
+              <div className="md:col-span-9 lg:col-span-10 space-y-3.5">
+                <div>
+                  <span className="text-[9px] font-bold text-brand-red uppercase tracking-widest bg-brand-red/10 px-2 py-0.5 rounded-full border border-brand-red/20 inline-block">
+                    Média de Equilíbrio (Balança / Peso)
+                  </span>
+                  <h3 className="text-lg font-black text-white mt-1.5 flex items-center gap-1.5 leading-snug">
+                    Como precificar comida ou açaí por quilo com segurança?
+                  </h3>
+                </div>
+
+                {/* Xande Prompt Text Box */}
+                <div className="p-4 bg-slate-900/85 rounded-xl border-l-[4px] border-brand-red text-slate-300 text-xs leading-relaxed font-sans italic">
+                  "Olá, aqui é o Xande! 🤠 Você já teve medo de tomar prejuízo quando o cliente monta aquele prato cheio de carne nobre ou aquele copo de açaí transbordando de Nutella? Para blindar o seu caixa, nós usamos o método da Média de Equilíbrio. Você só precisa listar ali embaixo os pratos do seu buffet de hoje e quanto custa o quilo de cada um deles DEPOIS DE PRONTOS. O meu sistema vai somar tudo, calcular o custo médio e aplicar uma proteção que já cobre os seus custos fixos, o seu lucro de 20% e até os 10% de comida que costumam sobrar nas cubas no fim do dia."
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Grid Layout: Checklist Dinâmico vs Resultado */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Bloco Esquerdo (Checklist Dinâmico) */}
+            <div className="lg:col-span-8 space-y-6">
+              <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 p-6 rounded-2xl shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-850 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 rounded-full bg-brand-red" />
+                    <h3 className="font-extrabold text-sm text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                      <Scale className="h-4.5 w-4.5 text-brand-red" />
+                      Cubas Disponíveis & Itens no Buffet / Balança
+                    </h3>
+                  </div>
+                  <span className="text-xs font-black font-mono text-gray-400 bg-gray-50 dark:bg-gray-850 px-2.5 py-0.5 rounded-lg border border-gray-150 dark:border-gray-800">
+                    Total Cubas: {weightItems.length}
+                  </span>
+                </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Insira abaixo as cubas do seu buffet do dia ou acompanhamentos de açaí para calcular a média matemática ponderada equilibrada.
+                </p>
+
+                {/* Items List */}
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {weightItems.map((item, index) => (
+                    <div key={item.id} className="grid grid-cols-12 gap-3 items-center p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-55/40 dark:bg-gray-900/30">
+                      <div className="col-span-5 min-w-0">
+                        <span className="text-xs font-black text-gray-900 dark:text-white truncate block">Cuba {index + 1}: {item.name}</span>
+                        <input 
+                          type="text"
+                          className="w-full bg-transparent border-0 border-b border-transparent hover:border-gray-350 dark:hover:border-gray-650 focus:border-brand-red focus:ring-0 p-0 text-[11px] font-medium text-gray-400 focus:text-gray-700 dark:focus:text-white mt-0.5 transition"
+                          value={item.name}
+                          onChange={(e) => updateWeightItemField(item.id, 'name', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="col-span-5">
+                        <label className="text-[9px] text-gray-400 block font-bold uppercase">Custo do KG Pronto</label>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[10px] text-gray-400">R$</span>
+                          <input 
+                            type="number"
+                            step="0.01"
+                            className="w-full bg-slate-900 text-white border border-slate-700 rounded p-1.5 text-xs font-bold font-mono focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                            value={item.costPerKg}
+                            onChange={(e) => updateWeightItemField(item.id, 'costPerKg', parseFloat(e.target.value) || 0)}
+                          />
+                          <span className="text-[9px] text-gray-400 font-bold">/KG</span>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 flex justify-end">
+                        <button 
+                          onClick={() => removeWeightItem(item.id)}
+                          className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase p-1.5 transition-colors"
+                          title="Remover Cuba"
+                        >
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {weightItems.length === 0 && (
+                    <div className="text-center p-6 bg-gray-50 dark:bg-gray-900/25 rounded-xl border border-dashed border-gray-200 dark:border-gray-850">
+                      <p className="text-xs text-gray-400">Nenhum item cadastrado. Adicione pelo menos uma cuba abaixo.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumo Acumulado */}
+                <div className="border-t border-gray-150 dark:border-slate-800 pt-3">
+                  <div className="bg-slate-800/10 dark:bg-slate-800/50 border border-gray-200/40 dark:border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-500 dark:text-slate-300 font-bold uppercase">Soma Total dos Custos:</span>
+                      <span className="text-sm font-black text-gray-800 dark:text-white font-mono">{formatMoney(sumTotalCost)}</span>
+                    </div>
+                    <div className="hidden sm:block h-6 w-px bg-gray-250 dark:bg-slate-700" />
+                    <div className="flex items-center gap-2 sm:text-right">
+                      <span className="text-[11px] text-gray-500 dark:text-slate-300 font-bold uppercase">Custo Médio Calculado:</span>
+                      <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                        {formatMoney(costMedioKg)} <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase">/ KG</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form to add item */}
+                <div className="border-t border-dashed border-gray-250 dark:border-gray-850 pt-4 space-y-3">
+                  <h4 className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase flex items-center gap-1.5">
+                    <Plus className="h-4 w-4 text-brand-red" />
+                    Adicionar Item ao Buffet / Balança
+                  </h4>
+                  
+                  {/* TEXTO DE ALERTA NA TABELA (UX) */}
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/15 border border-amber-250 dark:border-amber-900/30 rounded-xl text-amber-700 dark:text-amber-400 text-[10px] leading-relaxed font-bold">
+                    ⚠️ IMPORTANTE: Insira o custo do ingrediente já pronto, grelhado ou frito! Lembre-se de embutir o peso que a comida perde ao cozinhar e os gastos com gás, óleo e temperos.
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                    <div className="sm:col-span-6">
+                      <label className="text-[10px] text-gray-400 font-bold block mb-1">Nome do Item / Cuba</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ex: Picanha na Chapa, Sorvete de Creme, Granola, Batata Frita" 
+                        className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg p-2 text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                        value={newWeightName}
+                        onChange={e => setNewWeightName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addWeightItem()}
+                      />
+                    </div>
+                    <div className="sm:col-span-4">
+                      <label className="text-[10px] text-gray-400 font-bold block mb-1">Custo do KG Pronto (R$)</label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-2.5 text-xs text-gray-400 font-bold font-mono">R$</span>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="0.00" 
+                          className="w-full bg-slate-900 text-white border border-slate-700 rounded-lg p-2 pl-8 text-xs font-bold outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono transition-all"
+                          value={newWeightCost}
+                          onChange={e => setNewWeightCost(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                          onKeyDown={e => e.key === 'Enter' && addWeightItem()}
+                        />
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <button
+                        onClick={addWeightItem}
+                        className="w-full py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-750 text-white text-xs font-black rounded-lg uppercase tracking-wider transition border border-slate-700 dark:border-slate-700/50"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Bloco Direito (Resultado de Impacto Comercial & Configurações de Rateio) */}
+            <div className="lg:col-span-4 space-y-6">
+              
+              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 text-white rounded-2xl p-6 shadow-xl space-y-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/10 rounded-full blur-2xl pointer-events-none" />
+                
+                <div className="border-b border-slate-800 pb-4">
+                  <span className="text-[10px] font-black text-brand-yellow uppercase tracking-widest block font-mono">RESULTADO DA MÉDIA DE EQUILÍBRIO</span>
+                  <h3 className="text-base font-black text-white mt-1 uppercase">PRECIFICAÇÃO DA BALANÇA</h3>
+                </div>
+
+                {/* Metric Card of Custo Médio */}
+                <div className="p-4 bg-slate-950 rounded-xl border border-slate-850 flex justify-between items-center">
+                  <div>
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">CUSTO MÉDIO DO KG PRONTO</span>
+                    <span className="text-xl font-black font-mono text-emerald-400 mt-0.5 block">{formatMoney(costMedioKg)}</span>
+                  </div>
+                  <div className="h-10 w-10 bg-slate-900 rounded-lg border border-slate-800 flex items-center justify-center">
+                    <Coins className="h-5 w-5 text-emerald-400" />
+                  </div>
+                </div>
+
+                {/* Price outputs */}
+                <div className="space-y-4">
+                  {weightItems.length === 0 && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-400 text-[11px] text-center font-bold">
+                      ⚠️ Adicione itens no buffet para calcular a balança
+                    </div>
+                  )}
+                  
+                  {/* 1. Preço de venda sugerido do Quilo */}
+                  <div className="p-5 bg-brand-red/5 border border-brand-red/25 rounded-2xl relative overflow-hidden">
+                    <div className="absolute -right-3 -bottom-3 text-brand-red/10 font-black text-7xl font-sans select-none">KG</div>
+                    <span className="text-[9px] font-black tracking-widest uppercase text-brand-yellow">Preço Recomendado do Quilo</span>
+                    <div className="text-3xl font-black font-mono text-white tracking-tight mt-1">
+                      {weightItems.length > 0 ? formatMoney(recommendedPricePerKg) : "R$ 0,00"}
+                    </div>
+                    {/* Rounded helper output */}
+                    <div className="text-[10px] text-slate-400 font-bold mt-1.5 border-t border-slate-800/60 pt-1.5">
+                      Sugestão Comercial (Arredondado): <span className="text-white font-black font-mono">
+                        {weightItems.length > 0 ? formatMoney(Math.round(recommendedPricePerKg)) : "R$ 0,00"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. Preço sugerido a cada 100g */}
+                  <div className="p-4 bg-slate-950 border border-slate-850 rounded-xl flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase block">Preço Recomendado por 100 gramas</span>
+                      <span className="text-lg font-black font-mono text-white mt-0.5 block">
+                        {weightItems.length > 0 ? formatMoney(recommendedPricePer100g) : "R$ 0,00"}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase block">Arredondado por 100g</span>
+                      <span className="text-sm font-black font-mono text-brand-yellow mt-0.5 block">
+                        {weightItems.length > 0 ? formatMoney(Math.round(recommendedPricePerKg) / 10) : "R$ 0,00"}
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Protection output text requested */}
+                <div className="p-3.5 bg-slate-950 border border-slate-850 rounded-xl flex items-start gap-2.5">
+                  <span className="text-emerald-400 text-sm mt-0.5">🛡️</span>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-semibold">
+                    Sua margem está protegida contra até <strong className="text-brand-yellow font-black">{weightDesperdicio}%</strong> de desperdício na rampa.
+                  </p>
+                </div>
+
+                {/* Configure Parameters panel */}
+                <div className="border-t border-slate-850 pt-5 space-y-4">
+                  <span className="text-[10px] font-black text-brand-yellow uppercase tracking-widest block font-mono">AJUSTAR PARÂMETROS DA BALANÇA</span>
+                  
+                  {/* 1. CFI */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">CFI (Custos Fixos Integrados %)</span>
+                      <span className="text-xs font-black font-mono text-white">{weightCfi}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="15" 
+                      max="50"
+                      value={weightCfi}
+                      onChange={e => setWeightCfi(parseInt(e.target.value))}
+                      className="w-full accent-brand-red cursor-pointer"
+                    />
+                  </div>
+
+                  {/* 2. Lucro */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Meta de Lucro Líquido %</span>
+                      <span className="text-xs font-black font-mono text-white">{weightLucro}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="40"
+                      value={weightLucro}
+                      onChange={e => setWeightLucro(parseInt(e.target.value))}
+                      className="w-full accent-brand-red cursor-pointer"
+                    />
+                  </div>
+
+                  {/* 3. Desperdício */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Taxa de Desperdício / Sobra %</span>
+                      <span className="text-xs font-black font-mono text-white">{weightDesperdicio}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="5" 
+                      max="25"
+                      value={weightDesperdicio}
+                      onChange={e => setWeightDesperdicio(parseInt(e.target.value))}
+                      className="w-full accent-brand-red cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Markup divisor breakdown */}
+                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-850/60 flex justify-between items-center text-[10px] text-slate-400">
+                    <span>Divisor do Markup Inverso:</span>
+                    <span className="font-mono font-black text-slate-200">
+                      1 - ({weightCfi}% + {weightLucro}% + {weightDesperdicio}%) = {weightDivisor.toFixed(2)}
+                    </span>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

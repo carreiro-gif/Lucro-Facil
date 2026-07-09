@@ -84,6 +84,121 @@ const SmartSimulator: React.FC = () => {
     return 0;
   };
 
+  const getIfoodBasePrice = (p: Product) => {
+    const cmv = getProductCMV(p);
+    const pricing = p.pricing || {};
+    const profitMargin = pricing.profitMargin !== undefined ? pricing.profitMargin : 20;
+    
+    const totalCfiCost = totalCfiPercent;
+    const totalDeductions = (totalCfiCost + profitMargin) / 100;
+    const storePrice = totalDeductions >= 1 ? 0 : cmv / (1 - totalDeductions);
+
+    const ifoodFee = pricing.ifood?.fee ?? platformConfig.ifood.fee;
+    const ifoodOnline = pricing.ifood?.onlinePayment ?? platformConfig.ifood.onlinePayment;
+    const ifoodAntic = pricing.ifood?.anticipation ?? platformConfig.ifood.anticipation;
+    const ifoodDel = pricing.ifood?.delivery ?? platformConfig.ifood.delivery;
+    const ifoodCoupon = pricing.ifood?.coupon ?? 0;
+    
+    const feesPct = ifoodFee + ifoodOnline + ifoodAntic;
+    const denominator = 1 - (feesPct / 100);
+    if (denominator <= 0) return storePrice;
+    return (storePrice + ifoodDel + ifoodCoupon) / denominator;
+  };
+
+  const getSuggestedPricesForHits = (p: Product) => {
+    const cmv = getProductCMV(p);
+    const pricing = p.pricing || {};
+    const profitMargin = pricing.profitMargin !== undefined ? pricing.profitMargin : 20;
+    
+    const totalCfiCost = totalCfiPercent;
+    
+    const ifoodFee = pricing.ifood?.fee ?? platformConfig.ifood.fee;
+    const ifoodOnline = pricing.ifood?.onlinePayment ?? platformConfig.ifood.onlinePayment;
+    const ifoodAntic = pricing.ifood?.anticipation ?? platformConfig.ifood.anticipation;
+    const ifoodDel = pricing.ifood?.delivery ?? platformConfig.ifood.delivery;
+    const ifoodCoupon = pricing.ifood?.coupon ?? 0;
+    
+    const feesPct = ifoodFee + ifoodOnline + ifoodAntic;
+
+    // 1. Same % profit margin
+    let priceForMargin: number | null = null;
+    const denomMargin = 1 - (totalCfiCost + feesPct + profitMargin) / 100;
+    if (denomMargin > 0) {
+      const minFinalPriceMargin = (cmv + ifoodDel + ifoodCoupon) / denomMargin;
+      
+      const candidates: number[] = [];
+      const brackets = [
+        { min: 15, max: 24.99, discount: 5 },
+        { min: 25, max: 39.99, discount: 8 },
+        { min: 40, max: 59.99, discount: 10 },
+        { min: 60, max: 80, discount: 13 }
+      ];
+      for (const b of brackets) {
+        const pOriginal = minFinalPriceMargin + b.discount;
+        if (pOriginal >= b.min && pOriginal <= b.max) {
+          candidates.push(pOriginal);
+        }
+      }
+      if (candidates.length > 0) {
+        priceForMargin = Math.min(...candidates);
+      } else {
+        for (let pVal = 15; pVal <= 80; pVal += 0.05) {
+          const d = getHitsDiscount(pVal);
+          if (pVal - d >= minFinalPriceMargin) {
+            priceForMargin = pVal;
+            break;
+          }
+        }
+      }
+    }
+
+    // 2. Same profit in Reais as store
+    const storeDeductions = (totalCfiCost + profitMargin) / 100;
+    const storePrice = storeDeductions >= 1 ? 0 : cmv / (1 - storeDeductions);
+    const storeCfi = storePrice * (totalCfiCost / 100);
+    const storeProfit = Math.max(0, storePrice - cmv - storeCfi);
+
+    let priceForSameProfit: number | null = null;
+    const denomProfit = 1 - (totalCfiCost + feesPct) / 100;
+    if (denomProfit > 0) {
+      const minFinalPriceProfit = (storeProfit + cmv + ifoodDel + ifoodCoupon) / denomProfit;
+      
+      const candidates: number[] = [];
+      const brackets = [
+        { min: 15, max: 24.99, discount: 5 },
+        { min: 25, max: 39.99, discount: 8 },
+        { min: 40, max: 59.99, discount: 10 },
+        { min: 60, max: 80, discount: 13 }
+      ];
+      for (const b of brackets) {
+        const pOriginal = minFinalPriceProfit + b.discount;
+        if (pOriginal >= b.min && pOriginal <= b.max) {
+          candidates.push(pOriginal);
+        }
+      }
+      if (candidates.length > 0) {
+        priceForSameProfit = Math.min(...candidates);
+      } else {
+        for (let pVal = 15; pVal <= 80; pVal += 0.05) {
+          const d = getHitsDiscount(pVal);
+          if (pVal - d >= minFinalPriceProfit) {
+            priceForSameProfit = pVal;
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      priceForMargin,
+      priceForSameProfit,
+      storePrice,
+      storeProfit,
+      targetMargin: profitMargin,
+      feesPct
+    };
+  };
+
   const toggleHitsProduct = (productId: string) => {
     setSelectedHitsProductIds(prev => {
       if (prev.includes(productId)) {
@@ -1279,8 +1394,9 @@ const SmartSimulator: React.FC = () => {
 
                   <div className="max-h-56 overflow-y-auto border border-gray-200 dark:border-gray-800 rounded-xl divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-[#111827]">
                     {getSortedProducts().map(p => {
-                      const price = p.fixedPriceStore || 0;
-                      const isPriceEligible = price >= 15 && price <= 80;
+                      const storePrice = p.fixedPriceStore || 0;
+                      const ifoodPrice = getIfoodBasePrice(p);
+                      const isPriceEligible = ifoodPrice >= 15 && ifoodPrice <= 80;
                       const isSelected = selectedHitsProductIds.includes(p.id);
                       const cmvVal = getProductCMV(p);
 
@@ -1305,7 +1421,9 @@ const SmartSimulator: React.FC = () => {
                             <div>
                               <span className="font-bold text-gray-850 dark:text-gray-100">{p.name}</span>
                               <div className="flex items-center gap-2 mt-0.5 font-mono text-[10px] text-gray-400">
-                                <span>PV Loja: {formatMoney(price)}</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">PV iFood: {formatMoney(ifoodPrice)}</span>
+                                <span className="text-gray-300 dark:text-gray-800">|</span>
+                                <span>PV Loja: {formatMoney(storePrice)}</span>
                                 <span className="text-gray-300 dark:text-gray-800">|</span>
                                 <span>Custo de Insumo: {formatMoney(cmvVal)}</span>
                               </div>
@@ -1315,11 +1433,11 @@ const SmartSimulator: React.FC = () => {
                           <div>
                             {!isPriceEligible ? (
                               <span className="text-[9px] bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 font-bold px-2 py-0.5 rounded-full font-sans uppercase">
-                                Fora da Faixa do Hits
+                                Fora da Faixa do Hits (R$ 15-80)
                               </span>
                             ) : (
                               <span className="font-mono font-bold text-gray-500">
-                                Desconto: {formatMoney(getHitsDiscount(price))}
+                                Desconto: {formatMoney(getHitsDiscount(ifoodPrice))}
                               </span>
                             )}
                           </div>
@@ -1339,19 +1457,31 @@ const SmartSimulator: React.FC = () => {
                         const p = products.find(prod => prod.id === id);
                         if (!p) return null;
 
-                        const originalPrice = p.fixedPriceStore || 0;
+                        const originalPrice = getIfoodBasePrice(p);
                         const discount = getHitsDiscount(originalPrice);
                         const finalPrice = originalPrice - discount;
                         const cmvVal = getProductCMV(p);
+                        
+                        const pricing = p.pricing || {};
+                        const ifoodFee = pricing.ifood?.fee ?? platformConfig.ifood.fee;
+                        const ifoodOnline = pricing.ifood?.onlinePayment ?? platformConfig.ifood.onlinePayment;
+                        const ifoodAntic = pricing.ifood?.anticipation ?? platformConfig.ifood.anticipation;
+                        const ifoodDel = pricing.ifood?.delivery ?? platformConfig.ifood.delivery;
+                        const ifoodCoupon = pricing.ifood?.coupon ?? 0;
+                        const feesPct = ifoodFee + ifoodOnline + ifoodAntic;
+                        
                         const cfiPercent = parseFloat(simulatedCfiPercent) || totalCfiPercent;
                         const cfiCost = finalPrice * (cfiPercent / 100);
-                        const lucroReais = finalPrice - cmvVal - cfiCost;
+                        const ifoodFeesCost = finalPrice * (feesPct / 100) + ifoodDel + ifoodCoupon;
+                        const totalDeductions = ifoodFeesCost + cfiCost;
+                        
+                        const lucroReais = finalPrice - cmvVal - totalDeductions;
                         const marginPct = finalPrice > 0 ? (lucroReais / finalPrice) * 100 : 0;
 
                         // Determinar criticidade e cores
                         let statusColor = 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/10 border-red-200 dark:border-red-900/40';
                         let badgeColor = 'bg-red-500 text-white';
-                        let xandeMessage = `⚠️ Xande alerta: Esse prato NÃO é indicado para o Hits porque o desconto compromete demais a margem (${marginPct.toFixed(1)}%). Você perderá dinheiro em cada venda! Recomendamos aumentar o preço de venda original na tabela antes de participar.`;
+                        let xandeMessage = `⚠️ Xande alerta: Esse prato NÃO é indicado para o Hits porque o desconto compromete demais a margem (${marginPct.toFixed(1)}%). Você perderá dinheiro em cada venda! Recomendamos aumentar o preço de venda original no iFood antes de participar.`;
                         
                         if (marginPct > 18) {
                           statusColor = 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/40';
@@ -1363,48 +1493,136 @@ const SmartSimulator: React.FC = () => {
                           xandeMessage = `🟡 Xande aconselha: Margem espremida/aceitável (${marginPct.toFixed(1)}%). O volume compensa, mas monitore de perto os descartes e desperdícios na cozinha para não amargar prejuízos!`;
                         }
 
-                        return (
-                          <div key={p.id} className="bg-white dark:bg-[#111827] border border-gray-250 dark:border-gray-800 rounded-2xl p-4 space-y-3 shadow-xs">
-                            <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-900 pb-2">
-                              <span className="font-extrabold text-sm text-gray-800 dark:text-white uppercase tracking-tight">{p.name}</span>
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${badgeColor}`}>
-                                Margem: {marginPct.toFixed(1)}%
-                              </span>
-                            </div>
+                        const suggested = getSuggestedPricesForHits(p);
+                        const isComboTriggered = suggested.priceForMargin && suggested.priceForMargin > originalPrice * 1.50;
 
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
-                              <div>
-                                <span className="text-[10px] text-gray-400 uppercase font-sans block">Preço Original</span>
-                                <span className="font-bold text-gray-750 dark:text-gray-350">{formatMoney(originalPrice)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-gray-400 uppercase font-sans block">Desconto (Tabela)</span>
-                                <span className="font-bold text-brand-red">- {formatMoney(discount)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-gray-400 uppercase font-sans block">Preço Final iFood</span>
-                                <span className="font-bold text-emerald-600">{formatMoney(finalPrice)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-gray-400 uppercase font-sans block">CMV do Prato</span>
-                                <span className="font-bold text-gray-750 dark:text-gray-350">{formatMoney(cmvVal)} ({((cmvVal / finalPrice) * 100).toFixed(0)}%)</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-gray-400 uppercase font-sans block">CFI Proporcional</span>
-                                <span className="font-bold text-gray-750 dark:text-gray-350">{formatMoney(cfiCost)} ({cfiPercent.toFixed(0)}%)</span>
-                              </div>
-                              <div className="col-span-2 col-start-1 md:col-start-3">
-                                <span className="text-[10px] text-gray-400 uppercase font-sans block">Lucro Real Estimado</span>
-                                <span className={`font-black text-sm ${lucroReais >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                  {formatMoney(lucroReais)} / venda
+                        return (
+                          <div key={p.id} className="bg-white dark:bg-[#111827] border border-gray-250 dark:border-gray-800 rounded-2xl p-5 space-y-5 shadow-xs">
+                            
+                            {/* BLOCO 1: O Termômetro Atual (Situação Real) */}
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-start border-b border-gray-100 dark:border-gray-900 pb-2.5">
+                                <div className="space-y-0.5">
+                                  <span className="font-extrabold text-sm text-gray-800 dark:text-white uppercase tracking-tight flex items-center gap-1.5">
+                                    <span className="text-gray-400 font-normal">LANCHE:</span> {p.name}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 block font-medium">Situação Real Praticada Atual</span>
+                                </div>
+                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase ${badgeColor}`}>
+                                  Margem Atual: {marginPct.toFixed(1)}%
                                 </span>
                               </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono">
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800/40">
+                                  <span className="text-[9px] text-gray-400 uppercase font-sans font-bold block mb-0.5">Preço de Tabela no iFood</span>
+                                  <span className="font-bold text-gray-750 dark:text-gray-350">{formatMoney(originalPrice)}</span>
+                                </div>
+                                <div className="bg-red-50/20 dark:bg-red-950/5 p-2.5 rounded-xl border border-red-500/10">
+                                  <span className="text-[9px] text-gray-400 uppercase font-sans font-bold block mb-0.5">Desconto da Faixa</span>
+                                  <span className="font-bold text-brand-red">- {formatMoney(discount)}</span>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800/40">
+                                  <span className="text-[9px] text-gray-400 uppercase font-sans font-bold block mb-0.5">Preço Recebido</span>
+                                  <span className="font-bold text-emerald-600">{formatMoney(finalPrice)}</span>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800/40">
+                                  <span className="text-[9px] text-gray-400 uppercase font-sans font-bold block mb-0.5">Custo de Insumo (CMV)</span>
+                                  <span className="font-bold text-gray-750 dark:text-gray-350">{formatMoney(cmvVal)} <span className="text-[9px] text-gray-400 font-normal">({((cmvVal / finalPrice) * 100).toFixed(0)}%)</span></span>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800/40">
+                                  <span className="text-[9px] text-gray-400 uppercase font-sans font-bold block mb-0.5">Taxas do Plano ({feesPct.toFixed(1)}%)</span>
+                                  <span className="font-bold text-brand-red">{formatMoney(ifoodFeesCost)}</span>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800/40">
+                                  <span className="text-[9px] text-gray-400 uppercase font-sans font-bold block mb-0.5">Custos Fixos da Loja ({cfiPercent.toFixed(1)}%)</span>
+                                  <span className="font-bold text-gray-750 dark:text-gray-350">{formatMoney(cfiCost)}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-gray-100 dark:border-gray-900">
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-[10px] text-gray-400 uppercase font-sans font-semibold">Lucro Real Estimado Atual:</span>
+                                  <span className={`font-black text-sm ${lucroReais >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                    {formatMoney(lucroReais)} / venda
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Alerta do Consultor Xande */}
+                              <div className={`p-3 rounded-xl border text-[11px] font-semibold leading-relaxed ${statusColor}`}>
+                                {xandeMessage}
+                              </div>
                             </div>
 
-                            {/* Alerta do Consultor Xande */}
-                            <div className={`p-3 rounded-xl border text-[11px] font-semibold leading-relaxed ${statusColor}`}>
-                              {xandeMessage}
+                            {/* BLOCO 2: A Recomendação Principal (Foco no Lucro em Reais) */}
+                            <div className="space-y-3 pt-4 border-t border-dashed border-gray-200 dark:border-gray-800">
+                              <div className="space-y-1">
+                                <h5 className="font-black text-xs text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>🎯 Preço Sugerido para Manter seu Lucro em Dinheiro</span>
+                                </h5>
+                                <p className="text-gray-500 dark:text-gray-400 text-[11px] leading-relaxed">
+                                  Cadastre este valor no iFood para colocar no bolso exatamente os mesmos <strong className="font-bold text-gray-700 dark:text-gray-300">{formatMoney(suggested.storeProfit)}</strong> líquidos (Lucro de Balcão) que você ganha vendendo na sua loja física.
+                                </p>
+                              </div>
+
+                              {suggested.priceForSameProfit ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-emerald-500/5 dark:bg-emerald-950/15 border border-emerald-500/15 dark:border-emerald-500/10 p-4 rounded-2xl">
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-gray-400 uppercase font-sans font-bold block">Preço de Tabela no iFood (Cadastrar no App)</span>
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                                        {formatMoney(suggested.priceForSameProfit)}
+                                      </span>
+                                      <span className="text-[10px] text-gray-400 italic">(-{formatMoney(getHitsDiscount(suggested.priceForSameProfit))} de desconto)</span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1 md:border-l md:border-emerald-500/10 md:pl-4">
+                                    <span className="text-[10px] text-gray-400 uppercase font-sans font-bold block">Preço que o Cliente vai Ver (Final c/ Hits)</span>
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-lg font-black text-gray-750 dark:text-gray-200 font-mono">
+                                        {formatMoney(suggested.priceForSameProfit - getHitsDiscount(suggested.priceForSameProfit))}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-red-500 italic p-3 bg-red-500/5 rounded-xl border border-red-500/10">
+                                  *Impossível calcular blindagem de caixa. Verifique se os Custos Fixos da sua Loja (Aluguel, Luz, Funcionários) ou as comissões superam o preço limite de R$ 80,00.
+                                </div>
+                              )}
                             </div>
+
+                            {/* BLOCO 3: O Alerta de Inteligência Comercial (Estratégia de Combos) */}
+                            {suggested.priceForMargin && (
+                              <div className="pt-2">
+                                {isComboTriggered ? (
+                                  <div className="bg-amber-500/5 dark:bg-amber-950/10 border border-amber-500/20 dark:border-amber-500/10 rounded-2xl p-4 space-y-2">
+                                    <div className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                      <span>💡 Dica do Consultor (Estratégia de Combo)</span>
+                                    </div>
+                                    <p className="text-gray-650 dark:text-gray-300 text-[11px] leading-relaxed">
+                                      Para atingir uma Margem Percentual Ideal de {suggested.targetMargin}% neste programa, o preço de tabela do iFood ficaria muito alto para um item individual ({formatMoney(suggested.priceForMargin)}). <strong className="font-bold text-amber-700 dark:text-amber-400">Recomendamos que você junte este item com uma Batata e um Refrigerante e cadastre como um COMBO no iFood Hits!</strong>
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="bg-slate-50 dark:bg-slate-900/30 border border-gray-150 dark:border-gray-800 rounded-2xl p-3 text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                    <div className="space-y-0.5">
+                                      <span className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider block">Opção Alternativa (Margem Percentual Ideal)</span>
+                                      <p className="text-gray-500 dark:text-gray-400 text-[11px]">
+                                        Se preferir focar na Margem Percentual Alvo de <strong className="font-bold">{suggested.targetMargin}%</strong>:
+                                      </p>
+                                    </div>
+                                    <div className="flex items-baseline gap-2 font-mono">
+                                      <span className="text-[10px] text-gray-400">Tabela iFood:</span>
+                                      <span className="font-bold text-slate-700 dark:text-slate-300">{formatMoney(suggested.priceForMargin)}</span>
+                                      <span className="text-[10px] text-gray-400">(Final c/ Hits: {formatMoney(suggested.priceForMargin - getHitsDiscount(suggested.priceForMargin))})</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                           </div>
                         );
                       })}
@@ -1429,70 +1647,110 @@ const SmartSimulator: React.FC = () => {
                       let totalInvestment = 0;
                       let totalProfitWithHits = 0;
                       let totalProfitWithoutHits = 0;
+                      let totalProfitWithRecommended = 0;
 
                       selectedHitsProductIds.forEach(id => {
                         const p = products.find(prod => prod.id === id);
                         if (!p) return;
 
-                        const originalPrice = p.fixedPriceStore || 0;
+                        const originalPrice = getIfoodBasePrice(p);
                         const discount = getHitsDiscount(originalPrice);
                         const finalPrice = originalPrice - discount;
                         const cmvVal = getProductCMV(p);
+                        
+                        const pricing = p.pricing || {};
+                        const ifoodFee = pricing.ifood?.fee ?? platformConfig.ifood.fee;
+                        const ifoodOnline = pricing.ifood?.onlinePayment ?? platformConfig.ifood.onlinePayment;
+                        const ifoodAntic = pricing.ifood?.anticipation ?? platformConfig.ifood.anticipation;
+                        const ifoodDel = pricing.ifood?.delivery ?? platformConfig.ifood.delivery;
+                        const ifoodCoupon = pricing.ifood?.coupon ?? 0;
+                        const feesPct = ifoodFee + ifoodOnline + ifoodAntic;
+                        
                         const cfiPercent = parseFloat(simulatedCfiPercent) || totalCfiPercent;
                         const cfiCost = finalPrice * (cfiPercent / 100);
-                        const lucroReais = finalPrice - cmvVal - cfiCost;
+                        const ifoodFeesCost = finalPrice * (feesPct / 100) + ifoodDel + ifoodCoupon;
+                        const totalDeductions = ifoodFeesCost + cfiCost;
+                        
+                        const lucroReais = finalPrice - cmvVal - totalDeductions;
 
                         // Lucro sem hits (venda cheia, mas volume menor)
                         const cfiCostWithoutHits = originalPrice * (cfiPercent / 100);
-                        const lucroReaisWithoutHits = originalPrice - cmvVal - cfiCostWithoutHits;
+                        const ifoodFeesWithoutHits = originalPrice * (feesPct / 100) + ifoodDel + ifoodCoupon;
+                        const lucroReaisWithoutHits = originalPrice - cmvVal - cfiCostWithoutHits - ifoodFeesWithoutHits;
+
+                        // Preço Recomendado (Opção B - Lucro em Reais)
+                        const suggested = getSuggestedPricesForHits(p);
+                        const recOriginalPrice = suggested.priceForSameProfit || originalPrice;
+                        const recDiscount = getHitsDiscount(recOriginalPrice);
+                        const recFinalPrice = recOriginalPrice - recDiscount;
+                        const recCfiCost = recFinalPrice * (cfiPercent / 100);
+                        const recIfoodFeesCost = recFinalPrice * (feesPct / 100) + ifoodDel + ifoodCoupon;
+                        const recTotalDeductions = recIfoodFeesCost + recCfiCost;
+                        const recLucroReais = recFinalPrice - cmvVal - recTotalDeductions;
 
                         totalInvestment += discount * qty;
                         totalProfitWithHits += lucroReais * qty;
                         totalProfitWithoutHits += lucroReaisWithoutHits * 60; // 60 pedidos sem hits
+                        totalProfitWithRecommended += recLucroReais * qty;
                       });
 
                       const compensa = totalProfitWithHits > totalProfitWithoutHits;
                       const diffProfit = Math.abs(totalProfitWithHits - totalProfitWithoutHits);
+                      const potentialGain = totalProfitWithRecommended - totalProfitWithHits;
 
                       return (
                         <div className="space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-gray-200/50 dark:border-gray-800 pb-3 text-xs">
-                            <div>
-                              <span className="text-[10px] text-gray-400 uppercase font-sans block">Investimento Mensal (Descontos)</span>
-                              <span className="font-black text-base font-mono text-brand-red">{formatMoney(totalInvestment)}</span>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 border-b border-gray-200/50 dark:border-gray-800 pb-3 text-xs">
+                            <div className="bg-slate-100/50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-200/40 dark:border-gray-800/40">
+                              <span className="text-[10px] text-gray-400 font-semibold uppercase font-sans block mb-0.5">Lucro Atual (Sem Hits)</span>
+                              <span className="font-black text-sm font-mono text-gray-700 dark:text-gray-350">{formatMoney(totalProfitWithoutHits)}</span>
+                              <span className="text-[9px] text-gray-400 block mt-0.5 font-sans">(~60 pedidos/mês)</span>
                             </div>
-                            <div>
-                              <span className="text-[10px] text-gray-400 uppercase font-sans block">Lucro Mensal Com Hits (100 ped.)</span>
-                              <span className="font-black text-base font-mono text-emerald-600">{formatMoney(totalProfitWithHits)}</span>
+                            <div className="bg-slate-100/50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-gray-200/40 dark:border-gray-800/40">
+                              <span className="text-[10px] text-gray-400 font-semibold uppercase font-sans block mb-0.5">Investimento Mensal (Hits)</span>
+                              <span className="font-black text-sm font-mono text-brand-red">{formatMoney(totalInvestment)}</span>
+                              <span className="text-[9px] text-gray-400 block mt-0.5 font-sans">(Total Descontos)</span>
                             </div>
-                            <div>
-                              <span className="text-[10px] text-gray-400 uppercase font-sans block">Lucro Mensal Sem Hits (~60 ped.)</span>
-                              <span className="font-black text-base font-mono text-gray-700 dark:text-gray-350">{formatMoney(totalProfitWithoutHits)}</span>
+                            <div className="bg-red-50/20 dark:bg-red-950/5 p-2.5 rounded-xl border border-red-500/10">
+                              <span className="text-[10px] text-gray-400 font-semibold uppercase font-sans block mb-0.5">Lucro c/ Hits (Preço Antigo)</span>
+                              <span className={`font-black text-sm font-mono ${totalProfitWithHits < 0 ? 'text-red-500' : 'text-emerald-500'}`}>{formatMoney(totalProfitWithHits)}</span>
+                              <span className="text-[9px] text-gray-400 block mt-0.5 font-sans">(100 pedidos/mês)</span>
+                            </div>
+                            <div className="bg-emerald-500/5 dark:bg-emerald-950/15 p-2.5 rounded-xl border border-emerald-500/20">
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase font-sans block mb-0.5">LUCRO ESTIMADO COM RECOMENDADO</span>
+                              <span className="font-black text-sm font-mono text-emerald-500">{formatMoney(totalProfitWithRecommended)}</span>
+                              <span className="text-[9px] text-emerald-600/85 dark:text-emerald-400/85 block mt-0.5 font-sans font-medium">(100 pedidos + Blindagem)</span>
                             </div>
                           </div>
 
                           <div className={`p-4 rounded-xl border text-xs font-bold leading-relaxed ${
-                            compensa 
-                              ? 'bg-emerald-50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300' 
-                              : 'bg-red-50 dark:bg-red-950/10 border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-300'
+                            totalProfitWithHits < 0 
+                              ? 'bg-red-50 dark:bg-red-950/10 border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-350'
+                              : 'bg-emerald-50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300'
                           }`}>
-                            {compensa ? (
+                            {totalProfitWithHits < 0 ? (
                               <div className="flex items-start gap-2">
-                                <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                                 <div>
-                                  <span>Compensa muito participar financeiramente!</span>
-                                  <p className="font-normal text-[11px] mt-1 text-gray-600 dark:text-gray-400 leading-normal">
-                                    O aumento esperado de até 67% no volume de vendas (de 60 para 100 pedidos) compensa amplamente o desconto subsidiado, gerando um ganho adicional líquido de **{formatMoney(diffProfit)}** no mês!
+                                  <span className="font-extrabold uppercase text-[11px] block text-red-700 dark:text-red-400 mb-1">Evite o Prejuízo com o iFood Hits!</span>
+                                  <p className="font-normal text-[11px] text-gray-600 dark:text-gray-350 leading-relaxed">
+                                    No preço atual, o desconto do Hits vai gerar um prejuízo mensal estimado de <strong className="font-bold text-red-500">{formatMoney(totalProfitWithHits)}</strong>. 
+                                    <span className="block mt-1 font-semibold text-gray-700 dark:text-white">
+                                      👉 Evite o prejuízo! Cadastre o Preço Recomendado pelo sistema, garanta sua blindagem de caixa e fature até <strong className="font-bold text-emerald-500">{formatMoney(totalProfitWithRecommended)}</strong> líquidos neste mês (recupere <strong className="font-bold text-emerald-500">{formatMoney(potentialGain)}</strong> a mais no seu bolso!).
+                                    </span>
                                   </p>
                                 </div>
                               </div>
                             ) : (
                               <div className="flex items-start gap-2">
-                                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
                                 <div>
-                                  <span>Não compensa financeiramente participar!</span>
-                                  <p className="font-normal text-[11px] mt-1 text-gray-600 dark:text-gray-400 leading-normal">
-                                    Suas margens com desconto são muito espremidas. Mesmo vendendo 67% a mais, o lucro total acumulado seria menor do que vender sem desconto a preço cheio (uma perda líquida de **{formatMoney(diffProfit)}** no mês). Ajuste seus preços de venda base ou escolha pratos com CMV mais baixo!
+                                  <span className="font-extrabold uppercase text-[11px] block text-emerald-700 dark:text-emerald-400 mb-1">Blindagem Ativa e Lucro Garantido!</span>
+                                  <p className="font-normal text-[11px] text-gray-600 dark:text-gray-350 leading-relaxed">
+                                    Participar do iFood Hits já é viável, mas pode ficar ainda melhor. Se você aplicar as recomendações de recomposição, seu lucro mensal pode saltar de {formatMoney(totalProfitWithHits)} para até <strong className="font-bold text-emerald-500">{formatMoney(totalProfitWithRecommended)}</strong>!
+                                    <span className="block mt-1 font-semibold text-gray-700 dark:text-white">
+                                      👉 Cadastre o Preço Recomendado pelo sistema para blindar totalmente o seu caixa e faturar até <strong className="font-bold text-emerald-500">{formatMoney(potentialGain)}</strong> a mais neste mês!
+                                    </span>
                                   </p>
                                 </div>
                               </div>
