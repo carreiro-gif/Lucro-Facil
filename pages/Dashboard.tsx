@@ -175,6 +175,23 @@ const Dashboard: React.FC = () => {
     window.dispatchEvent(new CustomEvent('change-tab', { detail: tab }));
   };
 
+  const overdueExpensesCount = useMemo(() => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return expenses.filter(e => {
+      if (e.paid || !e.dueDate) return false;
+      const due = new Date(e.dueDate + 'T00:00:00');
+      return due.getTime() < today.getTime();
+    }).length;
+  }, [expenses]);
+
+  const navigateToOverdueExpenses = () => {
+    if (overdueExpensesCount > 0) {
+      localStorage.setItem('show_overdue_expenses_modal', 'true');
+    }
+    navigateTo('expenses');
+  };
+
   // Goal Progress
   const [currentDateObj] = useState(new Date());
   const maxDays = new Date(currentDateObj.getFullYear(), currentDateObj.getMonth() + 1, 0).getDate();
@@ -199,6 +216,29 @@ const Dashboard: React.FC = () => {
 
       {/* Xande Alerts Panel */}
       <div className="flex flex-col gap-3">
+         {overdueExpensesCount > 0 && (
+            <div 
+              className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95 cursor-pointer hover:bg-red-100/10 dark:hover:bg-red-950/50 transition" 
+              onClick={navigateToOverdueExpenses}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-full text-red-600 dark:text-red-400">
+                  <AlertTriangle size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-red-800 dark:text-red-300 text-sm flex items-center gap-2">
+                    Despesas Vencidas em Aberto
+                    <span className="text-[10px] bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 px-2.5 py-0.5 rounded-full font-bold">Urgente</span>
+                  </h4>
+                  <p className="text-xs text-red-700 dark:text-red-400/80">Você possui <strong>{overdueExpensesCount}</strong> {overdueExpensesCount === 1 ? 'despesa vencida' : 'despesas vencidas'} que ainda não foram pagas. Clique para regularizar e evitar juros!</p>
+                </div>
+              </div>
+              <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-md shrink-0">
+                Ver Contas Vencidas <ChevronRight size={14}/>
+              </button>
+            </div>
+         )}
+
          {avgCmvPercent > 35 && (
            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95">
              <div className="flex items-center gap-3">
@@ -567,7 +607,16 @@ const Dashboard: React.FC = () => {
              </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-5 rounded-xl flex items-center gap-4 shadow-sm group hover:border-blue-500 transition cursor-pointer" onClick={() => navigateTo('expenses')}>
+          <div 
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-5 rounded-xl flex items-center gap-4 shadow-sm group hover:border-blue-500 transition cursor-pointer relative" 
+            onClick={navigateToOverdueExpenses}
+          >
+             {overdueExpensesCount > 0 && (
+                <span className="absolute top-3 right-3 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+             )}
              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 group-hover:text-blue-500 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 dark:group-hover:border-blue-900/50 transition">
                 <Receipt size={20} />
              </div>

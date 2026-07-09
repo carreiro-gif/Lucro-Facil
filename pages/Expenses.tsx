@@ -65,6 +65,13 @@ const Expenses: React.FC = () => {
   // Computed Key
   const selectedMonthKey = `${viewYear}-${viewMonth}`;
 
+  React.useEffect(() => {
+    if (localStorage.getItem('show_overdue_expenses_modal') === 'true') {
+      localStorage.removeItem('show_overdue_expenses_modal');
+      setShowOverdueModal(true);
+    }
+  }, []);
+
   // Filter Expenses for the LEFT list (Specific Month)
   const currentExpenses = useMemo(() => 
     expenses.filter(e => e.month === selectedMonthKey),

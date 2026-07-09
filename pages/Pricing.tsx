@@ -95,20 +95,18 @@ const Pricing: React.FC = () => {
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const [tableHeight, setTableHeight] = useState('calc(100vh - 420px)');
+  const [tableHeight, setTableHeight] = useState('calc(100vh - 320px)');
 
   React.useEffect(() => {
     const updateHeight = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const offsetFromViewportTop = rect.top;
-        const availableHeight = window.innerHeight - offsetFromViewportTop - 24;
-        
-        if (availableHeight > 200) {
-          setTableHeight(`${availableHeight}px`);
-        } else {
-          setTableHeight('calc(100vh - 420px)');
-        }
+      const isMobile = window.innerWidth < 768;
+      const offset = isMobile ? 380 : 320;
+      const availableHeight = window.innerHeight - offset;
+      
+      if (availableHeight > 200) {
+        setTableHeight(`${availableHeight}px`);
+      } else {
+        setTableHeight(isMobile ? 'calc(100vh - 380px)' : 'calc(100vh - 320px)');
       }
     };
 
@@ -397,7 +395,7 @@ const Pricing: React.FC = () => {
       <div 
         ref={containerRef}
         className="bg-transparent border border-transparent rounded-xl shadow-none overflow-hidden flex flex-col"
-        style={{ maxHeight: tableHeight }}
+        style={{ height: tableHeight, maxHeight: tableHeight }}
       >
         <div className="overflow-x-auto overflow-y-auto pb-8 flex-1 space-y-12" style={{ scrollbarGutter: 'stable' }}>
             {sortedCategories.map(cat => {

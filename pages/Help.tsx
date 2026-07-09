@@ -484,6 +484,278 @@ const Help: React.FC = () => {
           )
         }
       ]
+    },
+    {
+      id: 'promocoes-visibilidade',
+      title: 'Promoções e Visibilidade',
+      description: 'Aprenda como utilizar promoções e canais de visibilidade dos marketplaces sem prejudicar suas margens de lucro.',
+      icon: TrendingUp,
+      articles: [
+        {
+          id: 'ifood-hits',
+          title: 'Como funcionar com o iFood Hits sem perder dinheiro',
+          content: (
+            <div className="space-y-6 text-gray-350 text-sm leading-relaxed">
+              {/* Topic 1 */}
+              <div className="space-y-2">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">1. O que é o iFood Hits e como funciona</h4>
+                <p>
+                  O <strong>iFood Hits</strong> é uma promoção estratégica do iFood onde o seu restaurante oferece um desconto estruturado e obrigatório em um prato participante e, em contrapartida, o iFood subsidia <strong>100% da taxa de entrega em até R$ 10,00</strong> para pedidos realizados em um raio de até 3km. Essa ação gera uma visibilidade massiva e prioritária dentro do aplicativo, impulsionando a atração de novos clientes e podendo **aumentar em até 67%** o volume total de pedidos da sua loja!
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 2 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">2. Quais são os critérios para a loja participar</h4>
+                <p>
+                  Para estar habilitado a ativar o iFood Hits, o seu estabelecimento de alimentação comercial deve cumprir os seguintes critérios mínimos exigidos pela plataforma:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 mt-1 text-xs text-gray-400">
+                  <li>Média de pelo menos <strong>100 pedidos por mês</strong> nos últimos 3 meses.</li>
+                  <li>Avaliação média de qualidade mínima de <strong>nota 3.0</strong> no iFood.</li>
+                  <li>Taxa de cancelamento geral da loja rigorosamente <strong>abaixo de 10%</strong>.</li>
+                  <li>Ter uma <strong>taxa de entrega configurada e paga pelo cliente</strong> (não utilize entrega grátis padrão).</li>
+                </ul>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 3 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">3. Quais são os critérios para os pratos participarem</h4>
+                <p>
+                  Não é qualquer prato do seu cardápio que pode entrar no iFood Hits. Os produtos participantes devem seguir uma regra rígida de faixa de preço estabelecida pelo iFood:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 mt-1 text-xs text-gray-400">
+                  <li>O preço de venda original cadastrado no app deve estar obrigatoriamente entre <strong>R$ 15,00 e R$ 80,00</strong>.</li>
+                  <li>Pratos com valores abaixo de R$ 15,00 ou acima de R$ 80,00 são automaticamente inelegíveis para a promoção.</li>
+                </ul>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 4 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">4. Como funciona o subsídio da taxa de entrega e o alerta sobre entrega grátis</h4>
+                <p>
+                  <strong>ATENÇÃO CRÍTICA SOBRE ENTREGA GRÁTIS:</strong> Se o seu restaurante já trabalha com entrega grátis padrão para o cliente no aplicativo, o iFood <strong>não conseguirá subsidiar absolutamente nada</strong>! Você estará apenas oferecendo o desconto obrigatório no prato, sacrificando sua margem de lucro sem receber nenhum bônus em troca.
+                </p>
+                <p>
+                  Para aproveitar o benefício real, é necessário configurar uma taxa de entrega de <strong>pelo menos R$ 7,00</strong> para pedidos em até 3km. Funciona assim: o iFood cobre até R$ 10,00 da taxa. Se sua taxa de entrega configurada for de R$ 7,00, o cliente final visualizará <strong>R$ 0,00 (Entrega Grátis)</strong>, e você receberá os R$ 7,00 integrais de repasse mais um bônus de <strong>R$ 3,00 adicionais</strong> pago diretamente pelo iFood como subsídio complementar!
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 5 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">5. Como calcular se o desconto do Hits vale a pena usando o simulador</h4>
+                <p>
+                  Para não ter prejuízos, você precisa simular o impacto financeiro antes de ativar a oferta. No sistema Lucro Fácil, disponibilizamos uma aba específica em <strong>Simulador de Descontos &gt; iFood Hits</strong>. 
+                </p>
+                <p>
+                  O simulador cruza automaticamente o preço de venda e o CMV real do seu produto cadastrado com o CFI (Custos Fixos Integrados) da sua empresa para prever o lucro por venda. Além disso, realiza um comparativo consolidado simulando o cenário com Hits (projetando 100 vendas mínimas mensais com desconto) versus o cenário normal sem Hits (estimando cerca de 60 vendas com preço cheio). Se o lucro total com 100 pedidos for maior, a participação é viável!
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 6 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">6. Quanto o restaurante investe por faixa de preço com a tabela completa</h4>
+                <p>
+                  O valor de investimento obrigatório do restaurante (desconto concedido direto no prato) é indexado por faixas fixas de preços base estabelecidas pelo iFood:
+                </p>
+                <div className="overflow-x-auto my-2 rounded-lg border border-gray-800">
+                  <table className="w-full text-xs text-left border-collapse bg-slate-900/40">
+                    <thead>
+                      <tr className="bg-slate-900 border-b border-gray-800 text-gray-300">
+                        <th className="p-2.5 font-bold">Faixa de Preço Base do Prato</th>
+                        <th className="p-2.5 font-bold">Desconto Obrigatório (Investimento)</th>
+                        <th className="p-2.5 font-bold">Preço Final no iFood</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800 text-gray-400 font-mono">
+                      <tr>
+                        <td className="p-2.5">R$ 15,00 a R$ 24,99</td>
+                        <td className="p-2.5 text-red-400 font-bold">R$ 5,00</td>
+                        <td className="p-2.5">Preço Original - R$ 5,00</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5">R$ 25,00 a R$ 39,99</td>
+                        <td className="p-2.5 text-red-400 font-bold">R$ 8,00</td>
+                        <td className="p-2.5">Preço Original - R$ 8,00</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5">R$ 40,00 a R$ 59,99</td>
+                        <td className="p-2.5 text-red-400 font-bold">R$ 10,00</td>
+                        <td className="p-2.5">Preço Original - R$ 10,00</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5">R$ 60,00 a R$ 80,00 (Válido para Pizzas)</td>
+                        <td className="p-2.5 text-red-400 font-bold">R$ 13,00</td>
+                        <td className="p-2.5">Preço Original - R$ 13,00</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 7 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">7. Dicas do Xande para escolher os melhores pratos para o Hits</h4>
+                <p>
+                  <strong>Xande aconselha:</strong> Para o iFood Hits funcionar perfeitamente sem machucar o caixa da sua loja, siga estas recomendações fundamentais:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-xs text-gray-400">
+                  <li><strong>Priorize Pratos com Margem de Lucro Alta (CMV Baixo):</strong> Escolha itens que usem insumos de custo muito otimizado. Se o seu prato possui excelente margem natural, ele suportará o desconto obrigatório com folga.</li>
+                  <li><strong>Monitore a Margem após Desconto:</strong> Evite itens cuja margem líquida calculada no simulador fique abaixo de 10%. Se a margem projetada for inferior a 10%, aumente o preço original do item ou selecione outro produto.</li>
+                  <li><strong>Aproveite a Venda Cruzada:</strong> O Hits vai atrair um volume gigante de clientes. Configure na jornada de compra complementos lucrativos (os chamados <i>Produtos Turbinados</i> como batatas e bebidas) para que o cliente adicione ao carrinho e eleve a margem de contribuição média do pedido!</li>
+                </ul>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+            </div>
+          )
+        },
+        {
+          id: 'campanha-inteligente',
+          title: 'Campanha Inteligente do iFood: vale o investimento?',
+          content: (
+            <div className="space-y-6 text-gray-350 text-sm leading-relaxed">
+              {/* Topic 1 */}
+              <div className="space-y-2">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">1. O que é a Campanha Inteligente e como ela funciona</h4>
+                <p>
+                  A <strong>Campanha Inteligente</strong> é uma funcionalidade avançada do iFood que utiliza algoritmos de inteligência de dados para otimizar a distribuição do seu orçamento de marketing. Em vez de você adivinhar quais cupons ou descontos funcionam melhor, a plataforma do iFood analisa o comportamento de compra dos usuários em tempo real e entrega as promoções mais relevantes (como Clube iFood, listas especiais ou cupons de incentivo) para os clientes com maior chance de conversão.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 2 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">2. Como participar</h4>
+                <p>
+                  Participar é simples e flexível. No seu <strong>Portal do Parceiro iFood</strong>, acesse o menu lateral de <strong>Central de Crescimento</strong>, clique em <strong>Promoções</strong> e selecione <strong>Campanha Inteligente</strong>. Basta configurar seu orçamento máximo diário (com o limite mínimo de R$ 100,00) e ativar o program. Você pode pausar ou desativar a campanha a qualquer momento, tendo controle total do seu fluxo promocional.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 3 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">3. Quanto custa</h4>
+                <p>
+                  O custo é totalmente baseado em performance. A taxa cobrada é de <strong>até R$ 5,00 por pedido finalizado</strong> que tenha sido originado pelas ações da campanha. Além disso, o orçamento diário configurado é flexível: se a sua hamburgueria não receber pedidos através da campanha em um dia, você não pagará absolutamente nada. Lembre-se de que o orçamento diário não é cumulativo — o saldo não utilizado expira à meia-noite e não acumula para o dia seguinte.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 4 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">4. Quais benefícios você ganha</h4>
+                <p>
+                  Ao ativar a Campanha Inteligente, seu restaurante ganha prioridade algorítmica de visibilidade. Isso inclui destaque em listas selecionadas no app, disparos inteligentes de notificações push e inserção automática no Clube iFood e em ofertas de cupons sob demanda direcionados especificamente a clientes propensos a comprar de você, maximizando a taxa de conversão sem desperdiçar seu capital de marketing.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 5 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">5. Como calcular se vale a pena</h4>
+                <p>
+                  Para descobrir se o investimento compensa, você deve calcular o lucro incremental trazido pela campanha e compará-lo ao custo de marketing. No Lucro Fácil, criamos uma aba dedicada chamada <strong>Simulador de Descontos &gt; Campanha Inteligente</strong> que automatiza essa matemática. O sistema cruza o seu investimento simulado com o seu faturamento, ticket médio e margem operacional líquida para emitir o veredito exato de viabilidade.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 6 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">6. Dica do Xande sobre como começar de forma segura</h4>
+                <p>
+                  <strong>Xande aconselha:</strong> Nunca inicie com orçamentos altos sem validação. Ative o plano básico de <strong>R$ 100,00 por dia</strong> na Central de Crescimento do iFood e monitore os resultados rigorosamente por <strong>15 dias</strong> na seção de Desempenho do Portal do Parceiro. Se o lucro adicional das novas vendas superar o investimento diário máximo consumido, aumente o orçamento gradualmente. Se o resultado for apertado, foque em elevar o seu Ticket Médio oferecendo complementos turbinados na jornada de compra.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+
+              {/* Topic 7 */}
+              <div className="space-y-2 border-t border-gray-800/60 pt-4">
+                <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">7. Relação com outras promoções</h4>
+                <p>
+                  A Campanha Inteligente pode coexistir e rodar de forma simultânea com outras grandes campanhas, inclusive com o <strong>iFood Hits</strong>. No entanto, é crucial lembrar que o iFood não acumula os descontos de promoções internas criadas manualmente por você (como promoções comuns ou cupons normais na loja) com as otimizações automáticas. Ao rodar a campanha inteligente, deixe as demais promoções internas desativadas para evitar conflitos de margem.
+                </p>
+                <button
+                  onClick={handleOpenXandeChat}
+                  className="mt-1.5 text-[11px] font-extrabold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition"
+                >
+                  <Sparkles size={12} /> Dúvidas? Fale com o Xande
+                </button>
+              </div>
+            </div>
+          )
+        }
+      ]
     }
   ], []);
 
