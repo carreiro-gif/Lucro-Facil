@@ -2,6 +2,15 @@ import React, { useState } from 'react';
 import { Check, Sparkles, Store, Flame, Hourglass, HelpCircle, Loader } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+const getApiUrl = (path: string) => {
+  const origin = window.location.origin;
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    const hostname = window.location.hostname;
+    return `http://${hostname}:3000${path}`;
+  }
+  return path;
+};
+
 export const PlansPricing: React.FC = () => {
   const { user, profile } = useAuth();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -24,7 +33,7 @@ export const PlansPricing: React.FC = () => {
 
     setLoadingPlan(planId);
     try {
-      const response = await fetch('/api/create-payment', {
+      const response = await fetch(getApiUrl('/api/create-payment'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

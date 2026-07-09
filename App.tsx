@@ -40,6 +40,15 @@ const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
 const STORAGE_KEY_LAST_BACKUP = 'lucro_facil_last_backup_date';
 
+const getApiUrl = (path: string) => {
+  const origin = window.location.origin;
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    const hostname = window.location.hostname;
+    return `http://${hostname}:3000${path}`;
+  }
+  return path;
+};
+
 // --- MIGRATION & SANITIZATION UTILS ---
 const fixMoney = (val: any): number => {
   if (typeof val === 'number') return val;
@@ -541,7 +550,7 @@ const App: React.FC = () => {
     if (!simulatedUserId || !simulatedPlan) return;
     setSimulatingPayment(true);
     try {
-      const response = await fetch('/api/simulate-payment-success', {
+      const response = await fetch(getApiUrl('/api/simulate-payment-success'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
