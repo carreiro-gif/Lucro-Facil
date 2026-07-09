@@ -1,8 +1,9 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import { getFirestore, doc, updateDoc, setDoc } from "firebase/firestore";
 
 const app = express();
 const PORT = 3000;
@@ -14,7 +15,7 @@ let dbInstance: any = null;
 
 function getBackendDb() {
   if (!dbInstance) {
-    const firebaseConfig = {
+    let firebaseConfig: any = {
       apiKey: process.env.VITE_FIREBASE_API_KEY,
       authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
       projectId: process.env.VITE_FIREBASE_PROJECT_ID,
@@ -23,12 +24,40 @@ function getBackendDb() {
       appId: process.env.VITE_FIREBASE_APP_ID
     };
 
+    let databaseId: string | undefined = undefined;
+
+    // Fallback to loading from firebase-applet-config.json if variables are missing
+    try {
+      const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+      if (fs.existsSync(configPath)) {
+        const fileContent = fs.readFileSync(configPath, "utf-8");
+        const localConfig = JSON.parse(fileContent);
+        
+        firebaseConfig = {
+          apiKey: firebaseConfig.apiKey || localConfig.apiKey,
+          authDomain: firebaseConfig.authDomain || localConfig.authDomain,
+          projectId: firebaseConfig.projectId || localConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket || localConfig.storageBucket,
+          messagingSenderId: firebaseConfig.messagingSenderId || localConfig.messagingSenderId,
+          appId: firebaseConfig.appId || localConfig.appId
+        };
+        databaseId = localConfig.firestoreDatabaseId;
+        console.log(`[BACKEND-FIREBASE] Loaded config from firebase-applet-config.json successfully. ProjectId: ${firebaseConfig.projectId}, databaseId: ${databaseId}`);
+      }
+    } catch (e: any) {
+      console.warn("[BACKEND-FIREBASE] Failed to load firebase-applet-config.json fallback:", e.message);
+    }
+
     if (!firebaseConfig.projectId) {
-      console.warn("[BACKEND-FIREBASE] WARNING: VITE_FIREBASE_PROJECT_ID is not configured in environment variables.");
+      console.warn("[BACKEND-FIREBASE] WARNING: Firebase project ID is not configured in environment variables.");
     }
 
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    dbInstance = getFirestore(app);
+    if (databaseId) {
+      dbInstance = getFirestore(app, databaseId);
+    } else {
+      dbInstance = getFirestore(app);
+    }
   }
   return dbInstance;
 }
@@ -264,12 +293,12 @@ app.post("/api/stone-webhook", async (req, res) => {
         };
         const maxStores = maxStoresMap[plan.toLowerCase()] || 1;
         
-        await updateDoc(userRef, {
+        await setDoc(userRef, {
           plan: plan.toLowerCase(),
           status: "active",
           planExpiry: expiryDate.toISOString(),
           maxStores: maxStores
-        });
+        }, { merge: true });
         
         console.log(`[STONE-WEBHOOK] Firestore atualizado com sucesso para o usuário ${userId}!`);
       } else {
@@ -312,12 +341,12 @@ app.post("/api/simulate-payment-success", async (req, res) => {
     };
     const maxStores = maxStoresMap[plan.toLowerCase()] || 1;
     
-    await updateDoc(userRef, {
+    await setDoc(userRef, {
       plan: plan.toLowerCase(),
       status: "active",
       planExpiry: expiryDate.toISOString(),
       maxStores: maxStores
-    });
+    }, { merge: true });
     
     console.log(`[SIMULATOR] Firestore atualizado com sucesso em modo simulado para o usuário ${userId}!`);
     res.json({ success: true });
