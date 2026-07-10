@@ -24,6 +24,7 @@ import SalesImport from './pages/SalesImport';
 import ConsultingReport from './pages/ConsultingReport';
 import BuffetSimulator from './pages/BuffetSimulator';
 import { PlansPricing } from './pages/PlansPricing';
+import { MyPlan } from './pages/MyPlan';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
@@ -401,6 +402,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'help': return <Help />;
       case 'shopping-list': return <ShoppingList />;
       case 'plans': return <PlansPricing />;
+      case 'my-plan': return <MyPlan />;
       default: return <Dashboard />;
     }
   };
@@ -427,7 +429,8 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       calculator: 'Calculadora',
       'shopping-list': 'Lista de Compras',
       help: 'Central de Ajuda',
-      plans: 'Planos & Preços'
+      plans: 'Planos & Preços',
+      'my-plan': 'Meu Plano / Financeiro'
     };
     return map[tab] || 'Lucro Fácil';
   };
@@ -1105,7 +1108,9 @@ const App: React.FC = () => {
 
   // 2.5 Subscription Expired/Cancelled Interception
   const isDefaultAdmin = user.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
-  if (!isDefaultAdmin && profile?.plan !== 'admin' && (profile?.status === 'expired' || profile?.status === 'cancelled')) {
+  const isExpiredByDate = profile?.planExpiry ? (new Date().getTime() > new Date(profile.planExpiry).getTime()) : false;
+  
+  if (!isDefaultAdmin && profile?.plan !== 'admin' && (profile?.status === 'expired' || profile?.status === 'cancelled' || isExpiredByDate)) {
     const handleRenew = async (plan: 'starter' | 'growth' | 'pro', maxStores: number) => {
       if (updateProfile) {
         const now = new Date();
@@ -1118,8 +1123,85 @@ const App: React.FC = () => {
         });
       }
     };
+    
     return (
-      <SubscriptionBlockScreen profile={profile} onSignOut={signOut} onRenew={handleRenew} />
+      <div className="min-h-screen w-full bg-slate-950 text-white flex flex-col justify-between p-6 md:p-12 relative overflow-hidden font-sans">
+        {/* Background glow effects */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="max-w-4xl w-full mx-auto my-auto relative z-10 space-y-8 py-12">
+          {/* Main card box */}
+          <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-8 md:p-12 border border-slate-800/80 shadow-2xl space-y-8 relative">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-yellow/10 rounded-full blur-2xl pointer-events-none"></div>
+            
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-amber-500/10 border-2 border-amber-500/30 text-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/5">
+                <span className="text-3xl font-black">⚠️</span>
+              </div>
+              
+              <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white uppercase">
+                Acesso Suspenso - <span className="text-amber-500">Blindagem Inativa</span>
+              </h1>
+              
+              <p className="text-sm md:text-base text-slate-300 leading-relaxed max-w-2xl">
+                Detectamos que a assinatura do seu restaurante venceu ou não foi identificada. Para continuar utilizando as ferramentas de inteligência do iFood Hits e da Balança de Buffet, clique no botão abaixo para renovar seu plano com total segurança via Stone.
+              </p>
+            </div>
+
+            {/* Quick Pricing Grid inside the block screen */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+              {[
+                { id: 'starter' as const, name: 'Starter', price: 'R$ 29,90/mês', stores: 1, maxStores: 1, desc: '1 Restaurante' },
+                { id: 'growth' as const, name: 'Growth', price: 'R$ 49,90/mês', stores: 5, maxStores: 5, desc: 'Até 5 Filiais' },
+                { id: 'pro' as const, name: 'Pro', price: 'R$ 59,90/mês', stores: 999, maxStores: 999, desc: 'Filiais Ilimitadas' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleRenew(p.id, p.maxStores)}
+                  className="bg-slate-950/60 hover:bg-slate-950 border border-slate-800 hover:border-brand-yellow/50 rounded-2xl p-5 text-left transition duration-200 group relative flex flex-col justify-between h-40"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider group-hover:text-brand-yellow transition-colors">{p.name}</span>
+                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Stone ✓</span>
+                    </div>
+                    <div className="text-xl font-extrabold text-white">{p.price}</div>
+                    <p className="text-[11px] text-slate-400">{p.desc}</p>
+                  </div>
+                  <div className="w-full py-2 bg-slate-900 hover:bg-brand-yellow hover:text-slate-950 text-white font-black text-[10px] uppercase tracking-wider rounded-lg text-center transition-colors">
+                    Renovar Agora
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-800/60 pt-6 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="text-left">
+                  <p className="text-xs text-slate-500 font-medium">Logado como: <strong className="text-slate-400 font-mono">{user.email}</strong></p>
+                  {profile?.planExpiry && (
+                    <p className="text-[10px] text-slate-500">Expiração detectada em: {new Date(profile.planExpiry).toLocaleDateString('pt-BR')}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  onClick={() => signOut()}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-slate-950 hover:bg-slate-900 border border-slate-800 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-slate-400 hover:text-white transition"
+                >
+                  Sair da Conta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center text-xs text-slate-600">
+          Lucro Fácil © 2026 • Ferramenta Universal de Food Service
+        </div>
+      </div>
     );
   }
 

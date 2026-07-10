@@ -69,7 +69,7 @@ const DEFAULT_MENU_SECTIONS = [
   },
   {
     title: 'SUPORTE',
-    ids: ['help']
+    ids: ['help', 'my-plan']
   }
 ];
 
@@ -94,6 +94,7 @@ const MENU_ITEM_MAP: Record<string, { label: string; icon: React.ComponentType<{
   calculator: { label: 'Calculadora', icon: Calculator },
   'break-even': { label: 'Ponto de Equilíbrio', icon: Target },
   help: { label: 'Central de Ajuda', icon: HelpCircle },
+  'my-plan': { label: 'Meu Plano / Financeiro', icon: ShieldCheck },
 };
 
 const validateMenuSections = (sections: any[]): { title: string; ids: string[] }[] => {
@@ -130,6 +131,7 @@ const validateMenuSections = (sections: any[]): { title: string; ids: string[] }
     if (['dashboard', 'pricing', 'billing', 'sales-import', 'profit', 'xande-report'].includes(id)) return 'GERAL';
     if (['expenses', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list'].includes(id)) return 'OPERACIONAL';
     if (['buffet-simulator', 'smart-offers', 'smart-simulator', 'calculator', 'break-even'].includes(id)) return 'ESTRATÉGICO';
+    if (['help', 'my-plan'].includes(id)) return 'SUPORTE';
     return 'SUPORTE';
   };
 
