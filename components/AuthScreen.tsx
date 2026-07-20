@@ -88,7 +88,7 @@ export const AuthScreen: React.FC = () => {
             <TrendingUp className="text-brand-red h-8 w-8" />
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight uppercase">
-            Lucro Fácil <span className="text-brand-red">Pro</span>
+            Cardápio Blindado <span className="text-brand-red">Pro</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1.5 font-medium">
             {mode === 'login' && "Faça login para gerenciar a precificação e lucros"}

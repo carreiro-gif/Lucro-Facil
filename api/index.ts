@@ -205,14 +205,14 @@ app.post("/api/create-payment", async (req, res) => {
     interval: isYearly ? "year" : "month",
     interval_count: 1,
     customer: {
-      name: `Cliente Lucro Fácil - ID ${userId}`,
+      name: `Cliente Cardápio Blindado - ID ${userId}`,
       email: email || "comercial@lucrofacil.pro",
       type: "individual",
       document: "11111111111"
     },
     items: [
       {
-        description: `Assinatura Lucro Fácil - Plano ${plan.toUpperCase()} (${isYearly ? "Anual" : "Mensal"})`,
+        description: `Assinatura Cardápio Blindado - Plano ${plan.toUpperCase()} (${isYearly ? "Anual" : "Mensal"})`,
         pricing_scheme: {
           scheme_type: "flat",
           price: price
@@ -429,7 +429,7 @@ async function startServer() {
   // Only listen if not executing in Vercel environment
   if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Lucro Fácil Server running on http://localhost:${PORT}`);
+      console.log(`Cardápio Blindado Server running on http://localhost:${PORT}`);
     });
   }
 }

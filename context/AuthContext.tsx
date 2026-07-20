@@ -112,8 +112,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const isDefaultAdmin = firebaseUser.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
         
         try {
-          // Wrap getDoc with a 5-second timeout to prevent permanent lock if Firebase connection hangs
-          const getDocWithTimeout = (ref: any, ms = 5000) => {
+          // Wrap getDoc with a 15-second timeout to prevent permanent lock if Firebase connection hangs
+          const getDocWithTimeout = (ref: any, ms = 15000) => {
             return Promise.race([
               getDoc(ref),
               new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))

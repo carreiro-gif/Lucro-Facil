@@ -660,7 +660,7 @@ const SalesImport: React.FC = () => {
     try {
       // Compose dedicated system instructions featuring current sales state
       const salesOverviewContext = `
-      Você é o Xande, consultor do Lucro Fácil. O usuário está na tela de "Integrar Vendas".
+      Você é o Xande, consultor do Cardápio Blindado. O usuário está na tela de "Integrar Vendas".
       NÚMEROS DA LOJA ATUALIZADOS NESTA SESSÃO:
       - Vendas importadas: ${salesTransactions.length} pedidos.
       - Faturamento Bruto: R$ ${coreStats.grossRevenue.toFixed(2)}

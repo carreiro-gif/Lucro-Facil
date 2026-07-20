@@ -228,7 +228,7 @@ export const XandePanel: React.FC<XandePanelProps> = ({ isOpen, onClose }) => {
                   <span className="text-3xl">🏆</span>
                   <h4 className="font-bold text-emerald-800 dark:text-emerald-400 text-sm">Parabéns, Estrutura Blindada!</h4>
                   <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">
-                    Todos os seus preços e margens cadastrados estão operando dentro do CMV ideal e gerando lucratividade real para a sua empresa! Esse é o caminho do Lucro Fácil!
+                    Todos os seus preços e margens cadastrados estão operando dentro do CMV ideal e gerando lucratividade real para a sua empresa! Esse é o caminho do Cardápio Blindado!
                   </p>
                 </div>
               )}

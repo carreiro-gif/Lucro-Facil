@@ -168,7 +168,7 @@ const StoreList: React.FC<StoreListProps> = ({ stores, onSelectStore, onAddStore
 
                 <div className="space-y-2">
                      <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-none">
-                        Lucro Fácil
+                        Cardápio Blindado
                      </h1>
                      <p className="text-lg md:text-xl text-yellow-100/80 font-medium max-w-lg">
                         Precificação Inteligente para Restaurantes

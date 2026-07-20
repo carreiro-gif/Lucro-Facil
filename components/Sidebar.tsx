@@ -694,7 +694,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
           )}
           <div className="text-[10px] text-gray-400 dark:text-gray-500 text-center pt-2 opacity-50">
-            v3.0 • Lucro Fácil Pro
+            v3.0 • Cardápio Blindado Pro
           </div>
         </div>
       </div>

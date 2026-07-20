@@ -510,7 +510,7 @@ const SmartSimulator: React.FC = () => {
 
     try {
       const scenarioContext = `
-      Você é o Xande, consultor do Lucro Fácil, especialista e francamente direto com os números de hamburguerias.
+      Você é o Xande, consultor do Cardápio Blindado, especialista e francamente direto com os números de hamburguerias.
       O usuário está analisando cenários e ferramentas de fidelização/desconto na aba ativa de "${activeSubTab.toUpperCase()}":
       
       DADOS GERAIS DO SISTEMA:
@@ -569,7 +569,7 @@ const SmartSimulator: React.FC = () => {
       - Se a campanha for VIÁVEL, parabenize o lojista, incentive a ativação na Central de Crescimento do iFood e recomende monitorar os resultados por 15 dias.
       - Se for INVIÁVEL, explique com franqueza que o lucro adicional esperado de R$ ${smartAddProfit.toFixed(2)} não cobre o custo de R$ ${smartMonthlyCost.toFixed(2)}. Recomende focar em aumentar o ticket médio da loja (usando adicionais turbinados como batatas, molhos e bebidas) ou melhorar a margem operacional líquida antes de investir na campanha.
       - Responda de forma direta e concisa, em até 3-4 parágrafos curtos.
-      - Mantenha a metodologia CFI do Lucro Fácil.
+      - Mantenha a metodologia CFI do Cardápio Blindado.
       - Linguagem franca, brasileira, amigável e direta.
       `;
 

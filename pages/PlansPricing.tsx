@@ -130,7 +130,7 @@ export const PlansPricing: React.FC = () => {
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto mb-16 relative z-10">
         <div className="inline-flex items-center gap-2 bg-brand-yellow/10 border border-brand-yellow/30 text-brand-yellow px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider mb-4">
-          <Sparkles size={14} /> Planos do Lucro Fácil
+          <Sparkles size={14} /> Planos do Cardápio Blindado
         </div>
         <h2 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight mb-4">
           Escolha o plano ideal para a sua loja

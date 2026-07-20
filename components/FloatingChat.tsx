@@ -11,7 +11,7 @@ interface FloatingChatProps {
   activeTab: string;
 }
 
-const SYSTEM_INSTRUCTION = "Você é o **Xande**, o consultor financeiro do Lucro Fácil. Você é uma inteligência artificial especialista em gestão financeira de negócios de alimentação. Você foi treinado na metodologia focada no *CFI (Custos Fixos Integrados)* e opera dentro do sistema Lucro Fácil, um software de precificação e gestão financeira desenvolvido para donos de restaurantes, lanchonetes e negócios de alimentação.\n\n" +
+const SYSTEM_INSTRUCTION = "Você é o **Xande**, o consultor financeiro do Cardápio Blindado. Você é uma inteligência artificial especialista em gestão financeira de negócios de alimentação. Você foi treinado na metodologia focada no *CFI (Custos Fixos Integrados)* e opera dentro do sistema Cardápio Blindado, um software de precificação e gestão financeira desenvolvido para donos de restaurantes, lanchonetes e negócios de alimentação.\n\n" +
 "REGRAS ESTRITAS: Você NUNCA deve mencionar os termos 'DNA do Lucro' ou o nome 'Magno' em nenhuma circunstância. Todas as referências à metodologia devem usar exclusivamente o termo CFI (Custos Fixos Integrados).\n\n" +
 "Personalidade: Prático, confiante, direto e focado em fazer o negócio do usuário crescer. Acessível e encorajador.\n" +
 "Tone & Style: \"Consultora de bolso\" do usuário. Funciona como uma conversa de WhatsApp com um consultor experiente.\n" +
@@ -54,64 +54,64 @@ const getWelcomeData = (tab: string) => {
   switch (tab) {
     case 'dashboard':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Vejo que você está no painel geral da sua loja. Quer que eu analise seus números e te diga o que está indo bem e o que precisa de atenção?",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Vejo que você está no painel geral da sua loja. Quer que eu analise seus números e te diga o que está indo bem e o que precisa de atenção?",
         suggestions: ["Resumo do mês", "Onde estou perdendo dinheiro?", "Qual a meta de faturamento?"]
       };
     case 'pricing':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Você está precificando um produto? Me passa o custo dos ingredientes e o canal de venda que eu te ajudo a chegar no preço ideal sem perder margem.",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Você está precificando um produto? Me passa o custo dos ingredientes e o canal de venda que eu te ajudo a chegar no preço ideal sem perder margem.",
         suggestions: ["Calcular preço iFood", "Como calcular margem?", "Tabela de taxas"]
       };
     case 'ingredients':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Cadastrando insumos? Posso te ajudar a calcular o fator de perda e garantir que sua ficha técnica fique certinha.",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Cadastrando insumos? Posso te ajudar a calcular o fator de perda e garantir que sua ficha técnica fique certinha.",
         suggestions: ["Calcular fator de perda", "Custo médio de insumos", "Lista de compras"]
       };
     case 'expenses':
     case 'categories':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Você está lançando despesas? Depois que terminar me fala o total e o faturamento do mês que eu calculo seu ponto de equilíbrio na hora.",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Você está lançando despesas? Depois que terminar me fala o total e o faturamento do mês que eu calculo seu ponto de equilíbrio na hora.",
         suggestions: ["Calcular ponto de equilíbrio", "O que são Custos Indiretos?", "Reduzir despesas"]
       };
     case 'cfi':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Você está configurando os parâmetros mais importantes do sistema. Me fala se tiver dúvida sobre qual margem colocar ou como calcular o CFI da sua loja.",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Você está configurando os parâmetros mais importantes do sistema. Me fala se tiver dúvida sobre qual margem colocar ou como calcular o CFI da sua loja.",
         suggestions: ["O que é CFI?", "Margem ideal de CMV", "Configurar taxas"]
       };
     case 'break-even':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Quer saber se sua loja já pagou as contas esse mês? Me passa o faturamento atual que eu comparo com seu ponto de equilíbrio na hora.",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Quer saber se sua loja já pagou as contas esse mês? Me passa o faturamento atual que eu comparo com seu ponto de equilíbrio na hora.",
         suggestions: ["Já paguei as contas?", "Fórmula do PI", "Como aumentar faturamento?"]
       };
     case 'products':
     case 'profit':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Vamos descobrir quais produtos estão te dando lucro de verdade e quais estão pesando no resultado. Quer que eu explique como funciona a classificação?",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Vamos descobrir quais produtos estão te dando lucro de verdade e quais estão pesando no resultado. Quer que eu explique como funciona a classificação?",
         suggestions: ["O que é Estrela?", "Como analisar vendas?", "Reduzir custo Cavalo de Batalha"]
       };
     case 'xande-report':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Preparei um relatório completo de engenharia de cardápio e evolução de custos para a sua loja. Quer que eu te guie pelas recomendações para transformar seus Cavalos de Batalha em Estrelas?",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Preparei um relatório completo de engenharia de cardápio e evolução de custos para a sua loja. Quer que eu te guie pelas recomendações para transformar seus Cavalos de Batalha em Estrelas?",
         suggestions: ["Melhorar Cavalos de Batalha", "Análise do meu CMV", "Evolução do CMV vs CFI"]
       };
     case 'buffet-simulator':
       return {
-        message: "Oi! Sou o Xande, seu consultor de Buffet e À Vontade do Lucro Fácil. Aqui nós blindamos seu preço contra o 'Cliente Ogro' e o desperdício oculto na pista! Deseja simular um cardápio de buffet ou de cachorro-quente monte seu prato?",
+        message: "Oi! Sou o Xande, seu consultor de Buffet e À Vontade do Cardápio Blindado. Aqui nós blindamos seu preço contra o 'Cliente Ogro' e o desperdício oculto na pista! Deseja simular um cardápio de buffet ou de cachorro-quente monte seu prato?",
         suggestions: ["Blindar contra Cliente Ogro", "Fórmula da taxa de desperdício", "Posicionamento das Proteínas"]
       };
     case 'sales-import':
       return {
-        message: "Oi! Sou o Xande, seu consultor do Lucro Fácil. Vamos integrar suas vendas! Cole relatórios do iFood/Saipos ou adicione pedidos. Vou calcular seu lucro líquido real por pedido descontando o CMV e o CFI da Empresa!",
+        message: "Oi! Sou o Xande, seu consultor do Cardápio Blindado. Vamos integrar suas vendas! Cole relatórios do iFood/Saipos ou adicione pedidos. Vou calcular seu lucro líquido real por pedido descontando o CMV e o CFI da Empresa!",
         suggestions: ["Como importar relatórios?", "O que é Campanha Inteligente iFood?", "Como resolve duplicados?"]
       };
     case 'combos':
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Montar combos com margem positiva tem um segredo. Me fala os produtos que você quer combinar que eu te ajudo a calcular o preço certo.",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Montar combos com margem positiva tem um segredo. Me fala os produtos que você quer combinar que eu te ajudo a calcular o preço certo.",
         suggestions: ["Preço de combo iFood", "Margem de combo", "Exemplo de combo"]
       };
     default:
       return {
-        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Estou aqui para te ajudar a aumentar o lucro do seu negócio de alimentação, controlar o CMV, montar fichas técnicas e muito mais. Me conta o que você quer analisar hoje?",
+        message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Estou aqui para te ajudar a aumentar o lucro do seu negócio de alimentação, controlar o CMV, montar fichas técnicas e muito mais. Me conta o que você quer analisar hoje?",
         suggestions: ["Como calcular CMV?", "O que é Ponto de Equilíbrio?", "Como usar o sistema?"]
       };
   }
@@ -320,7 +320,7 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
               <h3 className="font-bold text-[15px] flex items-center gap-1.5">
                 Xande <Sparkles size={14} className="text-amber-600" />
               </h3>
-              <p className="text-[11px] text-slate-800 opacity-90">Consultor Lucro Fácil</p>
+              <p className="text-[11px] text-slate-800 opacity-90">Consultor Cardápio Blindado</p>
             </div>
           </div>
           <button 

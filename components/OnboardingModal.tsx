@@ -180,7 +180,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onClose, setAc
               <Sparkles size={16} />
             </div>
             <span className="text-white font-extrabold text-sm uppercase tracking-widest font-sans">
-              Lucro Fácil Onboarding
+              Cardápio Blindado Onboarding
             </span>
           </div>
 
@@ -230,7 +230,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onClose, setAc
           
           <div className="bg-slate-900/60 border border-slate-850 p-4 rounded-2xl rounded-tl-none text-slate-300 text-xs md:text-sm leading-relaxed flex-1 shadow-sm font-sans">
             <strong className="text-brand-yellow block mb-1">Xande diz:</strong>
-            {step === 1 && "Bem-vindo ao Lucro Fácil! Sou o Xande, seu consultor financeiro. Qual é o nome do seu negócio? Isso vai personalizar toda a sua experiência no sistema."}
+            {step === 1 && "Bem-vindo ao Cardápio Blindado! Sou o Xande, seu consultor financeiro. Qual é o nome do seu negócio? Isso vai personalizar toda a sua experiência no sistema."}
             {step === 2 && "Agora me conta quanto você gasta por mês. Esses valores são essenciais para calcular seu ponto de equilíbrio. Se não souber os valores exatos pode pular e preencher depois."}
             {step === 3 && "Quais taxas você paga nas vendas? Se você usa maquininha coloque as taxas dela aqui. Se não souber pode pular e preencher os detalhes com calma no CFI depois."}
             {step === 4 && "Em quais canais você vende hoje? Isso vai me ajudar futuramente a calcular o preço ideal para cada app e canal de vendas sem misturar as taxas."}

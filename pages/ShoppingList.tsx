@@ -136,7 +136,7 @@ const ShoppingList: React.FC = () => {
           {/* Header for Print only */}
           <div className="hidden print:block p-6 border-b border-gray-200 mb-4">
               <h1 className="text-2xl font-bold uppercase">Lista de Compras</h1>
-              <p className="text-sm text-gray-500">Gerado pelo sistema Lucro Fácil Pro</p>
+              <p className="text-sm text-gray-500">Gerado pelo sistema Cardápio Blindado Pro</p>
           </div>
 
           <div className="flex-1 overflow-hidden flex flex-col md:flex-row">

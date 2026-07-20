@@ -432,7 +432,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       plans: 'Planos & Preços',
       'my-plan': 'Meu Plano / Financeiro'
     };
-    return map[tab] || 'Lucro Fácil';
+    return map[tab] || 'Cardápio Blindado';
   };
 
   return (
@@ -487,7 +487,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
                 <div>
                   <h4 className="text-sm font-black text-white">Seu período de teste grátis está chegando ao fim!</h4>
                   <p className="text-xs text-slate-400">
-                    Restam apenas <strong className="text-brand-yellow">{diffDays} {diffDays === 1 ? 'dia' : 'dias'}</strong> do seu trial de 14 dias. Assine o Lucro Fácil hoje para blindar suas margens.
+                    Restam apenas <strong className="text-brand-yellow">{diffDays} {diffDays === 1 ? 'dia' : 'dias'}</strong> do seu trial de 14 dias. Assine o Cardápio Blindado hoje para blindar suas margens.
                   </p>
                 </div>
               </div>
@@ -688,8 +688,8 @@ const App: React.FC = () => {
       try {
         const storesColl = collection(db, 'users', activeUserId, 'stores');
         
-        // Wrap getDocs with a 5-second timeout
-        const getDocsWithTimeout = (ref: any, ms = 5000) => {
+        // Wrap getDocs with a 15-second timeout
+        const getDocsWithTimeout = (ref: any, ms = 15000) => {
           return Promise.race([
             getDocs(ref),
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
@@ -1094,7 +1094,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
         <div className="text-center space-y-4">
           <div className="h-12 w-12 border-4 border-brand-red border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-black uppercase tracking-widest text-slate-400">Lucro Fácil Pro</p>
+          <p className="text-sm font-black uppercase tracking-widest text-slate-400">Cardápio Blindado Pro</p>
           <p className="text-xs text-slate-500">Iniciando ambiente seguro...</p>
         </div>
       </div>
@@ -1199,7 +1199,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="text-center text-xs text-slate-600">
-          Lucro Fácil © 2026 • Ferramenta Universal de Food Service
+          Cardápio Blindado © 2026 • Ferramenta Universal de Food Service
         </div>
       </div>
     );

@@ -96,7 +96,7 @@ export const SubscriptionBlockScreen: React.FC<SubscriptionBlockScreenProps> = (
           onClick={() => window.location.reload()}
           className="bg-brand-yellow hover:bg-yellow-500 text-slate-900 font-bold px-8 py-3 rounded-xl shadow-lg shadow-brand-yellow/20 transition-all font-sans"
         >
-          Acessar o Lucro Fácil
+          Acessar o Cardápio Blindado
         </button>
       </div>
     );

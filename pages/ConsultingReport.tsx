@@ -245,7 +245,7 @@ const ConsultingReport: React.FC = () => {
     setIsGenerating(true);
     try {
       const prompt = `
-      Você é o Xande, consultor financeiro do Lucro Fácil, experiente em gestão e precificação de negócios de alimentos.
+      Você é o Xande, consultor financeiro do Cardápio Blindado, experiente em gestão e precificação de negócios de alimentos.
       Escreva um relatório de consultoria financeira em formato de texto estruturado detalhado com parágrafos objetivos para o dono da loja "${storeInfo.name || 'Minha Loja'}".
       
       MÉTRICAS DA OPERAÇÃO:
@@ -405,7 +405,7 @@ const ConsultingReport: React.FC = () => {
           <div className="flex justify-between items-end">
             <div>
               <h1 className="text-xl font-extrabold uppercase tracking-tight text-gray-900">RELATÓRIO FINANCEIRO & ADVISORY XANDE</h1>
-              <p className="text-xs text-gray-500">Lucro Fácil - Plataforma de Consultoria de Preços, CMV e Custos Integrados (CFI)</p>
+              <p className="text-xs text-gray-500">Cardápio Blindado - Plataforma de Consultoria de Preços, CMV e Custos Integrados (CFI)</p>
             </div>
             <div className="text-right">
               <p className="text-[10px] font-bold text-gray-700">EMPRESA: {storeInfo.name || 'ESTABELECIMENTO ALIMENTAR'}</p>

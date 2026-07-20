@@ -233,7 +233,7 @@ const Help: React.FC = () => {
           content: (
             <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
               <p>
-                Esqueça a regra antiga de multiplicar por 3. No Lucro Fácil aplicamos o método confiável da <strong>Margem Inversa (Markup Inverso por Denominador)</strong>. Ela impede que as porcentagens de impostos e taxas de marketplaces mutilem suas margens limpas.
+                Esqueça a regra antiga de multiplicar por 3. No Cardápio Blindado aplicamos o método confiável da <strong>Margem Inversa (Markup Inverso por Denominador)</strong>. Ela impede que as porcentagens de impostos e taxas de marketplaces mutilem suas margens limpas.
               </p>
               <div className="bg-slate-900 border border-amber-500/20 p-4 rounded-xl space-y-3 font-sans">
                 <span className="block text-amber-400 text-xs uppercase tracking-wider font-mono font-bold">Fórmula do Markup Inverso</span>
@@ -290,7 +290,7 @@ const Help: React.FC = () => {
                 </div>
               </div>
               <div className="p-3 bg-amber-500/10 border-l-4 border-amber-500 rounded text-xs text-amber-200 inline-block w-full">
-                <strong>Recomendação de Ouro do Xande:</strong> Cadastre taxas corretas do app na seção <strong>Precificação</strong> do Lucro Fácil. O software fará o cálculo do preço ideal iFood contra balcão matutino de forma imediata!
+                <strong>Recomendação de Ouro do Xande:</strong> Cadastre taxas corretas do app na seção <strong>Precificação</strong> do Cardápio Blindado. O software fará o cálculo do preço ideal iFood contra balcão matutino de forma imediata!
               </div>
             </div>
           )
@@ -337,7 +337,7 @@ const Help: React.FC = () => {
           content: (
             <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
               <p>
-                Quando o mercado de carnes e laticínios sofre uma alta geral, ajustar manualmente o preço de 50 lanches diferentes, um por um, cansa e faz você perder tempo estratégico. No Lucro Fácil, resolvemos isso com a ferramenta de <strong>Ajuste em Massa</strong>.
+                Quando o mercado de carnes e laticínios sofre uma alta geral, ajustar manualmente o preço de 50 lanches diferentes, um por um, cansa e faz você perder tempo estratégico. No Cardápio Blindado, resolvemos isso com a ferramenta de <strong>Ajuste em Massa</strong>.
               </p>
               <div className="bg-slate-900 border border-gray-800 p-4 rounded-xl text-xs space-y-2 font-sans leading-relaxed">
                 <strong className="text-amber-400 block text-xs font-mono uppercase">Como aplicar as atualizações coletivas:</strong>
@@ -386,7 +386,7 @@ const Help: React.FC = () => {
                   O segredo número um de sobrevivência das hamburguerias de alta performance é: <strong>bater e liquidar o faturamento correspondente ao Ponto de Equilíbrio nos primeiros 10 dias do mês</strong>.
                 </p>
                 <p className="text-[11px] text-gray-300">
-                  Na aba de Ponto de Equilíbrio do Lucro Fácil, acompanhe o termômetro gráfico de vendas do mês. Se você bater o faturamento correspondente ao Break-Even antes do dia 10, sua operação passa a lucrar livre de obrigações estruturais. A partir do dia 11 ao final do mês, todas as vendas colocam o lucro da Margem de Contribuição integralmente no seu bolso real!
+                  Na aba de Ponto de Equilíbrio do Cardápio Blindado, acompanhe o termômetro gráfico de vendas do mês. Se você bater o faturamento correspondente ao Break-Even antes do dia 10, sua operação passa a lucrar livre de obrigações estruturais. A partir do dia 11 ao final do mês, todas as vendas colocam o lucro da Margem de Contribuição integralmente no seu bolso real!
                 </p>
               </div>
             </div>
@@ -569,7 +569,7 @@ const Help: React.FC = () => {
               <div className="space-y-2 border-t border-gray-800/60 pt-4">
                 <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">5. Como calcular se o desconto do Hits vale a pena usando o simulador</h4>
                 <p>
-                  Para não ter prejuízos, você precisa simular o impacto financeiro antes de ativar a oferta. No sistema Lucro Fácil, disponibilizamos uma aba específica em <strong>Simulador de Descontos &gt; iFood Hits</strong>. 
+                  Para não ter prejuízos, você precisa simular o impacto financeiro antes de ativar a oferta. No sistema Cardápio Blindado, disponibilizamos uma aba específica em <strong>Simulador de Descontos &gt; iFood Hits</strong>. 
                 </p>
                 <p>
                   O simulador cruza automaticamente o preço de venda e o CMV real do seu produto cadastrado com o CFI (Custos Fixos Integrados) da sua empresa para prever o lucro por venda. Além disso, realiza um comparativo consolidado simulando o cenário com Hits (projetando 100 vendas mínimas mensais com desconto) versus o cenário normal sem Hits (estimando cerca de 60 vendas com preço cheio). Se o lucro total com 100 pedidos for maior, a participação é viável!
@@ -715,7 +715,7 @@ const Help: React.FC = () => {
               <div className="space-y-2 border-t border-gray-800/60 pt-4">
                 <h4 className="font-extrabold text-gray-100 text-sm uppercase tracking-tight">5. Como calcular se vale a pena</h4>
                 <p>
-                  Para descobrir se o investimento compensa, você deve calcular o lucro incremental trazido pela campanha e compará-lo ao custo de marketing. No Lucro Fácil, criamos uma aba dedicada chamada <strong>Simulador de Descontos &gt; Campanha Inteligente</strong> que automatiza essa matemática. O sistema cruza o seu investimento simulado com o seu faturamento, ticket médio e margem operacional líquida para emitir o veredito exato de viabilidade.
+                  Para descobrir se o investimento compensa, você deve calcular o lucro incremental trazido pela campanha e compará-lo ao custo de marketing. No Cardápio Blindado, criamos uma aba dedicada chamada <strong>Simulador de Descontos &gt; Campanha Inteligente</strong> que automatiza essa matemática. O sistema cruza o seu investimento simulado com o seu faturamento, ticket médio e margem operacional líquida para emitir o veredito exato de viabilidade.
                 </p>
                 <button
                   onClick={handleOpenXandeChat}
