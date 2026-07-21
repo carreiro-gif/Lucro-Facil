@@ -25,6 +25,7 @@ import ConsultingReport from './pages/ConsultingReport';
 import BuffetSimulator from './pages/BuffetSimulator';
 import { PlansPricing } from './pages/PlansPricing';
 import { MyPlan } from './pages/MyPlan';
+import BackupSystem from './pages/BackupSystem';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
@@ -403,6 +404,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'shopping-list': return <ShoppingList />;
       case 'plans': return <PlansPricing />;
       case 'my-plan': return <MyPlan />;
+      case 'backup-system': return <BackupSystem />;
       default: return <Dashboard />;
     }
   };
@@ -430,7 +432,8 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       'shopping-list': 'Lista de Compras',
       help: 'Central de Ajuda',
       plans: 'Planos & Preços',
-      'my-plan': 'Meu Plano / Financeiro'
+      'my-plan': 'Meu Plano / Financeiro',
+      'backup-system': 'Backup do Sistema'
     };
     return map[tab] || 'Cardápio Blindado';
   };

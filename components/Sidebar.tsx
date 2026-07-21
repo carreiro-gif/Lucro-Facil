@@ -560,6 +560,34 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             );
           })}
+
+          {profile?.role === 'admin' && (
+            <div className="space-y-1.5 pb-2 pt-2 border-t border-dashed border-gray-400/20">
+              <h3 className={`px-3 text-[11px] font-bold ${textSecondary} uppercase tracking-wider mb-2`}>
+                ADMINISTRATIVO
+              </h3>
+              <div className="w-full flex items-center gap-1 rounded-lg transition-all duration-200 relative p-0.5 group">
+                {activeTab === 'backup-system' && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-yellow rounded-r-md" />
+                )}
+                <button
+                  disabled={isOrganizing}
+                  onClick={() => {
+                    setActiveTab('backup-system');
+                    onClose?.();
+                  }}
+                  className={`flex-1 flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-left ${
+                    activeTab === 'backup-system'
+                      ? `${activeBg} ${textPrimary} font-bold`
+                      : `${textSecondary} ${hoverBg} hover:${isSidebarDark ? 'text-white' : 'text-gray-900'}`
+                  }`}
+                >
+                  <HardDrive size={18} className={`shrink-0 ${activeTab === 'backup-system' ? 'text-brand-yellow' : 'text-current'}`} />
+                  <span className="text-[14px] truncate">Backup do Sistema</span>
+                </button>
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className={`relative z-10 p-4 border-t ${borderClass} space-y-3`}>
