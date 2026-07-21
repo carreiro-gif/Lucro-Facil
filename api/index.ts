@@ -63,7 +63,7 @@ function getBackendDb() {
 
       // Final default fallback just in case
       if (!firebaseConfig.projectId) {
-        firebaseConfig.projectId = "projeto-app-entregador";
+        firebaseConfig.projectId = "lucro-facil-28aaf";
       }
 
       const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();

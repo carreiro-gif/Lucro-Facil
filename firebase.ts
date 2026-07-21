@@ -16,10 +16,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-const databaseId = env.VITE_FIREBASE_DATABASE_ID || localConfig.firestoreDatabaseId || "ai-studio-57d6581a-bc6f-4824-aac4-a33546056122";
-
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-}, databaseId);
+});
 
 export const auth = getAuth(app);

@@ -1,10 +1,10 @@
 {
-  "projectId": "projeto-app-entregador",
-  "appId": "1:831946524125:web:e8a45a2a459f5d3390a234",
-  "apiKey": "AIzaSyBV4GW2QR4xzWdZ1vEFnWD5aWgWlLMDh9k",
-  "authDomain": "projeto-app-entregador.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-57d6581a-bc6f-4824-aac4-a33546056122",
-  "storageBucket": "projeto-app-entregador.firebasestorage.app",
-  "messagingSenderId": "831946524125",
+  "projectId": "lucro-facil-28aaf",
+  "appId": "1:568743117540:web:a1bc0e38ee9807207622f1",
+  "apiKey": "AIzaSyA7SzgfJ35FF76zUNI17760EhRV6KYuJ2k",
+  "authDomain": "lucro-facil-28aaf.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "lucro-facil-28aaf.firebasestorage.app",
+  "messagingSenderId": "568743117540",
   "measurementId": ""
 }
