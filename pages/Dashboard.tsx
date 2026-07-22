@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { DollarSign, Target, Dna, UtensilsCrossed, Settings, Receipt, Beef, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, ChevronRight, Zap } from 'lucide-react';
 import { formatPercent } from '../constants';
+import { TrialBlindagemWidget } from '../components/TrialBlindagemWidget';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -206,6 +207,9 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="w-full space-y-6 animate-fade-in pb-20">
+      {/* 14-Day Gamified Discovery Experience Widget for Trial Users */}
+      <TrialBlindagemWidget onNavigateTab={navigateTo} />
+
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
