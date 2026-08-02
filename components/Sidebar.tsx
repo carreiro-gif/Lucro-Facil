@@ -33,7 +33,8 @@ import {
   Percent,
   Sparkles,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Users
 } from 'lucide-react';
 import { BACKGROUND_PALETTE } from '../constants';
 
@@ -61,7 +62,7 @@ const DEFAULT_MENU_SECTIONS = [
   },
   {
     title: 'OPERACIONAL',
-    ids: ['expenses', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list']
+    ids: ['collaborators', 'expenses', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list']
   },
   {
     title: 'ESTRATÉGICO',
@@ -79,6 +80,7 @@ const MENU_ITEM_MAP: Record<string, { label: string; icon: React.ComponentType<{
   'sales-import': { label: 'Integrar Vendas', icon: Upload },
   profit: { label: 'Lucro Atual', icon: ScrollText },
   'xande-report': { label: 'Relatório do Xande', icon: Sparkles },
+  collaborators: { label: 'Colaboradores', icon: Users },
   expenses: { label: 'Despesas Fixas', icon: Receipt },
   categories: { label: 'Categorias', icon: Tags },
   dna: { label: 'CFI da Empresa', icon: Dna },
@@ -129,7 +131,7 @@ const validateMenuSections = (sections: any[]): { title: string; ids: string[] }
 
   const getDefaultSection = (id: string): string => {
     if (['dashboard', 'pricing', 'billing', 'sales-import', 'profit', 'xande-report'].includes(id)) return 'GERAL';
-    if (['expenses', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list'].includes(id)) return 'OPERACIONAL';
+    if (['collaborators', 'expenses', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list'].includes(id)) return 'OPERACIONAL';
     if (['buffet-simulator', 'smart-offers', 'smart-simulator', 'calculator', 'break-even'].includes(id)) return 'ESTRATÉGICO';
     if (['help', 'my-plan'].includes(id)) return 'SUPORTE';
     return 'SUPORTE';

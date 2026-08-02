@@ -109,6 +109,11 @@ const getWelcomeData = (tab: string) => {
         message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Montar combos com margem positiva tem um segredo. Me fala os produtos que você quer combinar que eu te ajudo a calcular o preço certo.",
         suggestions: ["Preço de combo iFood", "Margem de combo", "Exemplo de combo"]
       };
+    case 'collaborators':
+      return {
+        message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Vamos gerenciar a equipe e os custos de mão de obra! Lembre-se: diárias, salários e pró-labore entram nas Despesas Fixas (CFI), enquanto as taxas de entrega são custos variáveis do pedido.",
+        suggestions: ["Como lançar o fechamento do dia?", "Como o pró-labore entra no CFI?", "Taxas de entrega x Despesas Fixas"]
+      };
     default:
       return {
         message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Estou aqui para te ajudar a aumentar o lucro do seu negócio de alimentação, controlar o CMV, montar fichas técnicas e muito mais. Me conta o que você quer analisar hoje?",

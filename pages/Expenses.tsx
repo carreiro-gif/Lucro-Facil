@@ -430,8 +430,13 @@ const Expenses: React.FC = () => {
                                     <td className="px-4 py-3 text-sm font-medium text-gray-800 dark:text-white uppercase relative">
                                         <div className="truncate w-32 xl:w-48" title={exp.description}>{exp.description}</div>
                                         {exp.installment && (
-                                            <span className="text-[9px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded border border-blue-200 dark:border-blue-900/50 inline-block mt-1">
+                                            <span className="text-[9px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded border border-blue-200 dark:border-blue-900/50 inline-block mt-1 mr-1">
                                                 {exp.installment.current}/{exp.installment.total}
+                                            </span>
+                                        )}
+                                        {exp.id.startsWith('exp_collab_') && (
+                                            <span className="text-[9px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50 inline-block mt-1">
+                                                👥 Colaboradores
                                             </span>
                                         )}
                                         <div className="text-[10px] text-gray-500 mt-0.5">{exp.category}</div>

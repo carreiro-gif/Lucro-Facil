@@ -14,7 +14,14 @@ export const MyPlan: React.FC = () => {
   const { profile } = useAuth();
 
   // 1. Identify active plan details
-  const planName = (profile?.plan || 'starter').toUpperCase();
+  const getPlanDisplayName = (plan?: string) => {
+    switch (plan?.toLowerCase()) {
+      case 'growth': return 'BLINDADO PLUS';
+      case 'pro': return 'BLINDADO PRO';
+      default: return 'BLINDADO';
+    }
+  };
+  const planName = getPlanDisplayName(profile?.plan);
   const planStatus = profile?.status || 'trial';
 
   // 2. Format the expiration date dynamically
@@ -70,22 +77,22 @@ export const MyPlan: React.FC = () => {
     const tier = profile?.plan || 'starter';
     if (tier === 'starter') {
       return [
-        '1 Loja/Unidade Permitida',
-        'Suporte Padrão por E-mail',
-        'Módulos de Rampa e iFood Hits Liberados',
+        '1 Loja Permitida',
+        'Seu consultor particular (Xande) 24h',
+        'Blindagem completa de margem e precificação',
       ];
     } else if (tier === 'growth') {
       return [
-        'Até 5 Lojas/Filiais Cadastradas',
-        'Suporte Prioritário',
-        'Painel Avançado de Business Intelligence (BI)',
+        'Até 5 Lojas Gerenciadas',
+        'Seu consultor particular (Xande) para todas as lojas',
+        'Sincronização e comparativo entre unidades',
       ];
     } else {
       // Pro or Admin
       return [
-        'Unidades/Lojas Ilimitadas',
-        'Consultoria Exclusiva do Xande',
-        'Acesso Total a Novas Ferramentas',
+        'Lojas e Marcas Ilimitadas',
+        'Seu consultor particular (Xande) prioritário',
+        'Máxima proteção para redes e franquias',
       ];
     }
   }, [profile]);
@@ -93,7 +100,7 @@ export const MyPlan: React.FC = () => {
   // 5. Historical billing checklist (fictional/real mock array as requested)
   const transactions: Transaction[] = useMemo(() => {
     const tier = profile?.plan || 'starter';
-    const baseAmount = tier === 'pro' ? 59.90 : tier === 'growth' ? 49.90 : 29.90;
+    const baseAmount = tier === 'pro' ? 129.90 : tier === 'growth' ? 79.90 : 49.90;
 
     // Generate last 3 months of payments if active, otherwise show standard structure
     if (profile?.status === 'active') {

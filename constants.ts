@@ -393,7 +393,67 @@ const PRODUCTS_DATA: Product[] = [
   ]},
 ];
 
+export const DEFAULT_COLLABORATOR_ROLES_BY_CATEGORY: Record<string, string[]> = {
+  'ADMINISTRAÇÃO / GESTÃO': [
+    'Proprietário',
+    'Sócio',
+    'Gerente',
+    'Administrador',
+    'Supervisor',
+    'Financeiro',
+    'Caixa'
+  ],
+  'COZINHA / PRODUÇÃO': [
+    'Cozinheiro',
+    'Auxiliar de Cozinha',
+    'Chapeiro',
+    'Pizzaiolo',
+    'Auxiliar de Pizzaiolo',
+    'Confeiteiro',
+    'Sushiman',
+    'Auxiliar de Produção',
+    'Ajudante de Cozinha',
+    'Montador de Lanches',
+    'Hamburgueiro',
+    'Preparador de Alimentos'
+  ],
+  'ATENDIMENTO': [
+    'Atendente',
+    'Garçom',
+    'Garçonete',
+    'Recepcionista',
+    'Balconista',
+    'Operador de Caixa'
+  ],
+  'ENTREGA / LOGÍSTICA': [
+    'Entregador',
+    'Motoboy',
+    'Motorista',
+    'Auxiliar de Entrega',
+    'Logística'
+  ],
+  'LIMPEZA / APOIO': [
+    'Auxiliar de Limpeza',
+    'Serviços Gerais',
+    'Lavador de Louça',
+    'Auxiliar de Serviços Gerais',
+    'Manutenção'
+  ],
+  'MARKETING / ADM': [
+    'Social Media',
+    'Marketing',
+    'Assistente Administrativo',
+    'Estoquista',
+    'Nutricionista',
+    'Barista'
+  ],
+  'OUTROS': [
+    'Outro'
+  ]
+};
+
 export const INITIAL_STATE: GlobalState = {
+
   storeInfo: { id: '1', name: 'ESPAÇO CARREIRO LANCHES', address: 'RUA DAS PÉROLAS, 490' },
   ingredients: INGREDIENTS_DATA,
   products: PRODUCTS_DATA,
@@ -430,7 +490,10 @@ export const INITIAL_STATE: GlobalState = {
   purchaseEntries: [],
   supplierMappings: [],
   resetPassword: '1234',
-  ingredientCategories: INITIAL_INGREDIENT_CATEGORIES
+  ingredientCategories: INITIAL_INGREDIENT_CATEGORIES,
+  collaborators: [],
+  collaboratorPayments: [],
+  customCollaboratorRoles: []
 };
 
 export const EMPTY_STATE: GlobalState = {
@@ -458,5 +521,8 @@ export const EMPTY_STATE: GlobalState = {
   purchaseEntries: [],
   supplierMappings: [],
   resetPassword: '1234',
-  ingredientCategories: INITIAL_INGREDIENT_CATEGORIES
+  ingredientCategories: INITIAL_INGREDIENT_CATEGORIES,
+  collaborators: [],
+  collaboratorPayments: [],
+  customCollaboratorRoles: []
 };

@@ -28,54 +28,56 @@ export const SubscriptionBlockScreen: React.FC<SubscriptionBlockScreenProps> = (
   const planOptions = [
     {
       id: 'starter' as const,
-      name: 'Starter',
-      price: 'R$ 29,90',
+      name: 'BLINDADO',
+      price: 'R$ 49,90',
       period: 'por mês',
-      stores: 'Apenas 1 Loja',
+      stores: '1 Loja',
+      dailyHighlight: 'MENOS DE R$ 1,70/DIA',
       maxStores: 1,
       features: [
-        'Acesso completo a todos os módulos',
-        'Controle de CMV e Insumos',
-        'Fichas técnicas e precificação',
-        'CFI para 1 loja',
-        'Engenharia de cardápio',
-        'Gerador de combos lucrativos'
+        'Descubra quais produtos dão mais lucro',
+        'Saiba exatamente quanto cobrar em cada canal de venda',
+        'Proteja sua margem de lucro automaticamente',
+        'Descubra quanto precisa faturar todos os dias',
+        'Tome decisões mais lucrativas em poucos segundos',
+        'Tenha seu restaurante blindado contra prejuízos',
+        'Seu consultor particular (Xande) trabalhando 24h ao seu lado'
       ],
       popular: false,
       color: 'border-slate-800'
     },
     {
       id: 'growth' as const,
-      name: 'Growth',
-      price: 'R$ 49,90',
+      name: 'BLINDADO PLUS',
+      price: 'R$ 79,90',
       period: 'por mês',
       stores: 'Até 5 Lojas',
+      dailyHighlight: 'MENOS DE R$ 2,70/DIA',
       maxStores: 5,
       features: [
-        'Todas as features do Starter',
-        'Gerenciamento de até 5 lojas',
-        'Replicação e cópia de dados entre lojas',
-        'Ideal para operações multimarcas',
-        'Lista de compras integrada',
-        'Relatório de lucro consolidado'
+        'Todos os benefícios do plano Blindado',
+        'Gerencie até 5 lojas e descubra qual é a mais lucrativa',
+        'Replicação e sincronização de dados entre unidades',
+        'Comparativo e análise de desempenho entre lojas',
+        'Seu consultor particular (Xande) disponível 24h para todas as lojas'
       ],
       popular: true,
-      color: 'border-brand-yellow shadow-brand-yellow/10 ring-2 ring-brand-yellow/20'
+      color: 'border-emerald-500/80 shadow-emerald-500/10 ring-2 ring-emerald-500/20'
     },
     {
       id: 'pro' as const,
-      name: 'Pro',
-      price: 'R$ 59,90',
+      name: 'BLINDADO PRO',
+      price: 'R$ 129,90',
       period: 'por mês',
       stores: 'Lojas Ilimitadas',
+      dailyHighlight: 'MENOS DE R$ 4,50/DIA',
       maxStores: 999,
       features: [
-        'Todas as features premium',
+        'Todos os benefícios do plano Blindado Plus',
+        'Visão completa e ilimitada de redes e múltiplos restaurantes',
         'Lojas e marcas em quantidade ilimitada',
-        'Backup automático na nuvem',
-        'Suporte prioritário exclusivo',
-        'Visualização integrada no Admin HUD',
-        'Alta performance para franqueadores'
+        'Suporte prioritário e exclusivo para franqueados e gerentes',
+        'Seu consultor particular (Xande) trabalhando ao lado da sua equipe 24h'
       ],
       popular: false,
       color: 'border-slate-800'

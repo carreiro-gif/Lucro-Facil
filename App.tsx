@@ -26,6 +26,7 @@ import BuffetSimulator from './pages/BuffetSimulator';
 import { PlansPricing } from './pages/PlansPricing';
 import { MyPlan } from './pages/MyPlan';
 import BackupSystem from './pages/BackupSystem';
+import { Collaborators } from './pages/Collaborators';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
@@ -383,6 +384,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
+      case 'collaborators': return <Collaborators />;
       case 'expenses': return <Expenses />;
       case 'categories': return <FinancialCategories />;
       case 'billing': return <Billing />;
@@ -412,6 +414,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
   const getTabLabel = (tab: string) => {
     const map: Record<string, string> = {
       dashboard: 'Dashboard',
+      collaborators: 'Colaboradores',
       expenses: 'Despesas Fixas',
       categories: 'Categorias',
       billing: 'Faturamento',
@@ -1155,9 +1158,9 @@ const App: React.FC = () => {
             {/* Quick Pricing Grid inside the block screen */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
               {[
-                { id: 'starter' as const, name: 'Starter', price: 'R$ 29,90/mês', stores: 1, maxStores: 1, desc: '1 Restaurante' },
-                { id: 'growth' as const, name: 'Growth', price: 'R$ 49,90/mês', stores: 5, maxStores: 5, desc: 'Até 5 Filiais' },
-                { id: 'pro' as const, name: 'Pro', price: 'R$ 59,90/mês', stores: 999, maxStores: 999, desc: 'Filiais Ilimitadas' },
+                { id: 'starter' as const, name: 'BLINDADO', price: 'R$ 49,90/mês', stores: 1, maxStores: 1, desc: '1 Restaurante' },
+                { id: 'growth' as const, name: 'BLINDADO PLUS', price: 'R$ 79,90/mês', stores: 5, maxStores: 5, desc: 'Até 5 Filiais' },
+                { id: 'pro' as const, name: 'BLINDADO PRO', price: 'R$ 129,90/mês', stores: 999, maxStores: 999, desc: 'Filiais Ilimitadas' },
               ].map((p) => (
                 <button
                   key={p.id}
@@ -1415,11 +1418,11 @@ const App: React.FC = () => {
                 <span className="text-white font-bold">
                   {simulatedBillingCycle === 'yearly' ? (
                     <>
-                      {simulatedPlan === 'starter' ? 'R$ 299,00' : simulatedPlan === 'growth' ? 'R$ 499,00' : 'R$ 599,00'} / ano
+                      {simulatedPlan === 'starter' ? 'R$ 499,00' : simulatedPlan === 'growth' ? 'R$ 799,00' : 'R$ 1.299,00'} / ano
                     </>
                   ) : (
                     <>
-                      {simulatedPlan === 'starter' ? 'R$ 29,90' : simulatedPlan === 'growth' ? 'R$ 49,90' : 'R$ 59,90'} / mês
+                      {simulatedPlan === 'starter' ? 'R$ 49,90' : simulatedPlan === 'growth' ? 'R$ 79,90' : 'R$ 129,90'} / mês
                     </>
                   )}
                 </span>

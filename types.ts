@@ -240,4 +240,53 @@ export interface GlobalState {
   salesTransactions?: SalesTransaction[];
   resetPassword?: string;
   ingredientCategories?: IngredientCategory[];
+  collaborators?: Collaborator[];
+  collaboratorPayments?: CollaboratorPayment[];
+  customCollaboratorRoles?: string[];
 }
+
+export type RemunerationType = 
+  | 'salario'
+  | 'diaria'
+  | 'por_entrega'
+  | 'diaria_mais_taxas'
+  | 'pro_labore'
+  | 'outro';
+
+export interface DayOfWeekRule {
+  dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Domingo, 1 = Segunda, ... 6 = Sábado
+  remunerationType: RemunerationType;
+  baseValue: number;
+  active: boolean;
+}
+
+export interface Collaborator {
+  id: string;
+  name: string;
+  role: string;
+  remunerationType: RemunerationType;
+  defaultAmount: number;
+  weeklyRules?: DayOfWeekRule[];
+  startDate?: string;
+  status: 'active' | 'inactive';
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface CollaboratorPayment {
+  id: string;
+  collaboratorId: string;
+  collaboratorName: string;
+  collaboratorRole: string;
+  date: string; // YYYY-MM-DD (fechamento do dia) or YYYY-MM (competência)
+  remunerationType: RemunerationType;
+  baseAmount: number; // Fixed expense portion (Salário, Diária, Pró-Labore) -> GOES TO DESPESAS FIXAS / CFI
+  deliveryFeeAmount: number; // Variable delivery fee -> DOES NOT GO TO DESPESAS FIXAS / CFI
+  deliveryCount?: number;
+  totalPaid: number; // baseAmount + deliveryFeeAmount
+  status: 'pago' | 'pendente';
+  paymentDate?: string;
+  linkedExpenseId?: string; // ID of the linked Expense in Despesas
+  notes?: string;
+}
+

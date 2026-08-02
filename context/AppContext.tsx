@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction } from '../types';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment } from '../types';
 import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
 
 interface AppContextType extends GlobalState {
@@ -53,6 +53,16 @@ interface AppContextType extends GlobalState {
   addSalesTransactionsBatch: (transList: SalesTransaction[]) => void;
   deleteSalesTransaction: (id: string) => void;
   clearSalesTransactions: () => void;
+
+  // Collaborators
+  addCollaborator: (collab: Collaborator) => void;
+  updateCollaborator: (id: string, collab: Partial<Collaborator>) => void;
+  deleteCollaborator: (id: string) => void;
+  addCustomCollaboratorRole: (roleName: string) => void;
+  addCollaboratorPayment: (payment: CollaboratorPayment) => void;
+  addCollaboratorPaymentsBatch: (payments: CollaboratorPayment[]) => void;
+  updateCollaboratorPaymentStatus: (id: string, status: 'pago' | 'pendente') => void;
+  deleteCollaboratorPayment: (id: string) => void;
   
   setFixedCostMode: (mode: FixedCostMode) => void;
   resetSystem: () => void;
@@ -94,6 +104,9 @@ export const AppProvider: React.FC<{
             supplierMappings: initialData.supplierMappings || [],
             salesTransactions: initialData.salesTransactions || [],
             ingredientCategories: initialData.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES,
+            collaborators: initialData.collaborators || [],
+            collaboratorPayments: initialData.collaboratorPayments || [],
+            customCollaboratorRoles: initialData.customCollaboratorRoles || [],
             // Deep merge objects if necessary, but shallow merge for config objects usually suffices if they exist
             cfi: { ...EMPTY_STATE.cfi, ...(initialData.cfi || {}) },
             platformConfig: { 
@@ -395,6 +408,163 @@ export const AppProvider: React.FC<{
     setState(s => ({ ...s, resetPassword: newPassword }));
   };
 
+  // --- COLLABORATORS ACTIONS ---
+  const addCollaborator = (collab: Collaborator) => {
+    setState(s => ({
+      ...s,
+      collaborators: [...(s.collaborators || []), collab]
+    }));
+  };
+
+  const updateCollaborator = (id: string, data: Partial<Collaborator>) => {
+    setState(s => ({
+      ...s,
+      collaborators: (s.collaborators || []).map(c => c.id === id ? { ...c, ...data } : c)
+    }));
+  };
+
+  const deleteCollaborator = (id: string) => {
+    setState(s => ({
+      ...s,
+      collaborators: (s.collaborators || []).filter(c => c.id !== id)
+    }));
+  };
+
+  const addCustomCollaboratorRole = (roleName: string) => {
+    const trimmed = roleName.trim();
+    if (!trimmed) return;
+    setState(s => {
+      const existing = s.customCollaboratorRoles || [];
+      if (existing.includes(trimmed)) return s;
+      return {
+        ...s,
+        customCollaboratorRoles: [...existing, trimmed]
+      };
+    });
+  };
+
+  const helperSyncPaymentToExpenses = (payment: CollaboratorPayment, currentExpenses: Expense[]): { updatedExpenses: Expense[], linkedExpId?: string } => {
+    if (payment.baseAmount <= 0) {
+      if (payment.linkedExpenseId) {
+        return {
+          updatedExpenses: currentExpenses.filter(e => e.id !== payment.linkedExpenseId),
+          linkedExpId: undefined
+        };
+      }
+      return { updatedExpenses: currentExpenses, linkedExpId: undefined };
+    }
+
+    const expId = payment.linkedExpenseId || `exp_collab_${payment.id}`;
+    const monthStr = payment.date.slice(0, 7);
+
+    let expCategory = 'Mão de obra Não Contratada (Extras)';
+    if (payment.remunerationType === 'pro_labore') {
+      expCategory = 'Pró-labore';
+    } else if (payment.remunerationType === 'salario') {
+      expCategory = 'Salário dos Funcionários';
+    }
+
+    const expenseObj: Expense = {
+      id: expId,
+      month: monthStr,
+      description: `Mão de Obra (${payment.collaboratorName} - ${payment.collaboratorRole})`,
+      value: payment.baseAmount,
+      category: expCategory,
+      dueDate: payment.date,
+      paid: payment.status === 'pago'
+    };
+
+    const existingIdx = currentExpenses.findIndex(e => e.id === expId);
+    let updatedExpenses: Expense[];
+    if (existingIdx >= 0) {
+      updatedExpenses = [...currentExpenses];
+      updatedExpenses[existingIdx] = expenseObj;
+    } else {
+      updatedExpenses = [...currentExpenses, expenseObj];
+    }
+
+    return { updatedExpenses, linkedExpId: expId };
+  };
+
+  const addCollaboratorPayment = (payment: CollaboratorPayment) => {
+    setState(s => {
+      const currentExpenses = s.expenses || [];
+      const { updatedExpenses, linkedExpId } = helperSyncPaymentToExpenses(payment, currentExpenses);
+      const paymentWithLink = { ...payment, linkedExpenseId: linkedExpId };
+      return {
+        ...s,
+        expenses: updatedExpenses,
+        collaboratorPayments: [...(s.collaboratorPayments || []), paymentWithLink]
+      };
+    });
+  };
+
+  const addCollaboratorPaymentsBatch = (payments: CollaboratorPayment[]) => {
+    setState(s => {
+      let currentExpenses = s.expenses || [];
+      const finalPayments: CollaboratorPayment[] = [];
+
+      payments.forEach(p => {
+        const { updatedExpenses, linkedExpId } = helperSyncPaymentToExpenses(p, currentExpenses);
+        currentExpenses = updatedExpenses;
+        finalPayments.push({ ...p, linkedExpenseId: linkedExpId });
+      });
+
+      return {
+        ...s,
+        expenses: currentExpenses,
+        collaboratorPayments: [...(s.collaboratorPayments || []), ...finalPayments]
+      };
+    });
+  };
+
+  const updateCollaboratorPaymentStatus = (id: string, status: 'pago' | 'pendente') => {
+    setState(s => {
+      const target = (s.collaboratorPayments || []).find(p => p.id === id);
+      if (!target) return s;
+
+      const updatedPayments = (s.collaboratorPayments || []).map(p => {
+        if (p.id === id) {
+          return {
+            ...p,
+            status,
+            paymentDate: status === 'pago' ? new Date().toISOString().slice(0, 10) : undefined
+          };
+        }
+        return p;
+      });
+
+      let updatedExpenses = s.expenses || [];
+      if (target.linkedExpenseId) {
+        updatedExpenses = updatedExpenses.map(e => e.id === target.linkedExpenseId ? { ...e, paid: status === 'pago' } : e);
+      }
+
+      return {
+        ...s,
+        expenses: updatedExpenses,
+        collaboratorPayments: updatedPayments
+      };
+    });
+  };
+
+  const deleteCollaboratorPayment = (id: string) => {
+    setState(s => {
+      const target = (s.collaboratorPayments || []).find(p => p.id === id);
+      const updatedPayments = (s.collaboratorPayments || []).filter(p => p.id !== id);
+
+      let updatedExpenses = s.expenses || [];
+      if (target && target.linkedExpenseId) {
+        updatedExpenses = updatedExpenses.filter(e => e.id !== target.linkedExpenseId);
+      }
+
+      return {
+        ...s,
+        expenses: updatedExpenses,
+        collaboratorPayments: updatedPayments
+      };
+    });
+  };
+
   // --- CALCULATIONS ---
   
   const getIngredientRealCost = (ing: Ingredient, visited = new Set<string>()): number => {
@@ -544,6 +714,8 @@ export const AppProvider: React.FC<{
       updateCfi, updatePlatformConfig, updateMonthlyRevenue, updateStoreInfo,
       addPurchaseEntry, deletePurchaseEntry, addSupplierMapping, updateIngredientPriceFromXML,
       addSalesTransaction, addSalesTransactionsBatch, deleteSalesTransaction, clearSalesTransactions,
+      addCollaborator, updateCollaborator, deleteCollaborator, addCustomCollaboratorRole,
+      addCollaboratorPayment, addCollaboratorPaymentsBatch, updateCollaboratorPaymentStatus, deleteCollaboratorPayment,
       setFixedCostMode, resetSystem, updateResetPassword,
       getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
       getSortedProducts,
