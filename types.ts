@@ -243,6 +243,63 @@ export interface GlobalState {
   collaborators?: Collaborator[];
   collaboratorPayments?: CollaboratorPayment[];
   customCollaboratorRoles?: string[];
+  accountsReceivable?: AccountReceivable[];
+  customReceivableOrigins?: CustomReceivableOrigin[];
+}
+
+export interface CustomReceivableOrigin {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export type ReceivableStatus = 'a_receber' | 'parcial' | 'recebido' | 'atrasado';
+
+export type ReceivablePaymentMethod = 
+  | 'pix' 
+  | 'dinheiro' 
+  | 'cartao_credito' 
+  | 'cartao_debito' 
+  | 'transferencia' 
+  | 'outro';
+
+export interface AccountReceivablePayment {
+  id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  paymentMethod: ReceivablePaymentMethod;
+  notes?: string;
+  createdAt: string;
+}
+
+export type ReceivableOrigin = 
+  | 'fiado'
+  | 'ifood'
+  | '99food'
+  | 'keeta'
+  | 'brendi'
+  | 'empresa'
+  | 'evento'
+  | 'outro';
+
+export interface AccountReceivable {
+  id: string;
+  origin: ReceivableOrigin;
+  customOrigin?: string;
+  description: string;
+  customerName?: string;
+  customerPhone?: string;
+  orderNumber?: string;
+  saleDate: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD (Data prevista para receber)
+  amount: number; // Valor Total Original
+  status: ReceivableStatus;
+  receivedDate?: string; // Data efetiva do último recebimento ou quitação
+  payments?: AccountReceivablePayment[]; // Histórico de recebimentos parciais e totais
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export type RemunerationType = 

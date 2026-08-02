@@ -493,7 +493,9 @@ export const INITIAL_STATE: GlobalState = {
   ingredientCategories: INITIAL_INGREDIENT_CATEGORIES,
   collaborators: [],
   collaboratorPayments: [],
-  customCollaboratorRoles: []
+  customCollaboratorRoles: [],
+  accountsReceivable: [],
+  customReceivableOrigins: []
 };
 
 export const EMPTY_STATE: GlobalState = {
@@ -524,5 +526,7 @@ export const EMPTY_STATE: GlobalState = {
   ingredientCategories: INITIAL_INGREDIENT_CATEGORIES,
   collaborators: [],
   collaboratorPayments: [],
-  customCollaboratorRoles: []
+  customCollaboratorRoles: [],
+  accountsReceivable: [],
+  customReceivableOrigins: []
 };

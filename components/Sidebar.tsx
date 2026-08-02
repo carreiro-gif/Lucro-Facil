@@ -34,7 +34,8 @@ import {
   Sparkles,
   ChevronUp,
   ChevronDown,
-  Users
+  Users,
+  Coins
 } from 'lucide-react';
 import { BACKGROUND_PALETTE } from '../constants';
 
@@ -62,7 +63,7 @@ const DEFAULT_MENU_SECTIONS = [
   },
   {
     title: 'OPERACIONAL',
-    ids: ['collaborators', 'expenses', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list']
+    ids: ['collaborators', 'expenses', 'accounts-receivable', 'categories', 'dna', 'purchase-entry', 'ingredients', 'products', 'combos', 'shopping-list']
   },
   {
     title: 'ESTRATÉGICO',
@@ -82,6 +83,7 @@ const MENU_ITEM_MAP: Record<string, { label: string; icon: React.ComponentType<{
   'xande-report': { label: 'Relatório do Xande', icon: Sparkles },
   collaborators: { label: 'Colaboradores', icon: Users },
   expenses: { label: 'Despesas Fixas', icon: Receipt },
+  'accounts-receivable': { label: 'Contas a Receber', icon: Coins },
   categories: { label: 'Categorias', icon: Tags },
   dna: { label: 'CFI da Empresa', icon: Dna },
   'purchase-entry': { label: 'Entrada de Compras', icon: FileText },

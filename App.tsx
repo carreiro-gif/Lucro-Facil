@@ -27,6 +27,7 @@ import { PlansPricing } from './pages/PlansPricing';
 import { MyPlan } from './pages/MyPlan';
 import BackupSystem from './pages/BackupSystem';
 import { Collaborators } from './pages/Collaborators';
+import { AccountsReceivable } from './pages/AccountsReceivable';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
@@ -275,6 +276,59 @@ const sanitizeGlobalState = (data: any): GlobalState => {
     ? safeData.ingredientCategories.map((ic: any) => ({ id: ic.id || Math.random().toString(36).substr(2, 9), name: ic.name || '' }))
     : INITIAL_INGREDIENT_CATEGORIES;
 
+  const accountsReceivable = Array.isArray(safeData.accountsReceivable)
+    ? safeData.accountsReceivable.map((ar: any) => {
+        const rawPayments = Array.isArray(ar.payments) ? ar.payments.map((p: any) => ({
+          id: p.id || 'pay_' + Math.random().toString(36).substr(2, 9),
+          amount: fixMoney(p.amount),
+          date: p.date || ar.receivedDate || new Date().toISOString().slice(0, 10),
+          paymentMethod: p.paymentMethod || 'pix',
+          notes: p.notes || undefined,
+          createdAt: p.createdAt || new Date().toISOString()
+        })) : [];
+
+        // Legacy compatibility: If status was 'recebido' but payments array is empty, create 1 payment for full amount
+        if (ar.status === 'recebido' && rawPayments.length === 0 && fixMoney(ar.amount) > 0) {
+          rawPayments.push({
+            id: 'pay_legacy_' + Math.random().toString(36).substr(2, 9),
+            amount: fixMoney(ar.amount),
+            date: ar.receivedDate || new Date().toISOString().slice(0, 10),
+            paymentMethod: 'pix',
+            notes: 'Recebimento integral (sistema)',
+            createdAt: ar.createdAt || new Date().toISOString()
+          });
+        }
+
+        return {
+          id: ar.id || 'ar_' + Math.random().toString(36).substr(2, 9),
+          origin: ar.origin || 'outro',
+          customOrigin: ar.customOrigin || undefined,
+          description: ar.description || '',
+          customerName: ar.customerName || undefined,
+          customerPhone: ar.customerPhone || undefined,
+          orderNumber: ar.orderNumber || undefined,
+          saleDate: ar.saleDate || new Date().toISOString().slice(0, 10),
+          dueDate: ar.dueDate || new Date().toISOString().slice(0, 10),
+          amount: fixMoney(ar.amount),
+          status: ar.status || 'a_receber',
+          receivedDate: ar.receivedDate || undefined,
+          payments: rawPayments,
+          notes: ar.notes || undefined,
+          createdAt: ar.createdAt || new Date().toISOString(),
+          updatedAt: ar.updatedAt || undefined
+        };
+      })
+    : [];
+
+  const customReceivableOrigins = Array.isArray(safeData.customReceivableOrigins)
+    ? safeData.customReceivableOrigins.map((cro: any) => ({
+        id: cro.id || 'cro_' + Math.random().toString(36).substr(2, 9),
+        name: typeof cro.name === 'string' ? cro.name.trim() : '',
+        active: cro.active !== false,
+        createdAt: cro.createdAt || new Date().toISOString()
+      })).filter((cro: any) => cro.name.length > 0)
+    : [];
+
   return {
       storeInfo,
       ingredients,
@@ -292,7 +346,9 @@ const sanitizeGlobalState = (data: any): GlobalState => {
       supplierMappings: Array.isArray(safeData.supplierMappings) ? safeData.supplierMappings : [],
       salesTransactions: Array.isArray(safeData.salesTransactions) ? safeData.salesTransactions : [],
       resetPassword: safeData.resetPassword || '1234',
-      ingredientCategories
+      ingredientCategories,
+      accountsReceivable,
+      customReceivableOrigins
   };
 };
 
@@ -386,6 +442,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'dashboard': return <Dashboard />;
       case 'collaborators': return <Collaborators />;
       case 'expenses': return <Expenses />;
+      case 'accounts-receivable': return <AccountsReceivable />;
       case 'categories': return <FinancialCategories />;
       case 'billing': return <Billing />;
       case 'dna': return <Dna />;
@@ -416,6 +473,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       dashboard: 'Dashboard',
       collaborators: 'Colaboradores',
       expenses: 'Despesas Fixas',
+      'accounts-receivable': 'Contas a Receber',
       categories: 'Categorias',
       billing: 'Faturamento',
       dna: 'CFI da Empresa',

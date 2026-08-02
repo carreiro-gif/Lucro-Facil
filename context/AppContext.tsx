@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment } from '../types';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus } from '../types';
 import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
 
 interface AppContextType extends GlobalState {
@@ -63,6 +63,21 @@ interface AppContextType extends GlobalState {
   addCollaboratorPaymentsBatch: (payments: CollaboratorPayment[]) => void;
   updateCollaboratorPaymentStatus: (id: string, status: 'pago' | 'pendente') => void;
   deleteCollaboratorPayment: (id: string) => void;
+
+  // Accounts Receivable
+  addAccountReceivable: (item: AccountReceivable) => void;
+  updateAccountReceivable: (id: string, item: Partial<AccountReceivable>) => void;
+  markAccountReceivableAsReceived: (id: string, receivedDate?: string) => void;
+  deleteAccountReceivable: (id: string) => void;
+  addReceivablePayment: (
+    receivableId: string, 
+    payment: { amount: number; date: string; paymentMethod: ReceivablePaymentMethod; notes?: string; nextDueDate?: string }
+  ) => void;
+  deleteReceivablePayment: (receivableId: string, paymentId: string) => void;
+  addCustomReceivableOrigin: (name: string) => boolean;
+  updateCustomReceivableOrigin: (id: string, name: string) => boolean;
+  toggleCustomReceivableOriginStatus: (id: string, active: boolean) => void;
+  deleteCustomReceivableOrigin: (id: string) => { action: 'deleted' | 'disabled' };
   
   setFixedCostMode: (mode: FixedCostMode) => void;
   resetSystem: () => void;
@@ -107,6 +122,8 @@ export const AppProvider: React.FC<{
             collaborators: initialData.collaborators || [],
             collaboratorPayments: initialData.collaboratorPayments || [],
             customCollaboratorRoles: initialData.customCollaboratorRoles || [],
+            accountsReceivable: initialData.accountsReceivable || [],
+            customReceivableOrigins: initialData.customReceivableOrigins || [],
             // Deep merge objects if necessary, but shallow merge for config objects usually suffices if they exist
             cfi: { ...EMPTY_STATE.cfi, ...(initialData.cfi || {}) },
             platformConfig: { 
@@ -700,6 +717,237 @@ export const AppProvider: React.FC<{
     return mcPct > 0 ? fixedCosts / mcPct : 0;
   };
 
+  // Accounts Receivable Actions
+  const addAccountReceivable = (item: AccountReceivable) => {
+    setState(s => ({
+      ...s,
+      accountsReceivable: [...(s.accountsReceivable || []), item]
+    }));
+  };
+
+  const updateAccountReceivable = (id: string, itemData: Partial<AccountReceivable>) => {
+    setState(s => ({
+      ...s,
+      accountsReceivable: (s.accountsReceivable || []).map(ar => 
+        ar.id === id ? { ...ar, ...itemData, updatedAt: new Date().toISOString() } : ar
+      )
+    }));
+  };
+
+  const markAccountReceivableAsReceived = (id: string, receivedDate?: string) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const dateToUse = receivedDate || todayStr;
+    setState(s => ({
+      ...s,
+      accountsReceivable: (s.accountsReceivable || []).map(ar => {
+        if (ar.id !== id) return ar;
+        const currentPayments = ar.payments || [];
+        const paidSoFar = currentPayments.reduce((acc, p) => acc + p.amount, 0);
+        const remaining = Math.max(0, ar.amount - paidSoFar);
+
+        const newPayments = [...currentPayments];
+        if (remaining > 0) {
+          newPayments.push({
+            id: 'pay_' + Math.random().toString(36).substr(2, 9),
+            amount: remaining,
+            date: dateToUse,
+            paymentMethod: 'pix',
+            notes: 'Quitação total do título',
+            createdAt: new Date().toISOString()
+          });
+        }
+
+        return {
+          ...ar,
+          status: 'recebido' as const,
+          receivedDate: dateToUse,
+          payments: newPayments,
+          updatedAt: new Date().toISOString()
+        };
+      })
+    }));
+  };
+
+  const addReceivablePayment = (
+    receivableId: string, 
+    payment: { amount: number; date: string; paymentMethod: ReceivablePaymentMethod; notes?: string; nextDueDate?: string }
+  ) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    
+    setState(s => ({
+      ...s,
+      accountsReceivable: (s.accountsReceivable || []).map(ar => {
+        if (ar.id !== receivableId) return ar;
+
+        const currentPayments = ar.payments || [];
+        const newPayment: AccountReceivablePayment = {
+          id: 'pay_' + Math.random().toString(36).substr(2, 9),
+          amount: payment.amount,
+          date: payment.date || todayStr,
+          paymentMethod: payment.paymentMethod,
+          notes: payment.notes || undefined,
+          createdAt: new Date().toISOString()
+        };
+
+        const updatedPayments = [...currentPayments, newPayment];
+        const totalPaid = updatedPayments.reduce((acc, p) => acc + p.amount, 0);
+
+        let newStatus: ReceivableStatus = ar.status;
+        let newDueDate = ar.dueDate;
+
+        if (totalPaid >= ar.amount) {
+          newStatus = 'recebido';
+        } else if (totalPaid > 0) {
+          newStatus = 'parcial';
+          if (payment.nextDueDate) {
+            newDueDate = payment.nextDueDate;
+          }
+        }
+
+        return {
+          ...ar,
+          status: newStatus,
+          dueDate: newDueDate,
+          receivedDate: payment.date || todayStr,
+          payments: updatedPayments,
+          updatedAt: new Date().toISOString()
+        };
+      })
+    }));
+  };
+
+  const deleteReceivablePayment = (receivableId: string, paymentId: string) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    setState(s => ({
+      ...s,
+      accountsReceivable: (s.accountsReceivable || []).map(ar => {
+        if (ar.id !== receivableId) return ar;
+
+        const currentPayments = ar.payments || [];
+        const updatedPayments = currentPayments.filter(p => p.id !== paymentId);
+        const totalPaid = updatedPayments.reduce((acc, p) => acc + p.amount, 0);
+
+        let newStatus: ReceivableStatus = 'a_receber';
+        let lastReceivedDate: string | undefined = undefined;
+
+        if (totalPaid >= ar.amount) {
+          newStatus = 'recebido';
+          lastReceivedDate = updatedPayments[updatedPayments.length - 1]?.date || todayStr;
+        } else if (totalPaid > 0) {
+          newStatus = 'parcial';
+          lastReceivedDate = updatedPayments[updatedPayments.length - 1]?.date || todayStr;
+        } else {
+          if (ar.dueDate < todayStr) {
+            newStatus = 'atrasado';
+          } else {
+            newStatus = 'a_receber';
+          }
+        }
+
+        return {
+          ...ar,
+          status: newStatus,
+          receivedDate: lastReceivedDate,
+          payments: updatedPayments,
+          updatedAt: new Date().toISOString()
+        };
+      })
+    }));
+  };
+
+  const deleteAccountReceivable = (id: string) => {
+    setState(s => ({
+      ...s,
+      accountsReceivable: (s.accountsReceivable || []).filter(ar => ar.id !== id)
+    }));
+  };
+
+  const addCustomReceivableOrigin = (name: string): boolean => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+
+    const defaultNames = ['fiado', 'ifood', '99food', 'keeta', 'brendi', 'venda para empresa', 'evento', 'encomenda', 'outro', 'fiado / cliente', 'evento / encomenda'];
+    const existing = state.customReceivableOrigins || [];
+    
+    if (
+      defaultNames.some(d => d.toLowerCase() === trimmed.toLowerCase()) ||
+      existing.some(c => c.name.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      return false;
+    }
+
+    const newOrigin: CustomReceivableOrigin = {
+      id: 'cro_' + Math.random().toString(36).substr(2, 9),
+      name: trimmed,
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+
+    setState(s => ({
+      ...s,
+      customReceivableOrigins: [...(s.customReceivableOrigins || []), newOrigin]
+    }));
+    return true;
+  };
+
+  const updateCustomReceivableOrigin = (id: string, name: string): boolean => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+
+    const defaultNames = ['fiado', 'ifood', '99food', 'keeta', 'brendi', 'venda para empresa', 'evento', 'encomenda', 'outro', 'fiado / cliente', 'evento / encomenda'];
+    const existing = state.customReceivableOrigins || [];
+    
+    if (
+      defaultNames.some(d => d.toLowerCase() === trimmed.toLowerCase()) ||
+      existing.some(c => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase())
+    ) {
+      return false;
+    }
+
+    setState(s => ({
+      ...s,
+      customReceivableOrigins: (s.customReceivableOrigins || []).map(cro => 
+        cro.id === id ? { ...cro, name: trimmed } : cro
+      )
+    }));
+    return true;
+  };
+
+  const toggleCustomReceivableOriginStatus = (id: string, active: boolean) => {
+    setState(s => ({
+      ...s,
+      customReceivableOrigins: (s.customReceivableOrigins || []).map(cro => 
+        cro.id === id ? { ...cro, active } : cro
+      )
+    }));
+  };
+
+  const deleteCustomReceivableOrigin = (id: string): { action: 'deleted' | 'disabled' } => {
+    const target = (state.customReceivableOrigins || []).find(c => c.id === id);
+    if (!target) return { action: 'deleted' };
+
+    const isUsed = (state.accountsReceivable || []).some(ar => 
+      ar.customOrigin === target.name || ar.origin === id as any
+    );
+
+    if (isUsed) {
+      setState(s => ({
+        ...s,
+        customReceivableOrigins: (s.customReceivableOrigins || []).map(cro => 
+          cro.id === id ? { ...cro, active: false } : cro
+        )
+      }));
+      return { action: 'disabled' };
+    } else {
+      setState(s => ({
+        ...s,
+        customReceivableOrigins: (s.customReceivableOrigins || []).filter(cro => cro.id !== id)
+      }));
+      return { action: 'deleted' };
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       ...state,
@@ -716,6 +964,9 @@ export const AppProvider: React.FC<{
       addSalesTransaction, addSalesTransactionsBatch, deleteSalesTransaction, clearSalesTransactions,
       addCollaborator, updateCollaborator, deleteCollaborator, addCustomCollaboratorRole,
       addCollaboratorPayment, addCollaboratorPaymentsBatch, updateCollaboratorPaymentStatus, deleteCollaboratorPayment,
+      addAccountReceivable, updateAccountReceivable, markAccountReceivableAsReceived, deleteAccountReceivable,
+      addReceivablePayment, deleteReceivablePayment,
+      addCustomReceivableOrigin, updateCustomReceivableOrigin, toggleCustomReceivableOriginStatus, deleteCustomReceivableOrigin,
       setFixedCostMode, resetSystem, updateResetPassword,
       getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
       getSortedProducts,

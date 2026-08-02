@@ -19,7 +19,8 @@ const Dashboard: React.FC = () => {
     storeInfo,
     getCmvAvgPercent,
     calculateBreakEven,
-    salesTransactions
+    salesTransactions,
+    accountsReceivable = []
   } = useApp();
   
   const storeId = storeInfo?.id || '1';
@@ -193,6 +194,22 @@ const Dashboard: React.FC = () => {
     navigateTo('expenses');
   };
 
+  const { overdueReceivablesCount, overdueReceivablesAmount } = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const overdue = (accountsReceivable || []).filter(ar => {
+      if (ar.status === 'recebido') return false;
+      return ar.dueDate < todayStr;
+    });
+    const count = overdue.length;
+    const amount = overdue.reduce((sum, item) => sum + item.amount, 0);
+    return { overdueReceivablesCount: count, overdueReceivablesAmount: amount };
+  }, [accountsReceivable]);
+
+  const navigateToOverdueReceivables = () => {
+    sessionStorage.setItem('filter_overdue_receivables', 'true');
+    navigateTo('accounts-receivable');
+  };
+
   // Goal Progress
   const [currentDateObj] = useState(new Date());
   const maxDays = new Date(currentDateObj.getFullYear(), currentDateObj.getMonth() + 1, 0).getDate();
@@ -220,6 +237,31 @@ const Dashboard: React.FC = () => {
 
       {/* Xande Alerts Panel */}
       <div className="flex flex-col gap-3">
+         {overdueReceivablesCount > 0 && (
+            <div 
+              className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95 cursor-pointer hover:bg-amber-100/10 dark:hover:bg-amber-950/50 transition" 
+              onClick={navigateToOverdueReceivables}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-full text-amber-600 dark:text-amber-400">
+                  <AlertTriangle size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm flex items-center gap-2">
+                    ⚠️ ATENÇÃO! RECEBIMENTOS VENCIDOS
+                    <span className="text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 px-2.5 py-0.5 rounded-full font-bold">Urgente</span>
+                  </h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-400/80">
+                    Você tem <strong>{overdueReceivablesCount}</strong> {overdueReceivablesCount === 1 ? 'recebimento vencido' : 'recebimentos vencidos'}, totalizando <strong>{formatMoney(overdueReceivablesAmount)}</strong>.
+                  </p>
+                </div>
+              </div>
+              <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-md shrink-0">
+                VER RECEBIMENTOS <ChevronRight size={14}/>
+              </button>
+            </div>
+         )}
+
          {overdueExpensesCount > 0 && (
             <div 
               className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95 cursor-pointer hover:bg-red-100/10 dark:hover:bg-red-950/50 transition" 

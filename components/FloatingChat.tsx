@@ -114,6 +114,11 @@ const getWelcomeData = (tab: string) => {
         message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Vamos gerenciar a equipe e os custos de mão de obra! Lembre-se: diárias, salários e pró-labore entram nas Despesas Fixas (CFI), enquanto as taxas de entrega são custos variáveis do pedido.",
         suggestions: ["Como lançar o fechamento do dia?", "Como o pró-labore entra no CFI?", "Taxas de entrega x Despesas Fixas"]
       };
+    case 'accounts-receivable':
+      return {
+        message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Você está no módulo Contas a Receber! Aqui você controla fiados, repasses de marketplaces (iFood, 99Food, Keeta) e eventos futuros para não deixar dinheiro na mesa.",
+        suggestions: ["Quais recebimentos estão vencidos?", "Como lançar repasse do iFood?", "Como gerenciar Fiado?"]
+      };
     default:
       return {
         message: "Oi! Sou o Xande, seu consultor financeiro do Cardápio Blindado. Estou aqui para te ajudar a aumentar o lucro do seu negócio de alimentação, controlar o CMV, montar fichas técnicas e muito mais. Me conta o que você quer analisar hoje?",
@@ -207,6 +212,20 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
         preco: ing.price
       }));
 
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const accountsReceivableSummary = {
+        total_a_receber: (appState.accountsReceivable || []).filter(ar => ar.status !== 'recebido').reduce((s, ar) => s + ar.amount, 0),
+        vencidos_total: (appState.accountsReceivable || []).filter(ar => ar.status !== 'recebido' && ar.dueDate < todayStr).reduce((s, ar) => s + ar.amount, 0),
+        vencidos_qtd: (appState.accountsReceivable || []).filter(ar => ar.status !== 'recebido' && ar.dueDate < todayStr).length,
+        itens: (appState.accountsReceivable || []).slice(0, 10).map(ar => ({
+          origem: ar.origin,
+          cliente_ou_desc: ar.customerName || ar.description,
+          valor: ar.amount,
+          previsao: ar.dueDate,
+          status: ar.status === 'recebido' ? 'recebido' : ar.dueDate < todayStr ? 'atrasado' : 'a_receber'
+        }))
+      };
+
       const smartContext = {
         tela_ativa: activeTab,
         faturamento_mes_atual: currentMonthRevenue,
@@ -214,7 +233,8 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
         cfi_percentual_calculado: cfiPercentCalculated,
         ponto_equilibrio_calculado: breakEvenCalculated,
         produtos: productsSummary,
-        ingredientes: ingredientsSummary
+        ingredientes: ingredientsSummary,
+        contas_a_receber: accountsReceivableSummary
       };
 
       // Pass previous history minus the new message to recreate conversation context
