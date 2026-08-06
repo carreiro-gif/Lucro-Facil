@@ -30,7 +30,7 @@ import { Collaborators } from './pages/Collaborators';
 import { AccountsReceivable } from './pages/AccountsReceivable';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
-import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode } from './types';
+import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode, Collaborator, CollaboratorPayment } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE, INITIAL_MENU_CATEGORIES, INITIAL_INGREDIENT_CATEGORIES } from './constants';
 import backupData from './backup_data.json';
 import { useAuth } from './context/AuthContext';
@@ -329,6 +329,51 @@ const sanitizeGlobalState = (data: any): GlobalState => {
       })).filter((cro: any) => cro.name.length > 0)
     : [];
 
+  const collaborators: Collaborator[] = Array.isArray(safeData.collaborators)
+    ? safeData.collaborators.map((c: any) => ({
+        id: c.id || 'collab_' + Math.random().toString(36).substr(2, 9),
+        name: typeof c.name === 'string' ? c.name.trim() : '',
+        role: typeof c.role === 'string' ? c.role.trim() : 'Outro',
+        remunerationType: c.remunerationType || 'diaria',
+        defaultAmount: fixMoney(c.defaultAmount),
+        weeklyRules: Array.isArray(c.weeklyRules) ? c.weeklyRules.map((wr: any) => ({
+          dayOfWeek: Number(wr.dayOfWeek) || 0,
+          remunerationType: wr.remunerationType || 'diaria',
+          baseValue: fixMoney(wr.baseValue),
+          active: wr.active !== false
+        })) : undefined,
+        startDate: c.startDate || undefined,
+        status: c.status === 'inactive' ? 'inactive' : 'active',
+        notes: c.notes || undefined,
+        createdAt: c.createdAt || new Date().toISOString()
+      })).filter((c: any) => c.name.length > 0)
+    : [];
+
+  const collaboratorPayments: CollaboratorPayment[] = Array.isArray(safeData.collaboratorPayments)
+    ? safeData.collaboratorPayments.map((cp: any) => ({
+        id: cp.id || 'cp_' + Math.random().toString(36).substr(2, 9),
+        collaboratorId: cp.collaboratorId || '',
+        collaboratorName: cp.collaboratorName || '',
+        collaboratorRole: cp.collaboratorRole || '',
+        date: cp.date || new Date().toISOString().slice(0, 10),
+        remunerationType: cp.remunerationType || 'diaria',
+        baseAmount: fixMoney(cp.baseAmount),
+        deliveryFeeAmount: fixMoney(cp.deliveryFeeAmount),
+        deliveryCount: cp.deliveryCount !== undefined && cp.deliveryCount !== null && cp.deliveryCount !== '' ? Number(cp.deliveryCount) : undefined,
+        totalPaid: fixMoney(cp.totalPaid ?? (fixMoney(cp.baseAmount) + fixMoney(cp.deliveryFeeAmount))),
+        status: cp.status === 'pendente' ? 'pendente' : 'pago',
+        paymentDate: cp.paymentDate || undefined,
+        linkedExpenseId: cp.linkedExpenseId || undefined,
+        notes: cp.notes || undefined
+      }))
+    : [];
+
+  const customCollaboratorRoles: string[] = Array.isArray(safeData.customCollaboratorRoles)
+    ? safeData.customCollaboratorRoles
+        .map((r: any) => (typeof r === 'string' ? r.trim() : ''))
+        .filter((r: string) => r.length > 0)
+    : [];
+
   return {
       storeInfo,
       ingredients,
@@ -347,6 +392,9 @@ const sanitizeGlobalState = (data: any): GlobalState => {
       salesTransactions: Array.isArray(safeData.salesTransactions) ? safeData.salesTransactions : [],
       resetPassword: safeData.resetPassword || '1234',
       ingredientCategories,
+      collaborators,
+      collaboratorPayments,
+      customCollaboratorRoles,
       accountsReceivable,
       customReceivableOrigins
   };
@@ -1425,6 +1473,7 @@ const App: React.FC = () => {
         </div>
       ) : (
         <AppProvider 
+          key={selectedStoreId}
           storeId={selectedStoreId} 
           initialData={currentStoreData}
           onStateChange={handleStateChange}
