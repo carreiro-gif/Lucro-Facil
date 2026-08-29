@@ -8,6 +8,8 @@ import {
 import { Product } from '../types';
 import { formatPercent } from '../constants';
 import { IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportPricingReport } from '../utils/pdfExport';
 
 const PricingTableHeader: React.FC = () => (
   <thead className="bg-gray-50 dark:bg-[#0f111a] text-gray-500 dark:text-gray-400 text-[10px] uppercase font-bold tracking-wider">
@@ -91,7 +93,8 @@ const Pricing: React.FC = () => {
     updateProduct,
     bulkUpdateProductsPricing,
     getSortedProducts,
-    getProductCMV
+    getProductCMV,
+    storeInfo
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -258,6 +261,18 @@ const Pricing: React.FC = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
+          <ExportReportButton
+            onExportPDF={() => {
+              exportPricingReport({
+                storeName: storeInfo?.name || 'Minha Loja',
+                cfiTotal: totalCfiCost,
+                menuCategories: menuCategories || [],
+                products: sortedProducts,
+                getProductCMV
+              });
+            }}
+          />
+
           {/* Xande's Interactive Advisor Pulsing Button */}
           <button 
             type="button"

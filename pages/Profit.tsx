@@ -4,6 +4,8 @@ import { useApp } from '../context/AppContext';
 import { ScrollText, Info, HelpCircle, X } from 'lucide-react';
 import { formatPercent } from '../constants';
 import { Product, Combo } from '../types';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportProfitReport } from '../utils/pdfExport';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -21,7 +23,8 @@ const Profit: React.FC = () => {
     updateProduct,
     updateCombo,
     getSortedProducts,
-    getProductCMV
+    getProductCMV,
+    storeInfo
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
   const [activeEdit, setActiveEdit] = useState<{ id: string; type: 'price' | 'delivery'; value: string } | null>(null);
@@ -139,9 +142,23 @@ const Profit: React.FC = () => {
            </div>
           <p className="text-gray-500 dark:text-gray-400">Análise de margem real baseada no preço praticado hoje.</p>
         </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-3 rounded-lg flex items-center gap-3 text-sm text-blue-800 dark:text-blue-200 shadow-sm">
-             <Info className="text-blue-500 dark:text-blue-400 shrink-0" size={20} />
-             <div><p className="font-bold">Nota:</p>O CFI e a ordem dos itens são automáticos.</div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ExportReportButton
+            onExportPDF={() => {
+              exportProfitReport({
+                storeName: storeInfo?.name || 'Minha Loja',
+                totalCfiPercent,
+                menuCategories: menuCategories || [],
+                products: sortedProducts,
+                combos: combos || [],
+                getProductCMV
+              });
+            }}
+          />
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-2.5 rounded-xl flex items-center gap-2 text-xs text-blue-800 dark:text-blue-200 shadow-sm">
+             <Info className="text-blue-500 dark:text-blue-400 shrink-0" size={16} />
+             <div><span className="font-bold">Nota:</span> CFI e ordem são automáticos.</div>
+          </div>
         </div>
       </div>
 

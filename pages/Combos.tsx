@@ -9,6 +9,8 @@ import {
 import { Combo, ComboItem } from '../types';
 import { formatPercent } from '../constants';
 import { IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportCombosReport } from '../utils/pdfExport';
 
 const categoryColors = [
   'blue', 'green', 'purple', 'orange', 'cyan', 'pink', 'rose', 'fuchsia', 'indigo', 'teal', 'emerald', 'amber'
@@ -54,7 +56,8 @@ const Combos: React.FC = () => {
     addCombo,
     updateCombo,
     deleteCombo,
-    updatePlatformConfig
+    updatePlatformConfig,
+    storeInfo
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'combos' | 'marketplace'>('combos');
@@ -432,6 +435,17 @@ const Combos: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            <ExportReportButton
+              onExportPDF={() => {
+                exportCombosReport({
+                  storeName: storeInfo?.name || 'Minha Loja',
+                  combos: combos || [],
+                  products: products || [],
+                  totalCfiPercent: calculateTotalCfiPercent(),
+                  getProductCMV
+                });
+              }}
+            />
             <button 
               onClick={() => handleOpenModal()}
               className="bg-brand-red hover:bg-red-700 text-white px-4 py-3 rounded-lg flex items-center gap-2 font-bold transition shadow-lg shadow-red-900/20"

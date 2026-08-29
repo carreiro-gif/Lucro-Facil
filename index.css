@@ -78,3 +78,82 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
   background: #D90429; 
 }
+
+/* ==========================================================================
+   Estilos de Impressão Nativa (A4 / Sem menus e botões de interface)
+   ========================================================================== */
+@media print {
+  @page {
+    size: auto;
+    margin: 10mm;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    color: #111827 !important;
+    font-size: 11pt;
+  }
+
+  body::before {
+    display: none !important;
+  }
+
+  #root {
+    min-height: auto !important;
+    display: block !important;
+  }
+
+  /* Ocultar elementos de navegação, painéis flutuantes, botões e modais */
+  aside,
+  nav,
+  header,
+  .no-print,
+  button,
+  .floating-chat,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Forçar fundo branco e texto legível */
+  .dark {
+    color-scheme: light !important;
+  }
+
+  * {
+    color: #111827 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Manter bordas e tabelas nítidas */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  th, td {
+    border: 1px solid #E5E7EB !important;
+    padding: 4px 6px !important;
+  }
+
+  th {
+    background-color: #F3F4F6 !important;
+    font-weight: bold !important;
+  }
+}
+

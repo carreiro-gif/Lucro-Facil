@@ -4,6 +4,8 @@ import { useApp } from '../context/AppContext';
 import { Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, CheckCircle, Clock, HelpCircle, Info, Trash } from 'lucide-react';
 import { Expense } from '../types';
 import { formatPercent } from '../constants';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportExpensesReport } from '../utils/pdfExport';
 
 const MONTHS = [
   { value: '01', label: 'Janeiro' },
@@ -31,6 +33,7 @@ const Expenses: React.FC = () => {
     deleteExpense,
     fixedCostMode, 
     setFixedCostMode,
+    storeInfo
   } = useApp();
 
   const [showHelp, setShowHelp] = useState(false);
@@ -320,7 +323,18 @@ const Expenses: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Gerencie seus custos mensais e acompanhe a média anual.</p>
          </div>
          
-         <div className="flex flex-col sm:flex-row items-center gap-4 bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+         <div className="flex flex-wrap items-center gap-3">
+            <ExportReportButton
+              onExportPDF={() => {
+                exportExpensesReport({
+                  storeName: storeInfo?.name || 'Minha Loja',
+                  selectedMonth: selectedMonthKey,
+                  expenses: expenses || [],
+                  categories: categories || []
+                });
+              }}
+            />
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
             <div className="flex items-center gap-2">
                 <button onClick={() => handleYearChange(-1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400"><ChevronLeft size={20}/></button>
                 <span className="text-xl font-bold text-gray-900 dark:text-white w-16 text-center">{viewYear}</span>
@@ -346,6 +360,7 @@ const Expenses: React.FC = () => {
                     </button>
                 </div>
             </div>
+         </div>
          </div>
        </div>
 

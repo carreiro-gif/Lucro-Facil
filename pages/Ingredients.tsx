@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { MeasureUnit, Ingredient } from '../types';
 import { Trash2, Plus, Edit2, Search, HelpCircle, X, Beef, Info, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatPercent } from '../constants';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportIngredientsReport } from '../utils/pdfExport';
 
 const Ingredients: React.FC = () => {
   const { 
@@ -12,7 +14,8 @@ const Ingredients: React.FC = () => {
     updateIngredient, 
     deleteIngredient, 
     getIngredientRealCost,
-    reorderIngredientCategory
+    reorderIngredientCategory,
+    storeInfo
   } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -248,6 +251,17 @@ const Ingredients: React.FC = () => {
                 />
             </div>
             
+            <ExportReportButton
+              onExportPDF={() => {
+                exportIngredientsReport({
+                  storeName: storeInfo?.name || 'Minha Loja',
+                  ingredients: ingredients || [],
+                  ingredientCategories: ingredientCategories || [],
+                  getIngredientRealCost
+                });
+              }}
+            />
+
             <button 
                 onClick={() => { setIsModalOpen(true); }}
                 className="bg-brand-red hover:bg-red-700 text-white px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold transition shadow-lg shadow-red-900/20 uppercase text-xs tracking-wide w-full sm:w-auto shrink-0"

@@ -3,6 +3,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { Plus, Trash, Edit2, Edit3, Search, FileText, X, ChefHat, HelpCircle, ChevronUp, ChevronDown, ListOrdered, Settings, Check, Info, Printer, Copy, AlertTriangle, Sparkles, CheckCircle2, RotateCcw, ArrowRight } from 'lucide-react';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportProductsReport } from '../utils/pdfExport';
 
 const Products: React.FC = () => {
   const { 
@@ -19,7 +21,8 @@ const Products: React.FC = () => {
     reorderMenuCategory,
     getProductCMV, 
     getIngredientRealCost,
-    getSortedProducts
+    getSortedProducts,
+    storeInfo
   } = useApp();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -385,6 +388,18 @@ const Products: React.FC = () => {
               >
                   <ListOrdered size={20} />
               </button>
+              <ExportReportButton
+                onExportPDF={() => {
+                  exportProductsReport({
+                    storeName: storeInfo?.name || 'Minha Loja',
+                    products: sortedProducts,
+                    menuCategories: menuCategories || [],
+                    ingredients: ingredients || [],
+                    getProductCMV,
+                    getIngredientRealCost
+                  });
+                }}
+              />
               <button 
                 onClick={openRenameModal}
                 className="bg-amber-400 hover:bg-amber-500 text-gray-950 px-4 py-2.5 rounded-lg flex items-center gap-2 font-black transition shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-95 cursor-pointer"

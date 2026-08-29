@@ -26,6 +26,8 @@ import * as XLSX from 'xlsx';
 import { formatMoney, formatPercent } from '../constants';
 import { SalesTransaction } from '../types';
 import { IFoodLogo, Food99Logo, KeetaLogo, WhatsAppLogo } from '../components/PlatformLogos';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportSalesImportReport } from '../utils/pdfExport';
 
 const parseBrOrUsMoney = (val: string): number => {
   if (!val) return 0;
@@ -64,7 +66,8 @@ const SalesImport: React.FC = () => {
     addSalesTransaction,
     addSalesTransactionsBatch,
     deleteSalesTransaction,
-    clearSalesTransactions
+    clearSalesTransactions,
+    storeInfo
   } = useApp();
 
   const totalCfiPercent = calculateTotalCfiPercent();
@@ -759,6 +762,19 @@ const SalesImport: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ExportReportButton
+            onExportPDF={() => {
+              exportSalesImportReport({
+                storeName: storeInfo?.name || 'Minha Loja',
+                grossRevenue: coreStats.grossRevenue,
+                totalCmvCost: coreStats.totalCmv,
+                totalCfiCost: coreStats.totalCfiCost,
+                netProfit: coreStats.profitLoss,
+                netMarginPct: coreStats.profitMargin,
+                transactions: salesTransactions || []
+              });
+            }}
+          />
           <button 
             onClick={() => setShowHelp(!showHelp)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"

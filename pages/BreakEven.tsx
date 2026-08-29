@@ -42,6 +42,8 @@ import {
     PieChart, Pie 
 } from 'recharts';
 import { formatPercent } from '../constants';
+import { ExportReportButton } from '../components/ExportReportButton';
+import { exportBreakEvenReport } from '../utils/pdfExport';
 
 interface VarCostEntry {
     id: string;
@@ -85,7 +87,8 @@ const BreakEven: React.FC = () => {
         platformConfig,
         salesTransactions,
         getCmvAvgPercent,
-        calculateBreakEven
+        calculateBreakEven,
+        storeInfo
     } = useApp();
 
     const availableMonths = useMemo(() => {
@@ -678,6 +681,21 @@ const BreakEven: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Metodologia baseada em Custos Fixos Integrados da hamburgueria e simulações com o Xande.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <ExportReportButton
+                      onExportPDF={() => {
+                        exportBreakEvenReport({
+                          storeName: storeInfo?.name || 'Minha Loja',
+                          selectedMonth,
+                          monthlyRevenue: revenue,
+                          totalExpenses: fixedCosts,
+                          cmvAvgPct: getCmvAvgPercent(),
+                          cfiPct: varPct,
+                          breakEvenValue: breakEvenR$,
+                          tenDaysGoal: breakEvenR$ * (10 / 30),
+                          tenDaysCurrent: revenue
+                        });
+                      }}
+                    />
                     <button 
                         onClick={() => setShowAdvisor(!showAdvisor)}
                         className={`px-3.5 py-2 text-xs font-black rounded-xl border transition flex items-center gap-1.5 ${
