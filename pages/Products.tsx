@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
-import { Plus, Trash, Edit2, Search, FileText, X, ChefHat, HelpCircle, ChevronUp, ChevronDown, ListOrdered, Settings, Check, Info, Printer, Copy } from 'lucide-react';
+import { Plus, Trash, Edit2, Edit3, Search, FileText, X, ChefHat, HelpCircle, ChevronUp, ChevronDown, ListOrdered, Settings, Check, Info, Printer, Copy, AlertTriangle, Sparkles, CheckCircle2, RotateCcw, ArrowRight } from 'lucide-react';
 
 const Products: React.FC = () => {
   const { 
@@ -29,6 +29,13 @@ const Products: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
+  // State for Bulk Rename Modal
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renameSearchTerm, setRenameSearchTerm] = useState('');
+  const [editedNames, setEditedNames] = useState<Record<string, string>>({});
+  const [isConfirmingSave, setIsConfirmingSave] = useState(false);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+
   // Form State
   const [prodName, setProdName] = useState('');
   const [prodCategory, setProdCategory] = useState('');
@@ -37,16 +44,137 @@ const Products: React.FC = () => {
   const [editingCatName, setEditingCatName] = useState('');
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
 
+  // Guard: Ensure menuCategories is array
+  const sortedCategories = useMemo(() => [...(menuCategories || [])].sort((a,b) => a.order - b.order), [menuCategories]);
+  // Guard: getSortedProducts internally checks, but double check usage
+  const sortedProducts = useMemo(() => getSortedProducts(), [products, menuCategories]);
+
+  // List of modified products in bulk rename session
+  const modifiedProductsList = useMemo(() => {
+    const list: Array<{ product: Product; originalName: string; newName: string }> = [];
+    (sortedProducts || []).forEach(p => {
+      const currentVal = editedNames[p.id];
+      if (currentVal !== undefined && currentVal.trim() !== '' && currentVal.trim() !== p.name) {
+        list.push({ product: p, originalName: p.name, newName: currentVal.trim() });
+      }
+    });
+    return list;
+  }, [sortedProducts, editedNames]);
+
+  // Grouped and Filtered for Bulk Rename Modal
+  const filteredRenameGroups = useMemo(() => {
+    const term = renameSearchTerm.toLowerCase().trim();
+    const groups: Record<string, Product[]> = {};
+
+    sortedCategories.forEach(cat => { groups[cat.name] = []; });
+    groups['Sem Categoria'] = [];
+
+    (sortedProducts || []).forEach(p => {
+      const currentVal = (editedNames[p.id] ?? p.name).toLowerCase();
+      const origVal = p.name.toLowerCase();
+      const resolvedCatName = groups[p.category]
+        ? p.category
+        : (sortedCategories.find(c => c.id === p.category)?.name || 'Sem Categoria');
+
+      if (!term || origVal.includes(term) || currentVal.includes(term) || resolvedCatName.toLowerCase().includes(term)) {
+        if (groups[resolvedCatName]) {
+          groups[resolvedCatName].push(p);
+        } else {
+          groups['Sem Categoria'].push(p);
+        }
+      }
+    });
+
+    return groups;
+  }, [sortedProducts, sortedCategories, renameSearchTerm, editedNames]);
+
+  const renameGroupEntries = useMemo(() => {
+    const list: Array<{ catName: string; prods: Product[] }> = [];
+    sortedCategories.forEach(cat => {
+      const prods = filteredRenameGroups[cat.name] || [];
+      if (prods.length > 0) list.push({ catName: cat.name, prods });
+    });
+    const uncatProds = filteredRenameGroups['Sem Categoria'] || [];
+    if (uncatProds.length > 0) {
+      list.push({ catName: 'Sem Categoria', prods: uncatProds });
+    }
+    return list;
+  }, [sortedCategories, filteredRenameGroups]);
+
+  const openRenameModal = () => {
+    const initialMap: Record<string, string> = {};
+    (sortedProducts || []).forEach(p => {
+      initialMap[p.id] = p.name;
+    });
+    setEditedNames(initialMap);
+    setRenameSearchTerm('');
+    setIsConfirmingSave(false);
+    setShowUnsavedConfirm(false);
+    setIsRenameModalOpen(true);
+  };
+
+  const handleRequestCloseRename = () => {
+    if (modifiedProductsList.length > 0) {
+      setShowUnsavedConfirm(true);
+    } else {
+      setIsRenameModalOpen(false);
+      setIsConfirmingSave(false);
+    }
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowUnsavedConfirm(false);
+    setIsConfirmingSave(false);
+    setIsRenameModalOpen(false);
+    setEditedNames({});
+  };
+
+  const handleNameChange = (productId: string, val: string) => {
+    setEditedNames(prev => ({
+      ...prev,
+      [productId]: val
+    }));
+  };
+
+  const handleRevertSingleName = (product: Product) => {
+    setEditedNames(prev => ({
+      ...prev,
+      [product.id]: product.name
+    }));
+  };
+
+  const handleSaveAllNames = () => {
+    modifiedProductsList.forEach(({ product, newName }) => {
+      updateProduct(product.id, { name: newName });
+    });
+    setIsConfirmingSave(false);
+    setIsRenameModalOpen(false);
+    setEditedNames({});
+  };
+
   // Body Scroll Lock & ESC Key Safeguards
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isModalOpen) setIsModalOpen(false);
-        if (isCatModalOpen) setIsCatModalOpen(false);
+        if (showUnsavedConfirm) {
+          setShowUnsavedConfirm(false);
+        } else if (isConfirmingSave) {
+          setIsConfirmingSave(false);
+        } else if (isRenameModalOpen) {
+          if (modifiedProductsList.length > 0) {
+            setShowUnsavedConfirm(true);
+          } else {
+            setIsRenameModalOpen(false);
+          }
+        } else if (isModalOpen) {
+          setIsModalOpen(false);
+        } else if (isCatModalOpen) {
+          setIsCatModalOpen(false);
+        }
       }
     };
 
-    if (isModalOpen || isCatModalOpen) {
+    if (isModalOpen || isCatModalOpen || isRenameModalOpen) {
       document.body.style.overflow = 'hidden';
       window.addEventListener('keydown', handleEsc);
     } else {
@@ -57,12 +185,7 @@ const Products: React.FC = () => {
       document.body.style.overflow = 'unset';
       window.removeEventListener('keydown', handleEsc);
     };
-  }, [isModalOpen, isCatModalOpen]);
-
-  // Guard: Ensure menuCategories is array
-  const sortedCategories = useMemo(() => [...(menuCategories || [])].sort((a,b) => a.order - b.order), [menuCategories]);
-  // Guard: getSortedProducts internally checks, but double check usage
-  const sortedProducts = useMemo(() => getSortedProducts(), [products, menuCategories]);
+  }, [isModalOpen, isCatModalOpen, isRenameModalOpen, showUnsavedConfirm, isConfirmingSave, modifiedProductsList.length]);
 
   // Grouped and Filtered
   const filteredProductsByGroup = useMemo(() => {
@@ -261,6 +384,15 @@ const Products: React.FC = () => {
                   title="Gerenciar Categorias"
               >
                   <ListOrdered size={20} />
+              </button>
+              <button 
+                onClick={openRenameModal}
+                className="bg-amber-400 hover:bg-amber-500 text-gray-950 px-4 py-2.5 rounded-lg flex items-center gap-2 font-black transition shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                title="Renomear múltiplos produtos centralmente"
+              >
+                <Edit3 size={18} className="text-gray-950" /> 
+                <span className="hidden sm:inline uppercase text-xs font-black">Renomear Produtos</span>
+                <span className="sm:hidden uppercase text-xs font-black">Renomear</span>
               </button>
               <button 
                 onClick={openNewProductModal}
@@ -677,6 +809,338 @@ const Products: React.FC = () => {
                      </button>
                   </div>
                </div>
+            </div>
+         </div>
+       )}
+
+       {/* MODAL DE GERENCIAMENTO CENTRAL / RENOMEAR PRODUTOS */}
+       {isRenameModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in font-sans">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
+              onClick={handleRequestCloseRename}
+            />
+
+            {/* Modal Container */}
+            <div className="relative bg-white dark:bg-[#0f111a] border border-gray-200 dark:border-gray-800 rounded-3xl w-full max-w-3xl max-h-[90vh] shadow-2xl flex flex-col z-10 overflow-hidden">
+               
+               {/* Modal Header */}
+               <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50/50 dark:bg-black/20">
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-2xl bg-amber-400 text-gray-950 flex items-center justify-center shadow-md shadow-amber-400/20 shrink-0">
+                        <Edit3 size={20} />
+                     </div>
+                     <div>
+                        <div className="flex items-center gap-2">
+                           <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-wider">
+                              Renomear Produtos
+                           </h3>
+                           <span className="text-[10px] bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 rounded-md font-black uppercase">
+                              Central de Nomes
+                           </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                           Altere o nome dos produtos em um único lugar com sincronização em todas as telas do sistema.
+                        </p>
+                     </div>
+                  </div>
+                  <button 
+                     type="button"
+                     onClick={handleRequestCloseRename}
+                     className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer"
+                  >
+                     <X size={20} />
+                  </button>
+               </div>
+
+               {/* Search & Actions Toolbar */}
+               <div className="p-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#0f111a] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                  <div className="relative flex-1">
+                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                     <input 
+                        type="text" 
+                        placeholder="Buscar produto ou categoria para renomear..."
+                        value={renameSearchTerm}
+                        onChange={(e) => setRenameSearchTerm(e.target.value)}
+                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl pl-10 pr-9 py-2.5 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none transition"
+                     />
+                     {renameSearchTerm && (
+                        <button 
+                           onClick={() => setRenameSearchTerm('')}
+                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+                        >
+                           <X size={14} />
+                        </button>
+                     )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                     {modifiedProductsList.length > 0 ? (
+                        <div className="flex items-center gap-2">
+                           <span className="bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800 px-3 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 animate-pulse">
+                              <Sparkles size={14} className="text-amber-500" />
+                              {modifiedProductsList.length} {modifiedProductsList.length === 1 ? 'produto alterado' : 'produtos alterados'}
+                           </span>
+                           <button
+                              onClick={() => {
+                                 const initialMap: Record<string, string> = {};
+                                 (sortedProducts || []).forEach(p => { initialMap[p.id] = p.name; });
+                                 setEditedNames(initialMap);
+                              }}
+                              className="text-xs text-gray-400 hover:text-red-500 font-bold px-2 py-1 rounded-lg transition flex items-center gap-1"
+                              title="Desfazer todas as alterações desta sessão"
+                           >
+                              <RotateCcw size={12} /> Desfazer Tudo
+                           </button>
+                        </div>
+                     ) : (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider px-2">
+                           {sortedProducts.length} itens cadastrados
+                        </span>
+                     )}
+                  </div>
+               </div>
+
+               {/* Products List Grouped by Category */}
+               <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+                  {renameGroupEntries.length === 0 ? (
+                     <div className="text-center py-12">
+                        <ChefHat size={40} className="mx-auto text-gray-300 dark:text-gray-700 mb-3" />
+                        <p className="text-sm font-bold text-gray-500 dark:text-gray-400">Nenhum produto encontrado na busca.</p>
+                     </div>
+                  ) : (
+                     renameGroupEntries.map(({ catName, prods }) => {
+                        return (
+                           <div key={catName} className="space-y-3">
+                              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
+                                 <h4 className="text-xs font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                                    {catName}
+                                 </h4>
+                                 <span className="text-[10px] text-gray-400 font-bold uppercase">
+                                    {prods.length} {prods.length === 1 ? 'item' : 'itens'}
+                                 </span>
+                              </div>
+
+                              <div className="space-y-2">
+                                 {prods.map((prod) => {
+                                    const currentName = editedNames[prod.id] ?? prod.name;
+                                    const isModified = currentName.trim() !== '' && currentName.trim() !== prod.name;
+
+                                    return (
+                                       <div 
+                                          key={prod.id} 
+                                          className={`p-3 rounded-2xl border transition-all duration-200 ${
+                                             isModified 
+                                                ? 'bg-amber-50/80 dark:bg-amber-950/25 border-amber-300 dark:border-amber-700/60 shadow-sm' 
+                                                : 'bg-gray-50/60 dark:bg-gray-900/40 border-gray-200/80 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                                          }`}
+                                       >
+                                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                             <div className="flex-1">
+                                                <div className="relative">
+                                                   <input 
+                                                      type="text"
+                                                      value={currentName}
+                                                      onChange={(e) => handleNameChange(prod.id, e.target.value)}
+                                                      placeholder="Digite o novo nome do produto..."
+                                                      className={`w-full text-sm font-bold rounded-xl px-3.5 py-2 transition-all outline-none border ${
+                                                         isModified
+                                                            ? 'bg-white dark:bg-gray-900 border-amber-400 dark:border-amber-500 text-gray-950 dark:text-white ring-2 ring-amber-400/20'
+                                                            : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
+                                                      }`}
+                                                   />
+                                                </div>
+                                                {isModified && (
+                                                   <div className="flex items-center gap-2 mt-1.5 px-1">
+                                                      <span className="text-[11px] text-gray-400 dark:text-gray-500 line-through truncate max-w-[200px]">
+                                                         {prod.name}
+                                                      </span>
+                                                      <ArrowRight size={10} className="text-amber-500 shrink-0" />
+                                                      <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 truncate">
+                                                         {currentName.trim() || '(vazio)'}
+                                                      </span>
+                                                   </div>
+                                                )}
+                                             </div>
+
+                                             <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                                                {isModified ? (
+                                                   <>
+                                                      <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-300 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 shrink-0 border border-amber-300 dark:border-amber-700">
+                                                         <Sparkles size={11} className="text-amber-500" />
+                                                         Modificado
+                                                      </span>
+                                                      <button
+                                                         type="button"
+                                                         onClick={() => handleRevertSingleName(prod)}
+                                                         className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer"
+                                                         title="Desfazer alteração deste item"
+                                                      >
+                                                         <RotateCcw size={14} />
+                                                      </button>
+                                                   </>
+                                                ) : (
+                                                   <span className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold px-2">
+                                                      Sem alterações
+                                                   </span>
+                                                )}
+                                             </div>
+                                          </div>
+                                       </div>
+                                    );
+                                 })}
+                              </div>
+                           </div>
+                        );
+                     })
+                  )}
+               </div>
+
+               {/* Modal Footer */}
+               <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 text-center sm:text-left">
+                     {modifiedProductsList.length > 0 ? (
+                        <span className="font-bold text-amber-600 dark:text-amber-400">
+                           {modifiedProductsList.length} {modifiedProductsList.length === 1 ? 'produto será renomeado' : 'produtos serão renomeados'} em todo o sistema
+                        </span>
+                     ) : (
+                        <span>Clique sobre o nome de qualquer item para editar</span>
+                     )}
+                  </div>
+
+                  <div className="flex gap-2 w-full sm:w-auto">
+                     <button
+                        type="button"
+                        onClick={handleRequestCloseRename}
+                        className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                     >
+                        Cancelar
+                     </button>
+                     <button
+                        type="button"
+                        disabled={modifiedProductsList.length === 0}
+                        onClick={() => setIsConfirmingSave(true)}
+                        className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                           modifiedProductsList.length > 0
+                              ? 'bg-amber-400 hover:bg-amber-500 text-gray-950 shadow-lg shadow-amber-400/20 active:scale-95'
+                              : 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+                        }`}
+                     >
+                        <CheckCircle2 size={16} />
+                        Salvar Todas as Alterações ({modifiedProductsList.length})
+                     </button>
+                  </div>
+               </div>
+
+               {/* CONFIRMAÇÃO DE SALVAMENTO EM MASSA */}
+               {isConfirmingSave && (
+                  <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-20 animate-fade-in">
+                     <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-scale-up">
+                        <div className="flex items-center gap-3">
+                           <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                              <AlertTriangle size={24} />
+                           </div>
+                           <div>
+                              <h4 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-wider">
+                                 Confirmar Alterações de Nomes?
+                              </h4>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                 Você está atualizando o nome de <strong className="text-gray-900 dark:text-white">{modifiedProductsList.length}</strong> {modifiedProductsList.length === 1 ? 'produto' : 'produtos'}.
+                              </p>
+                           </div>
+                        </div>
+
+                        <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-3.5 space-y-2">
+                           <p className="text-xs text-amber-900 dark:text-amber-300 font-bold leading-relaxed">
+                              Essa alteração será aplicada centralmente e refletirá automaticamente em todos os módulos:
+                           </p>
+                           <div className="grid grid-cols-2 gap-1 text-[11px] text-amber-800 dark:text-amber-400 font-medium">
+                              <div>• Ficha Técnica</div>
+                              <div>• Preço de Venda</div>
+                              <div>• Lucro Atual</div>
+                              <div>• Combos</div>
+                              <div>• Ofertas Inteligentes</div>
+                              <div>• Integrar Vendas</div>
+                              <div>• Lista de Compras</div>
+                              <div>• Relatório do Xande</div>
+                           </div>
+                        </div>
+
+                        {/* Summary preview of changes */}
+                        <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 border border-gray-100 dark:border-gray-800 rounded-xl p-2 bg-gray-50/50 dark:bg-black/20">
+                           {modifiedProductsList.map(({ product, newName }) => (
+                              <div key={product.id} className="text-xs flex items-center justify-between p-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                                 <span className="text-gray-500 dark:text-gray-400 line-through truncate max-w-[140px]">{product.name}</span>
+                                 <ArrowRight size={12} className="text-amber-500 shrink-0 mx-1.5" />
+                                 <span className="font-bold text-gray-900 dark:text-white truncate max-w-[140px] text-right">{newName}</span>
+                              </div>
+                           ))}
+                        </div>
+
+                        <div className="flex gap-2 justify-end pt-2">
+                           <button
+                              type="button"
+                              onClick={() => setIsConfirmingSave(false)}
+                              className="px-5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                           >
+                              Voltar para Ajustar
+                           </button>
+                           <button
+                              type="button"
+                              onClick={handleSaveAllNames}
+                              className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-400/20 active:scale-95 transition cursor-pointer flex items-center gap-1.5"
+                           >
+                              <CheckCircle2 size={16} /> Confirmar e Salvar Tudo
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+               )}
+
+               {/* CONFIRMAÇÃO DE ALTERAÇÕES NÃO SALVAS (DESCARTE) */}
+               {showUnsavedConfirm && (
+                  <div className="absolute inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-20 animate-fade-in">
+                     <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
+                        <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded-2xl bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                              <AlertTriangle size={20} />
+                           </div>
+                           <div>
+                              <h4 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-wider">
+                                 Descartar Alterações?
+                              </h4>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                 Você possui <strong className="text-red-500">{modifiedProductsList.length}</strong> {modifiedProductsList.length === 1 ? 'alteração não salva' : 'alterações não salvas'}.
+                              </p>
+                           </div>
+                        </div>
+
+                        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                           Se você fechar o painel agora, todas as edições de nomes feitas nesta sessão serão perdidas. Deseja realmente descartar ou voltar para salvar?
+                        </p>
+
+                        <div className="flex gap-2 justify-end pt-2">
+                           <button
+                              type="button"
+                              onClick={handleConfirmDiscard}
+                              className="px-4 py-2.5 rounded-xl bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                           >
+                              Descartar Mudanças
+                           </button>
+                           <button
+                              type="button"
+                              onClick={() => setShowUnsavedConfirm(false)}
+                              className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-400/20 active:scale-95 transition cursor-pointer"
+                           >
+                              Voltar para Salvar
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+               )}
+
             </div>
          </div>
        )}

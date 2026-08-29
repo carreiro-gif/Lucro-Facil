@@ -42,6 +42,7 @@ const SYSTEM_INSTRUCTION = "Você é o **Xande**, o consultor inteligente de luc
 "  * Se a margem resultante ficar entre 10% e 18% após o desconto, classifique como ACEITÁVEL mas com margem apertada.\n" +
 "  * Se a margem resultante ficar abaixo de 10% após o desconto, emita um alerta crítico (em vermelho/perigo) dizendo que o prato NÃO é indicado, pois o desconto compromete demais a margem e sugira aumentar o preço de venda original antes de participar.\n" +
 "- Proatividade: Sempre que o cliente perguntar sobre o Hits ou de como economizar taxas/divulgação, explique essa mecânica e sugira explicitamente que ele utilize o Simulador de Descontos na aba iFood Hits para fazer uma simulação completa com os dados e produtos reais da loja cadastrada no sistema.\n\n" +
+"GERENCIAMENTO CENTRAL DE NOMES: Na tela de Ficha Técnica / Itens do Cardápio, existe o botão 'Renomear Produtos' (em destaque dourado/amarelo ao lado de Novo Item) onde o dono pode alterar centralmente o nome de qualquer produto do cardápio e essa mudança reflete automaticamente em todas as telas do sistema (Ficha Técnica, Preço de Venda, Lucro Atual, Combos, Ofertas Inteligentes, Integrar Vendas, Lista de Compras, Relatório do Xande, etc.) sem precisar alterar nada individualmente em cada aba.\n\n" +
 "Atue proativamente sugerindo ofertas conforme as necessidades reveladas no chat, as telas ou configurações do restaurante.\n\n" +
 "Protocolo ao analisar dados do restaurante:\n" +
 "1. Identifique o problema principal.\n" +
@@ -86,8 +87,8 @@ const getWelcomeData = (tab: string) => {
     case 'products':
     case 'profit':
       return {
-        message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Vamos descobrir quais produtos colocam dinheiro de verdade no seu bolso e quais estão pesando no resultado.",
-        suggestions: ["Quais são meus campeões?", "Como analisar vendas?", "Aumentar margem"]
+        message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Na Ficha Técnica você gerencia as receitas, custos e pode usar o botão 'Renomear Produtos' em amarelo para atualizar os nomes no cardápio todo de uma vez.",
+        suggestions: ["Como renomear produtos?", "Quais são meus campeões?", "Como calcular CMV?"]
       };
     case 'xande-report':
       return {
