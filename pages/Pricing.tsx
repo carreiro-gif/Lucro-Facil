@@ -97,41 +97,6 @@ const Pricing: React.FC = () => {
     storeInfo
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const [tableHeight, setTableHeight] = useState('calc(100vh - 320px)');
-
-  React.useEffect(() => {
-    const updateHeight = () => {
-      const isMobile = window.innerWidth < 768;
-      const offset = isMobile ? 380 : 320;
-      const availableHeight = window.innerHeight - offset;
-      
-      if (availableHeight > 200) {
-        setTableHeight(`${availableHeight}px`);
-      } else {
-        setTableHeight(isMobile ? 'calc(100vh - 380px)' : 'calc(100vh - 320px)');
-      }
-    };
-
-    updateHeight();
-    window.addEventListener('resize', updateHeight);
-
-    let observer: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined' && containerRef.current?.parentElement) {
-      observer = new ResizeObserver(() => {
-        updateHeight();
-      });
-      observer.observe(containerRef.current.parentElement);
-    }
-
-    const timeoutId = setTimeout(updateHeight, 150);
-
-    return () => {
-      window.removeEventListener('resize', updateHeight);
-      if (observer) observer.disconnect();
-      clearTimeout(timeoutId);
-    };
-  }, [products, showHelp]);
 
   const [selectedBulkKey, setSelectedBulkKey] = useState('profitMargin');
   const [bulkValString, setBulkValString] = useState('');
@@ -407,12 +372,7 @@ const Pricing: React.FC = () => {
         <span>DESLIZE AS TABELAS PARA A DIREITA PARA COMPARAR OS CANAIS DE VENDA</span>
       </div>
 
-      <div 
-        ref={containerRef}
-        className="bg-transparent border border-transparent rounded-xl shadow-none overflow-hidden flex flex-col"
-        style={{ height: tableHeight, maxHeight: tableHeight }}
-      >
-        <div className="overflow-x-auto overflow-y-auto pb-8 flex-1 space-y-12" style={{ scrollbarGutter: 'stable' }}>
+      <div className="overflow-x-auto pb-8 space-y-12">
             {sortedCategories.map(cat => {
                 const groupItems = filteredProductsByGroup[cat.name] || [];
                 if (groupItems.length === 0) return null;
@@ -635,8 +595,6 @@ const Pricing: React.FC = () => {
                     </div>
                 );
             })()}
-
-        </div>
       </div>
 
       {/* --- XANDE CONSULTATIVE SIDE PANEL SIDEBAR --- */}
