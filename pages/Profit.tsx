@@ -179,11 +179,12 @@ const Profit: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
+            <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead>
                 <tr className="bg-gray-50 dark:bg-[#0f111a] text-gray-500 dark:text-gray-400 text-xs uppercase font-bold tracking-wider">
                     <th className="px-4 py-4 w-16 text-center bg-gray-50 dark:bg-gray-900/50">Item</th>
                     <th className="px-4 py-4 bg-white dark:bg-gray-900">Produto</th>
+                    <th className="px-4 py-4 bg-gray-50 dark:bg-gray-900/50 text-center w-36">PV Recomendado</th>
                     <th className="px-4 py-4 bg-white dark:bg-gray-900 text-center w-32">Venda Atual (R$)</th>
                     <th className="px-4 py-4 bg-gray-50 dark:bg-gray-900/50 text-center w-24">CFI (%)</th>
                     <th className="px-4 py-4 bg-white dark:bg-gray-900 text-center w-28">Entrega (R$)</th>
@@ -207,7 +208,7 @@ const Profit: React.FC = () => {
                                         <tr className="bg-gray-100 dark:bg-[#1f2937] font-extrabold select-none">
                                             <td 
                                                 className="px-4 py-3 bg-gray-100 dark:bg-[#1f2937] text-gray-900 dark:text-white uppercase tracking-wider text-[11px] font-black text-left" 
-                                                colSpan={9}
+                                                colSpan={10}
                                             >
                                                 <span className="flex items-center gap-2">
                                                     {catName} 
@@ -287,6 +288,21 @@ const Profit: React.FC = () => {
                                                                 </div>
                                                             )}
                                                         </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-800">
+                                                        {suggestedPrice > 0 ? (
+                                                          <span className={`font-mono font-bold text-sm ${
+                                                            pvAtual >= suggestedPrice 
+                                                              ? 'text-emerald-600 dark:text-emerald-400' 
+                                                              : pvAtual >= (suggestedPrice * 0.9) 
+                                                                ? 'text-amber-600 dark:text-yellow-400' 
+                                                                : 'text-red-600 dark:text-red-400'
+                                                          }`}>
+                                                            R$ {suggestedPrice.toFixed(2)}
+                                                          </span>
+                                                        ) : (
+                                                          <span className="text-gray-400 dark:text-gray-500 font-bold">-</span>
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3 text-center bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
                                                         <input 

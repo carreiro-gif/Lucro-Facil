@@ -427,6 +427,7 @@ export const exportProfitReport = (params: {
       tableBody.push([
         itemIndex++,
         `${data.name}${isCombo ? ' [COMBO]' : ''}`,
+        suggestedPrice > 0 ? formatCurrency(suggestedPrice) : '-',
         formatCurrency(pvAtual),
         formatPct(totalCfiPercent),
         formatCurrency(deliveryCost),
@@ -435,7 +436,7 @@ export const exportProfitReport = (params: {
         formatPct(profitPercent),
         {
           content: status,
-          styles: { textColor: statusColor, fontStyle: 'bold' }
+          styles: { textColor: statusColor as [number, number, number], fontStyle: 'bold' as const }
         }
       ]);
     });
@@ -444,13 +445,13 @@ export const exportProfitReport = (params: {
   autoTable(doc, {
     startY: startY,
     head: [[
-      '#', 'Produto', 'Venda Atual (R$)', 'CFI (%)', 'Entrega (R$)', 'CMV+Emb (R$)', 'Lucro Atual (R$)', 'Lucro %', 'Status'
+      '#', 'Produto', 'PV Recom. (R$)', 'Venda Atual (R$)', 'CFI (%)', 'Entrega (R$)', 'CMV+Emb (R$)', 'Lucro Atual (R$)', 'Lucro %', 'Status'
     ]],
     body: tableBody,
     theme: 'grid',
     styles: {
-      fontSize: 7.5,
-      cellPadding: 2,
+      fontSize: 7,
+      cellPadding: 1.8,
       textColor: [31, 41, 55],
       lineColor: [229, 231, 235],
       lineWidth: 0.3,
@@ -460,18 +461,19 @@ export const exportProfitReport = (params: {
       fillColor: [26, 26, 46],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 7.5,
       halign: 'center'
     },
     alternateRowStyles: {
       fillColor: [249, 250, 251]
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 50, halign: 'left', fontStyle: 'bold' },
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 42, halign: 'left', fontStyle: 'bold' },
       2: { fontStyle: 'bold' },
-      6: { fontStyle: 'bold' },
-      7: { fontStyle: 'bold' }
+      3: { fontStyle: 'bold' },
+      7: { fontStyle: 'bold' },
+      8: { fontStyle: 'bold' }
     },
     margin: { left: 14, right: 14, bottom: 16 }
   });
