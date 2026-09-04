@@ -217,9 +217,13 @@ const Products: React.FC = () => {
   };
 
   const openRecipeModal = (prod: Product) => {
-    setEditingProduct(prod);
-    setProdName(prod.name);
-    setProdCategory(prod.category);
+    const currentProd = products.find(p => p.id === prod.id) || prod;
+    setEditingProduct({
+      ...currentProd,
+      ingredients: (currentProd.ingredients || []).map(ing => ({ ...ing }))
+    });
+    setProdName(currentProd.name);
+    setProdCategory(currentProd.category);
     setIsModalOpen(true);
   };
 
@@ -228,6 +232,11 @@ const Products: React.FC = () => {
       ...prod,
       id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
       name: `${prod.name} (Cópia)`,
+      ingredients: (prod.ingredients || []).map(ing => ({
+        ingredientId: ing.ingredientId,
+        quantity: Number(ing.quantity) || 0
+      })),
+      pricing: prod.pricing ? JSON.parse(JSON.stringify(prod.pricing)) : undefined,
     };
     addProduct(duplicated);
   };
@@ -237,7 +246,11 @@ const Products: React.FC = () => {
     if (!prodName) return;
 
     if (editingProduct) {
-      updateProduct(editingProduct.id, { name: prodName, category: prodCategory });
+      updateProduct(editingProduct.id, { 
+        name: prodName, 
+        category: prodCategory,
+        ingredients: (editingProduct.ingredients || []).map(ing => ({ ...ing }))
+      });
     } else {
       addProduct({
         id: Date.now().toString(),
@@ -278,7 +291,7 @@ const Products: React.FC = () => {
 
   const addIngredientToProduct = (ingredientId: string) => {
     if (!editingProduct) return;
-    const currentIngs = editingProduct.ingredients || [];
+    const currentIngs = (editingProduct.ingredients || []).map(ing => ({ ...ing }));
     const newIngs = [...currentIngs, { ingredientId, quantity: 1 }];
     updateProduct(editingProduct.id, { ingredients: newIngs });
     setEditingProduct({ ...editingProduct, ingredients: newIngs });
@@ -286,15 +299,18 @@ const Products: React.FC = () => {
 
   const updateProductIngredientQty = (index: number, newQty: number) => {
     if (!editingProduct) return;
-    const newIngs = [...editingProduct.ingredients];
-    newIngs[index].quantity = newQty;
+    const newIngs = (editingProduct.ingredients || []).map((ing, i) => 
+      i === index ? { ...ing, quantity: newQty } : { ...ing }
+    );
     updateProduct(editingProduct.id, { ingredients: newIngs });
     setEditingProduct({ ...editingProduct, ingredients: newIngs });
   };
 
   const removeProductIngredient = (index: number) => {
     if (!editingProduct) return;
-    const newIngs = editingProduct.ingredients.filter((_, i) => i !== index);
+    const newIngs = (editingProduct.ingredients || [])
+      .filter((_, i) => i !== index)
+      .map(ing => ({ ...ing }));
     updateProduct(editingProduct.id, { ingredients: newIngs });
     setEditingProduct({ ...editingProduct, ingredients: newIngs });
   };

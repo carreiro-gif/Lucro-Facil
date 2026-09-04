@@ -411,7 +411,8 @@ const Combos: React.FC = () => {
       ...combo,
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       name: `${combo.name} (Cópia)`,
-      category: combo.category || 'Padrão'
+      category: combo.category || 'Padrão',
+      items: (combo.items || []).map(item => ({ ...item }))
     };
     addCombo(duplicatedCombo);
   };

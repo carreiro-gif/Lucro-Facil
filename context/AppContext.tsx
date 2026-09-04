@@ -108,7 +108,10 @@ export const AppProvider: React.FC<{
             ...EMPTY_STATE, // Base defaults
             ...initialData, // User data overwrites
             ingredients: initialData.ingredients || [],
-            products: initialData.products || [],
+            products: (initialData.products || []).map(p => ({
+              ...p,
+              ingredients: (p.ingredients || []).map(ing => ({ ...ing }))
+            })),
             menuCategories: initialData.menuCategories || [],
             combos: initialData.combos || [],
             expenses: initialData.expenses || [],
@@ -200,11 +203,27 @@ export const AppProvider: React.FC<{
   const addProduct = (prod: Product) => setState(s => {
       const sameCat = s.products.filter(p => p.category === prod.category);
       const maxOrder = sameCat.length > 0 ? Math.max(...sameCat.map(p => p.order)) : -1;
-      return { ...s, products: [...s.products, { ...prod, order: maxOrder + 1 }] };
+      const cleanProd: Product = {
+        ...prod,
+        ingredients: (prod.ingredients || []).map(i => ({ ...i })),
+        pricing: prod.pricing ? JSON.parse(JSON.stringify(prod.pricing)) : undefined,
+        order: maxOrder + 1
+      };
+      return { ...s, products: [...s.products, cleanProd] };
   });
 
   const updateProduct = (id: string, data: Partial<Product>) => {
-    setState(s => ({ ...s, products: s.products.map(p => p.id === id ? { ...p, ...data } : p) }));
+    setState(s => ({ 
+      ...s, 
+      products: s.products.map(p => {
+        if (p.id !== id) return p;
+        const updated = { ...p, ...data };
+        if (data.ingredients) {
+          updated.ingredients = data.ingredients.map(ing => ({ ...ing }));
+        }
+        return updated;
+      }) 
+    }));
   };
 
   const bulkUpdateProductsPricing = (key: string, value: number) => {
