@@ -203,7 +203,7 @@ export default async function handler(req: any, res: any) {
   // Allow CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-webhook-secret, x-brendi-secret, x-api-key");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-webhook-secret, x-hub-signature, x-signature, x-api-key, x-brendi-secret");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -221,23 +221,44 @@ export default async function handler(req: any, res: any) {
   }
 
   // 1. Authenticate Request
-  const configuredSecret = process.env.BRENDI_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET;
+  console.log("[BRENDI-WEBHOOK] Headers recebidos na requisição:", JSON.stringify(req.headers));
 
-  const authHeader = req.headers["authorization"] || "";
-  const tokenFromBearer = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
+  const configuredSecret = (process.env.BRENDI_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET).trim();
 
-  const secretHeader = 
-    req.headers["x-webhook-secret"] || 
-    req.headers["x-brendi-secret"] || 
-    req.headers["x-api-key"] || 
-    req.headers["secret"] || 
-    req.query?.secret || 
-    tokenFromBearer;
+  // Cabeçalhos verificados para autenticação
+  const candidateHeaderValues = [
+    req.headers["x-webhook-secret"],
+    req.headers["x-hub-signature"],
+    req.headers["x-signature"],
+    req.headers["authorization"],
+    req.headers["x-api-key"],
+    // fallbacks adicionais
+    req.headers["x-brendi-secret"],
+    req.headers["secret"],
+    req.query?.secret
+  ];
 
-  if (!secretHeader || secretHeader !== configuredSecret) {
+  const matchedHeader = candidateHeaderValues.find((val) => {
+    if (!val) return false;
+    const strVal = String(val).trim();
+    if (strVal === configuredSecret) return true;
+
+    // Trata casos com prefixo (ex: "Bearer <token>", "sha256=<token>", etc)
+    const cleaned = strVal
+      .replace(/^Bearer\s+/i, "")
+      .replace(/^sha256=/i, "")
+      .replace(/^sha1=/i, "")
+      .trim();
+
+    return cleaned === configuredSecret || strVal.includes(configuredSecret);
+  });
+
+  if (!matchedHeader) {
     console.warn("[BRENDI-WEBHOOK] Authentication failed. Invalid webhook secret.");
     return res.status(401).json({ error: "Unauthorized: Chave secreta do webhook inválida ou ausente." });
   }
+
+  console.log("[BRENDI-WEBHOOK] Autenticação bem-sucedida!");
 
   const payload = req.body || {};
   console.log("[BRENDI-WEBHOOK] Evento recebido com sucesso:", JSON.stringify(payload).slice(0, 300));
