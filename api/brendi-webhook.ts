@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, limit } from "firebase/firestore";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 // Known Brendi & Marketplace identifiers
 const BRENDI_STORE_UUID = "af48a2e0-7850-4d49-b2f2-c254c9b5880e";
@@ -9,49 +9,73 @@ const IFOOD_MERCHANT_ID = "6ed5af29-ea4c-4282-9d22-171d9ccb8fe6";
 const FOOD99_SHOP_ID = "5764608110883508219";
 const DEFAULT_WEBHOOK_SECRET = "167c191fbcdea754675e6cfade52d0485f254281c5e34b7401316ceada1fd5fa1dedba512bd46b1f1f51a26915265acd";
 
-// Lazy-initialized Firestore instance for backend
-let dbInstance: any = null;
+// Lazy-initialized Firebase Admin Firestore instance
+let adminDbInstance: Firestore | null = null;
 
-function getBackendDb() {
-  if (!dbInstance) {
-    let firebaseConfig: any = {
-      apiKey: process.env.VITE_FIREBASE_API_KEY,
-      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.VITE_FIREBASE_APP_ID
-    };
+function getAdminDb(): Firestore {
+  if (!adminDbInstance) {
+    if (getApps().length === 0) {
+      let credential: any = undefined;
 
-    let databaseId: string | undefined = undefined;
-
-    try {
-      const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-      if (fs.existsSync(configPath)) {
-        const fileContent = fs.readFileSync(configPath, "utf-8");
-        const localConfig = JSON.parse(fileContent);
-        firebaseConfig = {
-          apiKey: firebaseConfig.apiKey || localConfig.apiKey,
-          authDomain: firebaseConfig.authDomain || localConfig.authDomain,
-          projectId: firebaseConfig.projectId || localConfig.projectId,
-          storageBucket: firebaseConfig.storageBucket || localConfig.storageBucket,
-          messagingSenderId: firebaseConfig.messagingSenderId || localConfig.messagingSenderId,
-          appId: firebaseConfig.appId || localConfig.appId
-        };
-        databaseId = localConfig.firestoreDatabaseId;
+      // 1. Tenta carregar FIREBASE_SERVICE_ACCOUNT (JSON direto ou base64)
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try {
+          const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+          const parsed = rawSa.startsWith("{") 
+            ? JSON.parse(rawSa) 
+            : JSON.parse(Buffer.from(rawSa, "base64").toString("utf-8"));
+          credential = cert(parsed);
+          console.log("[BRENDI-WEBHOOK] Firebase Admin autenticado com sucesso via FIREBASE_SERVICE_ACCOUNT.");
+        } catch (e: any) {
+          console.error("[BRENDI-WEBHOOK] Erro ao analisar FIREBASE_SERVICE_ACCOUNT:", e.message);
+        }
       }
-    } catch (e: any) {
-      console.warn("[BRENDI-WEBHOOK] Error reading firebase-applet-config.json:", e.message);
+
+      // 2. Tenta carregar via variáveis individuais: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
+      if (!credential && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+        try {
+          const projectId = (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "lucro-facil-28aaf").trim();
+          const clientEmail = process.env.FIREBASE_CLIENT_EMAIL.trim();
+          const privateKey = process.env.FIREBASE_PRIVATE_KEY
+            .replace(/\\n/g, "\n")
+            .replace(/^["']|["']$/g, "")
+            .trim();
+
+          credential = cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          });
+          console.log("[BRENDI-WEBHOOK] Firebase Admin autenticado via credenciais individuais (PROJECT_ID, CLIENT_EMAIL, PRIVATE_KEY).");
+        } catch (e: any) {
+          console.error("[BRENDI-WEBHOOK] Erro ao inicializar com credenciais individuais:", e.message);
+        }
+      }
+
+      const projectId = (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "lucro-facil-28aaf").trim();
+
+      if (credential) {
+        initializeApp({
+          credential,
+          projectId,
+        });
+      } else {
+        console.warn("[BRENDI-WEBHOOK] Nenhuma credencial explícita do Firebase Admin configurada. Inicializando com Application Default Credentials...");
+        initializeApp({
+          projectId,
+        });
+      }
     }
 
-    if (!firebaseConfig.projectId) {
-      firebaseConfig.projectId = "lucro-facil-28aaf";
+    adminDbInstance = getFirestore();
+    try {
+      adminDbInstance.settings({ ignoreUndefinedProperties: true });
+    } catch {
+      // Ignora caso já tenha sido configurado
     }
-
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    dbInstance = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
   }
-  return dbInstance;
+
+  return adminDbInstance;
 }
 
 // Helper to determine channel from OpenDelivery payload & merchantId
@@ -82,16 +106,15 @@ function resolveSalesChannel(merchantId?: string, rawPayload?: any): string {
 }
 
 // Find target store owner userId in Firestore
-async function resolveStoreOwnerUserId(db: any, queryUserId?: string): Promise<string> {
+async function resolveStoreOwnerUserId(db: Firestore, queryUserId?: string): Promise<string> {
   if (queryUserId) return queryUserId;
 
   try {
-    const usersColl = collection(db, "users");
-    const snapshot = await getDocs(query(usersColl, limit(20)));
+    const snapshot = await db.collection("users").limit(20).get();
     
     // Look for espacocarreiro@gmail.com first (primary store owner)
     for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
+      const data = docSnap.data() || {};
       if (data.email?.toLowerCase().trim() === "espacocarreiro@gmail.com") {
         return docSnap.id;
       }
@@ -99,7 +122,7 @@ async function resolveStoreOwnerUserId(db: any, queryUserId?: string): Promise<s
 
     // Look for admin role
     for (const docSnap of snapshot.docs) {
-      const data = docSnap.data();
+      const data = docSnap.data() || {};
       if (data.role === "admin") {
         return docSnap.id;
       }
@@ -110,7 +133,7 @@ async function resolveStoreOwnerUserId(db: any, queryUserId?: string): Promise<s
       return snapshot.docs[0].id;
     }
   } catch (err: any) {
-    console.warn("[BRENDI-WEBHOOK] Could not query users collection:", err.message);
+    console.warn("[BRENDI-WEBHOOK] Could not query users collection with admin SDK:", err.message);
   }
 
   return "default_store_owner";
@@ -278,8 +301,8 @@ export default async function handler(req: any, res: any) {
 
     const normalizedStatus = validStatuses.includes(rawStatus) ? rawStatus : "CONCLUDED";
 
-    // 3. Save order to Firestore
-    const db = getBackendDb();
+    // 3. Save order to Firestore via Firebase Admin SDK
+    const db = getAdminDb();
     const targetUserId = await resolveStoreOwnerUserId(db, req.query?.userId);
 
     const orderData = cleanUndefined({
@@ -299,13 +322,14 @@ export default async function handler(req: any, res: any) {
       updatedAt: new Date().toISOString()
     });
 
-    // Save in user-scoped subcollection: users/{userId}/brendi_orders/{orderId}
-    const userOrderRef = doc(db, "users", targetUserId, "brendi_orders", orderId);
+    // Save in root brendi_orders collection using Admin SDK
+    const rootOrderRef = db.collection("brendi_orders").doc(orderId);
     
     // Check for duplication if order is already concluded/delivered
-    const existingSnap = await getDoc(userOrderRef);
-    if (existingSnap.exists()) {
-      const existingData = existingSnap.data();
+    const existingSnap = await rootOrderRef.get();
+    const snapExists = typeof existingSnap.exists === "function" ? (existingSnap as any).exists() : existingSnap.exists;
+    if (snapExists) {
+      const existingData = existingSnap.data() || {};
       // If already recorded with same final status, do not duplicate
       if ((existingData.status === "CONCLUDED" || existingData.status === "DELIVERED") && 
           (normalizedStatus === "CONCLUDED" || normalizedStatus === "DELIVERED")) {
@@ -319,18 +343,20 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Save / update order document
-    await setDoc(userOrderRef, orderData, { merge: true });
+    // Save order document in root brendi_orders collection
+    await rootOrderRef.set(orderData, { merge: true });
 
-    // Also persist in root brendi_orders collection as mirror for fast querying & cross-referencing
-    try {
-      const rootOrderRef = doc(db, "brendi_orders", orderId);
-      await setDoc(rootOrderRef, orderData, { merge: true });
-    } catch (rootErr) {
-      console.warn("[BRENDI-WEBHOOK] Root mirror write warning:", rootErr);
+    // Also persist in user-scoped subcollection: users/{userId}/brendi_orders/{orderId}
+    if (targetUserId && targetUserId !== "default_store_owner") {
+      try {
+        const userOrderRef = db.collection("users").doc(targetUserId).collection("brendi_orders").doc(orderId);
+        await userOrderRef.set(orderData, { merge: true });
+      } catch (subErr: any) {
+        console.warn("[BRENDI-WEBHOOK] User subcollection mirror warning:", subErr.message);
+      }
     }
 
-    console.log(`[BRENDI-WEBHOOK] Pedido ${orderId} (${channel}) salvo com sucesso com status ${normalizedStatus} para usuário ${targetUserId}.`);
+    console.log(`[BRENDI-WEBHOOK] Pedido ${orderId} (${channel}) salvo com sucesso na coleção brendi_orders com Firebase Admin SDK para usuário ${targetUserId}.`);
 
     return res.status(200).json({ 
       success: true, 
