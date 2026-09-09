@@ -50,6 +50,14 @@ const SYSTEM_INSTRUCTION = "Você é o **Xande**, o consultor inteligente de luc
 "- Filtros Avançados: Por período (Mês/Ano, Intervalo Personalizado, Todos os Meses), Status (Todas, Pagas, A Vencer, Vencidas, Parceladas), Categorias e Busca por texto em tempo real.\n" +
 "- Alerta de Contas Vencidas: Banner no topo que avisa a quantidade e total de contas em atraso com botão para ver todas instantaneamente.\n" +
 "- Relatório Completo: Botão 'Ver Relatório Completo' abre tela com tabela detalhada, subtotais por categoria, impressão A4 e exportação em PDF com os filtros aplicados no cabeçalho.\n\n" +
+"INTEGRAÇÃO EM TEMPO REAL COM A BRENDI (OPENDELIVERY ABRASEL):\n" +
+"- O que é: Integração em tempo real com o PDV e delivery da Brendi usando o padrão oficial OpenDelivery da Abrasel. Todos os pedidos chegam automaticamente ao sistema em tempo real via Webhook, sem precisar exportar ou copiar planilhas manualmente.\n" +
+"- Canais Suportados: Brendi Balcão, Brendi Delivery, iFood e 99Food. O sistema identifica o canal de cada venda pelo merchantId e tipo de entrega.\n" +
+"- URL do Webhook: 'https://app-cardapioblindado.vercel.app/api/brendi-webhook'. O usuário só precisa ir em app.brendi.com.br/integrations, selecionar Webhook e colar essa URL.\n" +
+"- Processar Pedidos do Período: Na aba 'Brendi em tempo real' dentro de 'Integrar Vendas', o botão 'Processar Pedidos do Período' permite selecionar datas (hoje, 7 dias, mês atual) e processa os pedidos, calculando automaticamente o CMV de cada item pela Ficha Técnica e somando o faturamento bruto, CMV, CFI e Lucro Líquido Real nos mesmos campos da tela.\n" +
+"- Produtos Não Encontrados: O botão 'Verificar Produtos Não Encontrados' compara de forma inteligente (ignorando maiúsculas, minúsculas, acentos e espaços extras) os produtos vendidos na Brendi com as Fichas Técnicas e Combos do sistema. Se algum produto estiver com nome diferente, ele lista o item e sugere o produto correspondente. O usuário pode ajustar o nome centralmente no botão 'Renomear Produtos' ou na Brendi para que o CMV seja 100% preciso.\n" +
+"- Indicador de Status: No topo da aba Brendi há uma luz de status (verde se recebeu pedidos nos últimos 30 min, ou vermelha/aviso se está há mais de 30 min sem pedidos).\n" +
+"- Passo a Passo para Ativar: 1. Acessar app.brendi.com.br/integrations; 2. Configurar webhook com a URL https://app-cardapioblindado.vercel.app/api/brendi-webhook; 3. Salvar; 4. Abrir Cardápio Blindado > Integrar Vendas > Brendi em tempo real e ver os pedidos chegando ao vivo!\n\n" +
 "Atue proativamente sugerindo ofertas conforme as necessidades reveladas no chat, as telas ou configurações do restaurante.\n\n" +
 "Protocolo ao analisar dados do restaurante:\n" +
 "1. Identifique o problema principal.\n" +
@@ -109,8 +117,8 @@ const getWelcomeData = (tab: string) => {
       };
     case 'sales-import':
       return {
-        message: "Oi! Sou o Xande, seu consultor do Cardápio Blindado. Vamos integrar suas vendas! Cole relatórios do iFood/Saipos ou adicione pedidos. Vou calcular seu lucro líquido real por pedido descontando o CMV e o CFI da Empresa!",
-        suggestions: ["Como importar relatórios?", "O que é Campanha Inteligente iFood?", "Como resolve duplicados?"]
+        message: "Oi! Sou o Xande, seu consultor do Cardápio Blindado. Vamos integrar suas vendas! Agora com integração em tempo real com a Brendi (OpenDelivery), além de importação de planilhas. Vou calcular seu lucro líquido real por pedido descontando o CMV e o CFI da Empresa!",
+        suggestions: ["Como integrar com a Brendi?", "Processar pedidos da Brendi", "Produtos não encontrados"]
       };
     case 'combos':
       return {

@@ -401,6 +401,13 @@ app.post("/api/simulate-payment-success", async (req, res) => {
   }
 });
 
+import brendiWebhookHandler from "./brendi-webhook";
+
+// Brendi OpenDelivery Webhook Route
+app.all("/api/brendi-webhook", (req, res) => {
+  return brendiWebhookHandler(req, res);
+});
+
 // API Healthcheck
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });

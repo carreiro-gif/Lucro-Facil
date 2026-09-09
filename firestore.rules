@@ -55,5 +55,15 @@ service cloud.firestore {
     match /users/{userId}/stores/{storeId} {
       allow read, write: if isStoreOwner(userId) || isSystemAdmin();
     }
+
+    // Rules for brendi_orders (Inside user document)
+    match /users/{userId}/brendi_orders/{orderId} {
+      allow read, write: if isStoreOwner(userId) || isSystemAdmin();
+    }
+
+    // Top-level brendi_orders fallback
+    match /brendi_orders/{orderId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }

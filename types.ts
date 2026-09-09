@@ -348,3 +348,28 @@ export interface CollaboratorPayment {
   notes?: string;
 }
 
+export interface BrendiOrderItem {
+  id?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice?: number;
+  notes?: string;
+}
+
+export interface BrendiOrder {
+  id: string;
+  orderId?: string;
+  createdAt: string;
+  channel: 'Brendi Balcão' | 'Brendi Delivery' | 'iFood' | '99Food' | string;
+  merchantId?: string;
+  items: BrendiOrderItem[];
+  total: number;
+  status: 'CREATED' | 'CONFIRMED' | 'PREPARING' | 'DISPATCHED' | 'READY_FOR_PICKUP' | 'PICKUP_AREA_ASSIGNED' | 'PICKED_UP' | 'DELIVERED' | 'CONCLUDED' | 'CANCELLED' | 'CANCELLATION_REQUESTED' | string;
+  customerName?: string;
+  customerPhone?: string;
+  deliveryType?: string;
+  userId?: string;
+  processed?: boolean;
+}
+

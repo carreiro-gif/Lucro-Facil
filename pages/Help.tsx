@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, ChevronDown, ChevronUp, BookOpen, 
-  Sparkles, DollarSign, TrendingUp, Info
+  Sparkles, DollarSign, TrendingUp, Info, Zap, CheckCircle2, AlertCircle, Copy
 } from 'lucide-react';
 
 interface Article {
@@ -751,6 +751,171 @@ const Help: React.FC = () => {
                 >
                   <Sparkles size={12} /> Dúvidas? Fale com o Xande
                 </button>
+              </div>
+            </div>
+          )
+        }
+      ]
+    },
+    {
+      id: 'integracoes',
+      title: 'Integrações',
+      description: 'Conecte seu PDV e canais de delivery para sincronizar vendas automaticamente em tempo real sem digitação manual.',
+      icon: Zap,
+      articles: [
+        {
+          id: 'brendi-ativacao-passo-a-passo',
+          title: 'Como ativar a integração com a Brendi passo a passo',
+          content: (
+            <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
+              <p>
+                A integração com a <strong>Brendi</strong> permite que todos os pedidos realizados no seu balcão (PDV), delivery próprio e marketplaces vinculados (iFood e 99Food) entrem <strong>automaticamente em tempo real</strong> no Cardápio Blindado através do padrão oficial <strong>OpenDelivery da Abrasel</strong>.
+              </p>
+              <div className="space-y-3 mt-4">
+                <div className="flex gap-3">
+                  <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">1</span>
+                  <div>
+                    <h4 className="font-bold text-gray-200 text-sm">Acesse o Painel da Brendi</h4>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      Entre em <code className="bg-slate-900 px-1.5 py-0.5 rounded text-purple-400">app.brendi.com.br/integrations</code> com suas credenciais de lojista.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">2</span>
+                  <div>
+                    <h4 className="font-bold text-gray-200 text-sm">Localize a Seção de Webhook / OpenDelivery</h4>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      Procure a opção de <strong>Webhooks</strong> ou <strong>Integrações OpenDelivery</strong> nas configurações da sua loja.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">3</span>
+                  <div>
+                    <h4 className="font-bold text-gray-200 text-sm">Insira a URL do Webhook</h4>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      Cole a URL oficial do seu sistema no campo de destino do webhook:
+                    </p>
+                    <div className="mt-2 p-2.5 bg-slate-950 border border-purple-800/40 rounded-xl flex items-center justify-between">
+                      <code className="text-xs font-mono text-purple-300 select-all">
+                        https://app-cardapioblindado.vercel.app/api/brendi-webhook
+                      </code>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">4</span>
+                  <div>
+                    <h4 className="font-bold text-gray-200 text-sm">Salve as Configurações</h4>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      Clique em <strong>Salvar Integração</strong> na Brendi. A partir desse momento, todo novo pedido emitido na sua loja será despachado via webhook para o Cardápio Blindado.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">✓</span>
+                  <div>
+                    <h4 className="font-bold text-emerald-400 text-sm">Acompanhe na aba Brendi ao Vivo</h4>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      No Cardápio Blindado, abra a tela <strong>Integrar Vendas</strong> e clique na aba <strong className="text-purple-400">Brendi em tempo real</strong>. O indicador verde confirmará que a conexão está ativa!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        },
+        {
+          id: 'brendi-configurar-webhook',
+          title: 'Como configurar o webhook na Brendi',
+          content: (
+            <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
+              <p>
+                O <strong>Webhook</strong> é uma ponte em tempo real que conecta a Brendi diretamente ao Cardápio Blindado sem intermediários. Assim que um cliente faz um pedido ou um operador fecha uma comanda no PDV, os dados são transmitidos em frações de segundo.
+              </p>
+              <div className="p-3 bg-purple-950/30 border border-purple-800/40 rounded-xl space-y-1">
+                <span className="font-bold text-purple-300 text-xs uppercase tracking-wide block">URL Oficial do Webhook:</span>
+                <p className="text-xs font-mono text-white bg-slate-950 p-2 rounded border border-gray-800">
+                  https://app-cardapioblindado.vercel.app/api/brendi-webhook
+                </p>
+              </div>
+              <h4 className="font-bold text-gray-200 text-sm mt-3">Eventos e Canais Transmitidos:</h4>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-gray-400">
+                <li><strong>Eventos Suportados:</strong> Pedido Criado (<code>order.created</code>), Confirmado (<code>order.dispatched</code>) e Concluído (<code>order.delivered</code>).</li>
+                <li><strong>Brendi Balcão (PDV):</strong> Vendas presenciais registradas na sua frente de caixa.</li>
+                <li><strong>Brendi Delivery:</strong> Pedidos feitos no seu cardápio digital próprio Brendi.</li>
+                <li><strong>iFood:</strong> Pedidos integrados ao PDV Brendi vindos da sua conta iFood.</li>
+                <li><strong>99Food:</strong> Pedidos recebidos via 99Food e gerenciados na Brendi.</li>
+              </ul>
+              <div className="p-3 bg-slate-900 border border-gray-800 rounded-xl text-xs space-y-1 mt-2">
+                <span className="font-bold text-emerald-400 block">Segurança e Validação Criptografada:</span>
+                <p className="text-gray-400">
+                  Todas as requisições são validadas com chave de segurança secreta (<code>x-webhook-secret</code>) para garantir que apenas a Brendi consiga enviar dados de vendas para a sua loja.
+                </p>
+              </div>
+            </div>
+          )
+        },
+        {
+          id: 'brendi-processamento-pedidos',
+          title: 'Como funciona o processamento de pedidos e apuração de lucro',
+          content: (
+            <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
+              <p>
+                Ao contrário de uma simples lista de vendas, o Cardápio Blindado audita <strong>item por item</strong> vendido na Brendi e cruza os dados com as suas <strong>Fichas Técnicas</strong> cadastradas no sistema.
+              </p>
+              <div className="space-y-3">
+                <div className="p-3.5 bg-slate-900 border border-gray-800 rounded-xl space-y-2">
+                  <h4 className="font-bold text-white text-xs uppercase tracking-wide flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-400" /> Como Funciona o Botão 'Processar Pedidos do Período'
+                  </h4>
+                  <p className="text-xs text-gray-400">
+                    Na aba <strong>Brendi em tempo real</strong>, você pode escolher processar os pedidos de <strong>Hoje</strong>, dos <strong>Últimos 7 dias</strong> ou do <strong>Mês Atual</strong>:
+                  </p>
+                  <ol className="list-decimal pl-5 text-xs text-gray-400 space-y-1">
+                    <li>O sistema percorre todos os pedidos daquele intervalo de datas.</li>
+                    <li>Identifica os pratos e combos contidos no pedido e calcula o custo dos ingredientes (CMV) pela Ficha Técnica.</li>
+                    <li>Deduz a alíquota de CFI da Empresa e as taxas do canal de venda (Balcão, Delivery próprio, iFood ou 99Food).</li>
+                    <li>Soma o <strong>Faturamento Bruto</strong>, o <strong>CMV Total</strong>, o <strong>CFI Total</strong> e o <strong>Lucro Líquido Real</strong> nos relatórios e nos mesmos campos de auditoria do sistema.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          )
+        },
+        {
+          id: 'brendi-solucao-problemas',
+          title: 'Solução de problemas comuns na integração Brendi',
+          content: (
+            <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-900 border border-gray-800 rounded-xl space-y-1">
+                  <h4 className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
+                    <AlertCircle size={14} /> Status em vermelho: 'Sem pedidos recentes'
+                  </h4>
+                  <p className="text-xs text-gray-400">
+                    O indicador fica vermelho ou em alerta quando a loja está há mais de 30 minutos sem receber nenhum evento da Brendi. Se a loja está aberta e vendendo, verifique se a URL do webhook está configurada corretamente em <code className="text-purple-300">app.brendi.com.br/integrations</code>.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-900 border border-gray-800 rounded-xl space-y-1">
+                  <h4 className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
+                    <AlertCircle size={14} /> 'Produtos Não Encontrados': O que fazer?
+                  </h4>
+                  <p className="text-xs text-gray-400">
+                    Clique no botão <strong>Verificar Produtos Não Encontrados</strong> na aba Brendi. O sistema lista qualquer item cujo nome na Brendi seja diferente do cadastrado na Ficha Técnica (ex: <em>"Burguer Bacon Especial"</em> vs <em>"Burger Bacon"</em>). Para corrigir de uma só vez, utilize o botão <strong>Renomear Produtos</strong> (dourado) na tela de Ficha Técnica, ou padronize o nome no painel da Brendi.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-900 border border-gray-800 rounded-xl space-y-1">
+                  <h4 className="font-bold text-emerald-400 text-xs flex items-center gap-1.5">
+                    <CheckCircle2 size={14} /> Risco de pedidos duplicados?
+                  </h4>
+                  <p className="text-xs text-gray-400">
+                    Zero risco! O sistema grava cada pedido usando o ID exclusivo gerado pela Brendi no Firestore (idempotência). Mesmo se o webhook enviar o mesmo pedido mais de uma vez ou você reprocessar os dados, cada venda é computada apenas uma única vez.
+                  </p>
+                </div>
               </div>
             </div>
           )

@@ -43,6 +43,13 @@ export const WhatsAppLogo = ({ className = "w-6 h-6 shrink-0" }: { className?: s
     </svg>
 );
 
+export const BrendiLogo = ({ className = "w-6 h-6 shrink-0" }: { className?: string }) => (
+    <svg viewBox="0 0 100 100" className={className} aria-label="Brendi">
+        <rect x="4" y="4" width="92" height="92" rx="24" fill="#7C3AED" />
+        <text x="50" y="70" fill="#FFFFFF" fontSize="56" fontWeight="900" textAnchor="middle" fontFamily="'Arial Black', sans-serif">B</text>
+    </svg>
+);
+
 export const getPlatformLogo = (name: string, className = "w-5 h-5 shrink-0 inline-block align-middle mr-1.5") => {
     const lower = name.toLowerCase();
     if (lower.includes('ifood')) {
@@ -56,6 +63,9 @@ export const getPlatformLogo = (name: string, className = "w-5 h-5 shrink-0 inli
     }
     if (lower.includes('whatsapp') || lower.includes('whats')) {
         return <WhatsAppLogo className={className} />;
+    }
+    if (lower.includes('brendi')) {
+        return <BrendiLogo className={className} />;
     }
     return null;
 };

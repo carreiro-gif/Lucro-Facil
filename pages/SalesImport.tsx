@@ -25,9 +25,10 @@ import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
 import { formatMoney, formatPercent } from '../constants';
 import { SalesTransaction } from '../types';
-import { IFoodLogo, Food99Logo, KeetaLogo, WhatsAppLogo } from '../components/PlatformLogos';
+import { IFoodLogo, Food99Logo, KeetaLogo, WhatsAppLogo, BrendiLogo } from '../components/PlatformLogos';
 import { ExportReportButton } from '../components/ExportReportButton';
 import { exportSalesImportReport } from '../utils/pdfExport';
+import { BrendiRealtimeTab } from '../components/BrendiRealtimeTab';
 
 const parseBrOrUsMoney = (val: string): number => {
   if (!val) return 0;
@@ -101,7 +102,7 @@ const SalesImport: React.FC = () => {
 
 
   // Navigation and active states
-  const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual'>('paste');
+  const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual' | 'brendi'>('paste');
   const [showHelp, setShowHelp] = useState(true);
 
   // Form states for manual entry
@@ -947,11 +948,13 @@ const SalesImport: React.FC = () => {
 
       {/* Main interactive tabs & forms container */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="col-span-1 lg:col-span-7 bg-white dark:bg-[#111827] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 space-y-4">
-          <div className="flex border-b border-gray-200 dark:border-gray-800 pb-2">
+        <div className={`bg-white dark:bg-[#111827] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 space-y-4 ${
+          activeSubTab === 'brendi' ? 'col-span-1 lg:col-span-12' : 'col-span-1 lg:col-span-7'
+        }`}>
+          <div className="flex border-b border-gray-200 dark:border-gray-800 pb-2 overflow-x-auto gap-2">
             <button 
               onClick={() => { setActiveSubTab('paste'); setImportLog(null); }}
-              className={`pb-2 px-4 text-sm font-black transition tracking-wider uppercase ${
+              className={`pb-2 px-3 sm:px-4 text-xs sm:text-sm font-black transition tracking-wider uppercase whitespace-nowrap ${
                 activeSubTab === 'paste' 
                   ? 'border-b-2 border-brand-red text-brand-red' 
                   : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
@@ -961,7 +964,7 @@ const SalesImport: React.FC = () => {
             </button>
             <button 
               onClick={() => { setActiveSubTab('file'); setImportLog(null); }}
-              className={`pb-2 px-4 text-sm font-black transition tracking-wider uppercase ${
+              className={`pb-2 px-3 sm:px-4 text-xs sm:text-sm font-black transition tracking-wider uppercase whitespace-nowrap ${
                 activeSubTab === 'file' 
                   ? 'border-b-2 border-brand-red text-brand-red' 
                   : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
@@ -971,7 +974,7 @@ const SalesImport: React.FC = () => {
             </button>
             <button 
               onClick={() => { setActiveSubTab('manual'); setImportLog(null); }}
-              className={`pb-2 px-4 text-sm font-black transition tracking-wider uppercase ${
+              className={`pb-2 px-3 sm:px-4 text-xs sm:text-sm font-black transition tracking-wider uppercase whitespace-nowrap ${
                 activeSubTab === 'manual' 
                   ? 'border-b-2 border-brand-red text-brand-red' 
                   : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
@@ -979,7 +982,31 @@ const SalesImport: React.FC = () => {
             >
               Lançamento Manual
             </button>
+            <button 
+              onClick={() => { setActiveSubTab('brendi'); setImportLog(null); }}
+              className={`pb-2 px-3 sm:px-4 text-xs sm:text-sm font-black transition tracking-wider uppercase whitespace-nowrap flex items-center gap-1.5 ${
+                activeSubTab === 'brendi' 
+                  ? 'border-b-2 border-brand-red text-brand-red' 
+                  : 'text-purple-600 dark:text-purple-400 hover:text-purple-700'
+              }`}
+            >
+              <BrendiLogo className="w-4 h-4" />
+              Brendi em tempo real
+              <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-black animate-pulse">AO VIVO</span>
+            </button>
           </div>
+
+          {/* Tab 4: Brendi em tempo real */}
+          {activeSubTab === 'brendi' && (
+            <BrendiRealtimeTab
+              products={products}
+              combos={combos}
+              getProductCMV={getProductCMV}
+              getComboCMV={getComboCMV}
+              addSalesTransactionsBatch={addSalesTransactionsBatch}
+              totalCfiPercent={totalCfiPercent}
+            />
+          )}
 
           {/* Tab 1: Pasted Spreadsheets */}
           {activeSubTab === 'paste' && (
@@ -1222,7 +1249,8 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
         </div>
 
         {/* Xande embedded chat module */}
-        <div id="xande-chat-section" className="col-span-1 lg:col-span-5 bg-gradient-to-br from-[#1e293b] to-[#111827] text-white rounded-2xl shadow-sm border border-gray-800 p-5 flex flex-col h-[480px]">
+        {activeSubTab !== 'brendi' && (
+          <div id="xande-chat-section" className="col-span-1 lg:col-span-5 bg-gradient-to-br from-[#1e293b] to-[#111827] text-white rounded-2xl shadow-sm border border-gray-800 p-5 flex flex-col h-[480px]">
           <div className="flex items-center justify-between border-b border-gray-800 pb-3">
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -1306,6 +1334,7 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
             </button>
           </form>
         </div>
+        )}
       </div>
 
       {/* Grid of Imported Sales list */}
