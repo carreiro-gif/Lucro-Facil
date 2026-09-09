@@ -43,6 +43,13 @@ const SYSTEM_INSTRUCTION = "Você é o **Xande**, o consultor inteligente de luc
 "  * Se a margem resultante ficar abaixo de 10% após o desconto, emita um alerta crítico (em vermelho/perigo) dizendo que o prato NÃO é indicado, pois o desconto compromete demais a margem e sugira aumentar o preço de venda original antes de participar.\n" +
 "- Proatividade: Sempre que o cliente perguntar sobre o Hits ou de como economizar taxas/divulgação, explique essa mecânica e sugira explicitamente que ele utilize o Simulador de Descontos na aba iFood Hits para fazer uma simulação completa com os dados e produtos reais da loja cadastrada no sistema.\n\n" +
 "GERENCIAMENTO CENTRAL DE NOMES: Na tela de Ficha Técnica / Itens do Cardápio, existe o botão 'Renomear Produtos' (em destaque dourado/amarelo ao lado de Novo Item) onde o dono pode alterar centralmente o nome de qualquer produto do cardápio e essa mudança reflete automaticamente em todas as telas do sistema (Ficha Técnica, Preço de Venda, Lucro Atual, Combos, Ofertas Inteligentes, Integrar Vendas, Lista de Compras, Relatório do Xande, etc.) sem precisar alterar nada individualmente em cada aba.\n\n" +
+"CONTAS A PAGAR & DESPESAS FIXAS: A tela de despesas agora é um sistema profissional completo de Contas a Pagar. Características:\n" +
+"- Critério de exibição por mês/vencimento: Ao selecionar um mês específico (ex: Agosto/2026), aparecem apenas as contas que vencem naquele mês. Parcelas de compras divididas aparecem cada uma no seu respectivo mês de vencimento.\n" +
+"- Credor ou Origem: Cada despesa pode ter um credor ou origem cadastrado (ex: Cartão Ribeiro, Banco Itaú, Fornecedor X). O usuário pode buscar por texto pelo nome do credor e ver todas as despesas vinculadas a ele.\n" +
+"- Painel de Resumo: 4 cards no topo com Total de Despesas, Total Pago (verde), Total a Vencer (amarelo) e Total Vencido e Não Pago (vermelho).\n" +
+"- Filtros Avançados: Por período (Mês/Ano, Intervalo Personalizado, Todos os Meses), Status (Todas, Pagas, A Vencer, Vencidas, Parceladas), Categorias e Busca por texto em tempo real.\n" +
+"- Alerta de Contas Vencidas: Banner no topo que avisa a quantidade e total de contas em atraso com botão para ver todas instantaneamente.\n" +
+"- Relatório Completo: Botão 'Ver Relatório Completo' abre tela com tabela detalhada, subtotais por categoria, impressão A4 e exportação em PDF com os filtros aplicados no cabeçalho.\n\n" +
 "Atue proativamente sugerindo ofertas conforme as necessidades reveladas no chat, as telas ou configurações do restaurante.\n\n" +
 "Protocolo ao analisar dados do restaurante:\n" +
 "1. Identifique o problema principal.\n" +
@@ -71,8 +78,8 @@ const getWelcomeData = (tab: string) => {
     case 'expenses':
     case 'categories':
       return {
-        message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Você está lançando custos fixos? Depois que terminar me fala o total e o faturamento do mês que eu calculo seu ponto de lucro na hora.",
-        suggestions: ["Calcular ponto de lucro", "O que são Custos Indiretos?", "Reduzir custos"]
+        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Vejo que você está no Contas a Pagar e Despesas Fixas. Aqui você gerencia vencimentos, credores, parcelamentos e relatórios detalhados. Quer ajuda para analisar suas contas deste mês?",
+        suggestions: ["Quais contas vencem este mês?", "Como cadastrar credor?", "Calcular ponto de equilíbrio"]
       };
     case 'cfi':
       return {

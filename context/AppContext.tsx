@@ -357,7 +357,8 @@ export const AppProvider: React.FC<{
               ...e, 
               value: data.value ?? e.value,
               description: data.description ?? e.description,
-              category: data.category ?? e.category
+              category: data.category ?? e.category,
+              creditor: data.creditor !== undefined ? data.creditor : e.creditor
             };
           }
           return e;

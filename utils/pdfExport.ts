@@ -680,56 +680,62 @@ export const exportProductsReport = (params: {
   doc.save(sanitizeFileName(storeName, 'Fichas_Tecnicas'));
 };
 
-// 5. RELATÓRIO DE DESPESAS FIXAS
+// 5. RELATÓRIO DE DESPESAS FIXAS / CONTAS A PAGAR
 export const exportExpensesReport = (params: {
   storeName: string;
-  selectedMonth: string;
+  selectedMonth?: string;
   expenses: Expense[];
   categories: Array<{ id: string; name: string }>;
+  filtersSummary?: string[];
+  title?: string;
 }) => {
-  const { storeName, selectedMonth, expenses, categories } = params;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const { storeName, selectedMonth, expenses, categories, filtersSummary, title } = params;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-  // Format month name
-  const [yearStr, monthStr] = selectedMonth.split('-');
-  const monthNames: Record<string, string> = {
-    '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
-    '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
-    '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
-  };
-  const monthDisplay = `${monthNames[monthStr] || monthStr} de ${yearStr}`;
+  // Determine target list: if filtersSummary is passed, expenses is already the filtered list
+  const targetExpenses = filtersSummary ? expenses : (selectedMonth ? expenses.filter(e => e.month === selectedMonth) : expenses);
 
-  const monthExpenses = (expenses || []).filter(e => e.month === selectedMonth);
-  const totalValue = monthExpenses.reduce((acc, e) => acc + (Number(e.value) || 0), 0);
-  const totalPaid = monthExpenses.filter(e => e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const totalValue = targetExpenses.reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const totalPaid = targetExpenses.filter(e => e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
   const totalPending = totalValue - totalPaid;
 
-  const startY = drawDocumentHeader(
-    doc,
-    'Relatório de Despesas Fixas',
-    storeName,
-    [
-      `Mês de Referência: ${monthDisplay}`,
-      `Total de Despesas: ${formatCurrency(totalValue)} • Pago: ${formatCurrency(totalPaid)} • Pendente: ${formatCurrency(totalPending)}`
-    ]
-  );
+  // Header Extra Info
+  const headerInfo: string[] = [];
+  if (filtersSummary && filtersSummary.length > 0) {
+    headerInfo.push(...filtersSummary);
+  } else if (selectedMonth) {
+    const [yearStr, monthStr] = selectedMonth.split('-');
+    const monthNames: Record<string, string> = {
+      '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
+      '05': 'Maio', '06': 'Junho', '07': 'Julho', '08': 'Agosto',
+      '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+    };
+    headerInfo.push(`Mês de Referência: ${monthNames[monthStr] || monthStr} de ${yearStr}`);
+  }
+  headerInfo.push(`Total: ${formatCurrency(totalValue)} • Pago: ${formatCurrency(totalPaid)} • Pendente: ${formatCurrency(totalPending)} • Total de Itens: ${targetExpenses.length}`);
+
+  const reportTitle = title || 'Relatório de Contas a Pagar / Despesas Fixas';
+  const startY = drawDocumentHeader(doc, reportTitle, storeName, headerInfo);
 
   const getCatName = (catIdOrName: string) => {
     const found = categories.find(c => c.id === catIdOrName || c.name === catIdOrName);
     return found ? found.name : (catIdOrName || 'Geral');
   };
 
-  const tableBody = monthExpenses.map((exp, idx) => {
+  const tableBody = targetExpenses.map((exp, idx) => {
     const dueDateFormatted = exp.dueDate ? exp.dueDate.split('-').reverse().join('/') : '-';
     const statusText = exp.paid ? 'PAGO' : 'PENDENTE';
     const statusColor = exp.paid ? [22, 163, 74] : [220, 38, 38];
+    const installmentText = exp.installment ? `${exp.installment.current}/${exp.installment.total}` : '-';
 
     return [
       idx + 1,
-      `${exp.description}${exp.installment ? ` (${exp.installment.current}/${exp.installment.total})` : ''}`,
+      exp.description,
+      exp.creditor || '-',
       getCatName(exp.category),
-      formatCurrency(Number(exp.value) || 0),
       dueDateFormatted,
+      installmentText,
+      formatCurrency(Number(exp.value) || 0),
       { content: statusText, styles: { textColor: statusColor as [number, number, number], fontStyle: 'bold' as const } }
     ];
   });
@@ -737,13 +743,13 @@ export const exportExpensesReport = (params: {
   autoTable(doc, {
     startY: startY,
     head: [[
-      '#', 'Descrição da Despesa', 'Categoria', 'Valor (R$)', 'Vencimento', 'Status'
+      '#', 'Descrição da Despesa', 'Credor / Origem', 'Categoria', 'Vencimento', 'Parcela', 'Valor (R$)', 'Status'
     ]],
     body: tableBody,
     foot: [[
-      { content: 'TOTAL GERAL DAS DESPESAS', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right' } },
+      { content: 'TOTAL GERAL', colSpan: 6, styles: { fontStyle: 'bold', halign: 'right' } },
       { content: formatCurrency(totalValue), styles: { fontStyle: 'bold', halign: 'center' } },
-      { content: '', colSpan: 2 }
+      { content: '', colSpan: 1 }
     ]],
     theme: 'grid',
     styles: {
@@ -772,16 +778,99 @@ export const exportExpensesReport = (params: {
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 70, halign: 'left', fontStyle: 'bold' },
-      2: { cellWidth: 35, halign: 'left' },
-      3: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
-      4: { cellWidth: 22, halign: 'center' },
-      5: { cellWidth: 20, halign: 'center' }
+      2: { cellWidth: 45, halign: 'left' },
+      3: { cellWidth: 40, halign: 'left' },
+      4: { cellWidth: 26, halign: 'center' },
+      5: { cellWidth: 20, halign: 'center' },
+      6: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
+      7: { cellWidth: 26, halign: 'center' }
     },
     margin: { left: 14, right: 14, bottom: 16 }
   });
 
+  // Calculate Subtotals by Category
+  const catMap: Record<string, { count: number; total: number; paid: number }> = {};
+  targetExpenses.forEach(exp => {
+    const catName = getCatName(exp.category);
+    if (!catMap[catName]) {
+      catMap[catName] = { count: 0, total: 0, paid: 0 };
+    }
+    const val = Number(exp.value) || 0;
+    catMap[catName].count++;
+    catMap[catName].total += val;
+    if (exp.paid) catMap[catName].paid += val;
+  });
+
+  const catRows = Object.entries(catMap)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([catName, stats]) => {
+      const pct = totalValue > 0 ? (stats.total / totalValue) * 100 : 0;
+      return [
+        catName,
+        stats.count.toString(),
+        formatCurrency(stats.total),
+        formatCurrency(stats.paid),
+        formatCurrency(stats.total - stats.paid),
+        formatPct(pct)
+      ];
+    });
+
+  if (catRows.length > 0) {
+    const finalY = (doc as any).lastAutoTable.finalY || startY + 50;
+    
+    // Check if we need page break or have enough space
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let subtotalStartY = finalY + 10;
+    if (subtotalStartY + 40 > pageHeight) {
+      doc.addPage();
+      subtotalStartY = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(26, 26, 46);
+    doc.text('SUBTOTAIS POR CATEGORIA', 14, subtotalStartY - 2);
+
+    autoTable(doc, {
+      startY: subtotalStartY,
+      head: [[
+        'Categoria Financeira', 'Qtd. Despesas', 'Total (R$)', 'Total Pago (R$)', 'A Pagar (R$)', '% do Total'
+      ]],
+      body: catRows,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        cellPadding: 2,
+        textColor: [31, 41, 55],
+        lineColor: [229, 231, 235],
+        lineWidth: 0.3,
+        halign: 'center'
+      },
+      headStyles: {
+        fillColor: [55, 65, 81],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8.5,
+        halign: 'center'
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251]
+      },
+      columnStyles: {
+        0: { cellWidth: 70, halign: 'left', fontStyle: 'bold' },
+        1: { cellWidth: 30, halign: 'center' },
+        2: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
+        3: { cellWidth: 40, halign: 'center' },
+        4: { cellWidth: 40, halign: 'center' },
+        5: { cellWidth: 30, halign: 'center' }
+      },
+      margin: { left: 14, right: 14, bottom: 16 }
+    });
+  }
+
   applyFooters(doc);
-  doc.save(sanitizeFileName(storeName, `Despesas_Fixas_${selectedMonth}`));
+  const fileSuffix = selectedMonth ? `_${selectedMonth}` : '_Geral';
+  doc.save(sanitizeFileName(storeName, `Contas_a_Pagar${fileSuffix}`));
 };
 
 // 6. RELATÓRIO DE PONTO DE EQUILÍBRIO

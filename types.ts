@@ -106,6 +106,7 @@ export interface Expense {
   category: string;
   dueDate?: string;
   paid?: boolean;
+  creditor?: string;
   installment?: {
     current: number;
     total: number;
