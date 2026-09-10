@@ -28,6 +28,7 @@ import { MyPlan } from './pages/MyPlan';
 import BackupSystem from './pages/BackupSystem';
 import { Collaborators } from './pages/Collaborators';
 import { AccountsReceivable } from './pages/AccountsReceivable';
+import { Integrations } from './pages/Integrations';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
 import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode, Collaborator, CollaboratorPayment } from './types';
@@ -512,6 +513,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'plans': return <PlansPricing />;
       case 'my-plan': return <MyPlan />;
       case 'backup-system': return <BackupSystem />;
+      case 'integrations': return <Integrations setActiveTab={setActiveTab} />;
       default: return <Dashboard />;
     }
   };
@@ -533,6 +535,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       'buffet-simulator': 'À Vontade / Buffet',
       combos: 'Combos',
       'sales-import': 'Integrar Vendas',
+      integrations: 'Integrações',
       'purchase-entry': 'Entrada de Compras',
       'break-even': 'Ponto de Equilíbrio',
       'smart-offers': 'Ofertas de Margem',

@@ -16,9 +16,10 @@ import {
   HelpCircle,
   PlusCircle,
   Zap,
-  ShoppingBag
+  ShoppingBag,
+  Plug
 } from 'lucide-react';
-import { collection, onSnapshot, query, orderBy, limit, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Product, Combo, SalesTransaction, BrendiOrder, BrendiOrderItem } from '../types';
@@ -32,6 +33,7 @@ interface BrendiRealtimeTabProps {
   getComboCMV: (combo: any) => number;
   addSalesTransactionsBatch: (transactions: SalesTransaction[]) => void;
   totalCfiPercent: number;
+  onNavigateToIntegrations?: () => void;
 }
 
 const WEBHOOK_URL = 'https://app-cardapioblindado.vercel.app/api/brendi-webhook';
@@ -52,13 +54,17 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
   getProductCMV,
   getComboCMV,
   addSalesTransactionsBatch,
-  totalCfiPercent
+  totalCfiPercent,
+  onNavigateToIntegrations
 }) => {
   const { user, emulatedUser } = useAuth();
   const activeUserId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
+  const activeEmail = emulatedUser ? emulatedUser.email : user?.email;
 
   const [orders, setOrders] = useState<BrendiOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasConfiguredBrendi, setHasConfiguredBrendi] = useState<boolean | null>(null);
+  const [checkingConfig, setCheckingConfig] = useState(true);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [showUnmatchedModal, setShowUnmatchedModal] = useState(false);
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -68,6 +74,49 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(todayStr);
   const [processStatusLog, setProcessStatusLog] = useState<string | null>(null);
+
+  // Check if current user has Brendi credentials configured
+  useEffect(() => {
+    if (!activeUserId) {
+      setHasConfiguredBrendi(false);
+      setCheckingConfig(false);
+      return;
+    }
+
+    let isMounted = true;
+    const checkUserCredentials = async () => {
+      try {
+        const userDocRef = doc(db, 'users', activeUserId);
+        const snap = await getDoc(userDocRef);
+
+        if (snap.exists()) {
+          const d = snap.data() || {};
+          const storeUuid = d.integrations?.brendi?.storeUuid;
+          if (isMounted) {
+            setHasConfiguredBrendi(Boolean(storeUuid && String(storeUuid).trim().length > 0));
+          }
+        } else {
+          // If espacocarreiro, consider configured
+          if (activeEmail?.toLowerCase().trim() === 'espacocarreiro@gmail.com') {
+            if (isMounted) setHasConfiguredBrendi(true);
+          } else {
+            if (isMounted) setHasConfiguredBrendi(false);
+          }
+        }
+      } catch (err) {
+        console.warn('[BRENDI-TAB] Erro ao verificar credenciais do usuário:', err);
+        if (isMounted) setHasConfiguredBrendi(false);
+      } finally {
+        if (isMounted) setCheckingConfig(false);
+      }
+    };
+
+    checkUserCredentials();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeUserId, activeEmail]);
 
   // Filter channel for display
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<string>('all');
@@ -475,6 +524,57 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
       alert('Erro ao enviar pedido teste: ' + e.message);
     }
   };
+
+  if (!checkingConfig && hasConfiguredBrendi === false) {
+    return (
+      <div className="bg-white dark:bg-[#111827] rounded-2xl border border-gray-200 dark:border-gray-800 p-8 text-center max-w-2xl mx-auto my-8 shadow-sm space-y-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/50 flex items-center justify-center mx-auto">
+          <BrendiLogo className="w-10 h-10" />
+        </div>
+
+        <div className="space-y-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800">
+            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+            Integração não configurada
+          </span>
+          <h2 className="text-xl font-black text-gray-900 dark:text-white">
+            Você ainda não configurou a integração com a Brendi
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
+            Para receber seus pedidos em tempo real via OpenDelivery diretamente do seu PDV ou delivery, você precisa cadastrar o Store UUID e a Chave Secreta da sua loja.
+          </p>
+        </div>
+
+        <div className="p-4 bg-purple-50/70 dark:bg-purple-950/20 rounded-xl border border-purple-200/60 dark:border-purple-900/30 text-xs text-purple-900 dark:text-purple-200 text-left space-y-1.5 max-w-md mx-auto">
+          <div className="font-bold flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            Como configurar em 2 passos:
+          </div>
+          <ol className="list-decimal list-inside space-y-1 text-purple-800 dark:text-purple-300">
+            <li>Acesse a página de <strong>Integrações</strong> no menu lateral.</li>
+            <li>Cadastre seu <strong>Store UUID</strong> e <strong>Chave Secreta</strong> gerados na Brendi.</li>
+          </ol>
+        </div>
+
+        <div className="pt-2">
+          <button
+            onClick={() => {
+              if (onNavigateToIntegrations) {
+                onNavigateToIntegrations();
+              } else {
+                window.dispatchEvent(new CustomEvent('change-tab', { detail: 'integrations' }));
+              }
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-600/20 transition transform active:scale-95"
+          >
+            <Plug className="w-4 h-4" />
+            Configurar agora
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">

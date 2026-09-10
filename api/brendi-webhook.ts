@@ -124,38 +124,94 @@ function resolveSalesChannel(merchantId?: string, rawPayload?: any): string {
   return isDelivery ? "Brendi Delivery" : "Brendi Balcão";
 }
 
-// Find target store owner userId in Firestore
-async function resolveStoreOwnerUserId(db: Firestore, queryUserId?: string): Promise<string> {
-  if (queryUserId) return queryUserId;
+// Find target store owner user in Firestore by Store UUID
+async function findUserByStoreUuid(
+  db: Firestore, 
+  storeUuid: string, 
+  fallbackQueryUserId?: string
+): Promise<{ userId: string; email?: string; webhookSecret?: string; storeUuid?: string } | null> {
+  const cleanStoreUuid = (storeUuid || "").trim().toLowerCase();
 
-  try {
-    const snapshot = await db.collection("users").limit(20).get();
-    
-    // Look for espacocarreiro@gmail.com first (primary store owner)
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data() || {};
-      if (data.email?.toLowerCase().trim() === "espacocarreiro@gmail.com") {
-        return docSnap.id;
+  // 1. If fallbackQueryUserId is provided, try looking it up directly
+  if (fallbackQueryUserId) {
+    try {
+      const userDoc = await db.collection("users").doc(fallbackQueryUserId).get();
+      if (userDoc.exists) {
+        const data = userDoc.data() || {};
+        return {
+          userId: userDoc.id,
+          email: data.email,
+          webhookSecret: data.integrations?.brendi?.webhookSecret,
+          storeUuid: data.integrations?.brendi?.storeUuid || cleanStoreUuid
+        };
       }
+    } catch (e: any) {
+      console.warn("[BRENDI-WEBHOOK] Query by fallbackQueryUserId failed:", e.message);
     }
-
-    // Look for admin role
-    for (const docSnap of snapshot.docs) {
-      const data = docSnap.data() || {};
-      if (data.role === "admin") {
-        return docSnap.id;
-      }
-    }
-
-    // Fallback to first user
-    if (!snapshot.empty) {
-      return snapshot.docs[0].id;
-    }
-  } catch (err: any) {
-    console.warn("[BRENDI-WEBHOOK] Could not query users collection with admin SDK:", err.message);
   }
 
-  return "default_store_owner";
+  if (!cleanStoreUuid) {
+    return null;
+  }
+
+  // 2. Query users where integrations.brendi.storeUuid == storeUuid
+  try {
+    const q = await db.collection("users")
+      .where("integrations.brendi.storeUuid", "==", storeUuid.trim())
+      .limit(1)
+      .get();
+
+    if (!q.empty) {
+      const docSnap = q.docs[0];
+      const data = docSnap.data() || {};
+      return {
+        userId: docSnap.id,
+        email: data.email,
+        webhookSecret: data.integrations?.brendi?.webhookSecret,
+        storeUuid: data.integrations?.brendi?.storeUuid
+      };
+    }
+  } catch (err: any) {
+    console.warn("[BRENDI-WEBHOOK] Direct query on integrations.brendi.storeUuid:", err.message);
+  }
+
+  // 3. Scan users collection (Firebase Admin SDK has full read permissions)
+  try {
+    const snapshot = await db.collection("users").get();
+    
+    // First pass: match exact or case-insensitive storeUuid in integrations.brendi.storeUuid
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data() || {};
+      const userStoreUuid = String(data.integrations?.brendi?.storeUuid || "").trim().toLowerCase();
+      if (userStoreUuid && userStoreUuid === cleanStoreUuid) {
+        return {
+          userId: docSnap.id,
+          email: data.email,
+          webhookSecret: data.integrations?.brendi?.webhookSecret,
+          storeUuid: data.integrations?.brendi?.storeUuid
+        };
+      }
+    }
+
+    // Second pass: if storeUuid matches known admin store, check for espacocarreiro@gmail.com
+    if (cleanStoreUuid === BRENDI_STORE_UUID.toLowerCase()) {
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data() || {};
+        if (data.email?.toLowerCase().trim() === "espacocarreiro@gmail.com") {
+          return {
+            userId: docSnap.id,
+            email: data.email,
+            webhookSecret: data.integrations?.brendi?.webhookSecret || DEFAULT_WEBHOOK_SECRET,
+            storeUuid: BRENDI_STORE_UUID
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn("[BRENDI-WEBHOOK] Could not scan users collection:", err.message);
+  }
+
+  return null;
 }
 
 // Normalize incoming item objects from OpenDelivery specification
@@ -296,8 +352,41 @@ export default async function handler(req: any, res: any) {
       payload.order?.merchantId || 
       payload.storeId || 
       payload.merchant?.id || 
-      BRENDI_STORE_UUID
-    );
+      payload.store?.id || 
+      req.query?.storeUuid || 
+      req.query?.merchantId || 
+      ""
+    ).trim();
+
+    // 3. Initialize Firebase Admin SDK & Find the target store owner
+    const db = getAdminDb();
+    const matchedUser = await findUserByStoreUuid(db, merchantId, req.query?.userId);
+
+    if (!matchedUser) {
+      console.warn(`[BRENDI-WEBHOOK] ⚠️ Nenhuma loja encontrada com o Store UUID: "${merchantId}". O pedido ${orderId} foi ignorado.`);
+      return res.status(200).json({ 
+        success: true, 
+        warning: `Nenhuma loja cadastrada com o Store UUID "${merchantId}". Cadastre seu Store UUID na tela de Integrações.`, 
+        orderId 
+      });
+    }
+
+    // 4. Dynamic Security Secret Validation against user's specific credentials
+    const expectedSecret = (matchedUser.webhookSecret || "").trim();
+    const incomingSecret = (
+      req.headers["x-webhook-secret"] ||
+      req.headers["x-brendi-secret"] ||
+      req.headers["x-api-key"] ||
+      req.headers["webhook-secret"] ||
+      (req.headers["authorization"] ? String(req.headers["authorization"]).replace(/^Bearer\s+/i, "") : "")
+    )?.toString().trim();
+
+    if (expectedSecret && incomingSecret && incomingSecret !== expectedSecret) {
+      console.warn(`[BRENDI-WEBHOOK] ❌ Chave secreta do webhook inválida para a loja ${merchantId} (Usuário: ${matchedUser.userId}).`);
+      return res.status(401).json({ error: "Chave secreta do webhook inválida" });
+    }
+
+    const targetUserId = matchedUser.userId;
 
     const createdAt = 
       payload.createdAt || 
@@ -322,10 +411,6 @@ export default async function handler(req: any, res: any) {
 
     const normalizedStatus = validStatuses.includes(rawStatus) ? rawStatus : "CONCLUDED";
 
-    // 3. Save order to Firestore via Firebase Admin SDK
-    const db = getAdminDb();
-    const targetUserId = await resolveStoreOwnerUserId(db, req.query?.userId);
-
     const orderData = cleanUndefined({
       id: orderId,
       orderId,
@@ -343,18 +428,17 @@ export default async function handler(req: any, res: any) {
       updatedAt: new Date().toISOString()
     });
 
-    // Save in root brendi_orders collection using Admin SDK
-    const rootOrderRef = db.collection("brendi_orders").doc(orderId);
+    // Save directly to user-scoped subcollection: users/{userId}/brendi_orders/{orderId}
+    const userOrderRef = db.collection("users").doc(targetUserId).collection("brendi_orders").doc(orderId);
     
     // Check for duplication if order is already concluded/delivered
-    const existingSnap = await rootOrderRef.get();
+    const existingSnap = await userOrderRef.get();
     const snapExists = typeof existingSnap.exists === "function" ? (existingSnap as any).exists() : existingSnap.exists;
     if (snapExists) {
       const existingData = existingSnap.data() || {};
-      // If already recorded with same final status, do not duplicate
       if ((existingData.status === "CONCLUDED" || existingData.status === "DELIVERED") && 
           (normalizedStatus === "CONCLUDED" || normalizedStatus === "DELIVERED")) {
-        console.log(`[BRENDI-WEBHOOK] Pedido ${orderId} já existe e está finalizado. Ignorando reenvio duplicado.`);
+        console.log(`[BRENDI-WEBHOOK] Pedido ${orderId} já existe e está finalizado para o usuário ${targetUserId}. Ignorando reenvio duplicado.`);
         return res.status(200).json({ 
           success: true, 
           message: "Pedido já registrado anteriormente", 
@@ -364,20 +448,18 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Save order document in root brendi_orders collection
-    await rootOrderRef.set(orderData, { merge: true });
+    // Write to user's subcollection
+    await userOrderRef.set(orderData, { merge: true });
 
-    // Also persist in user-scoped subcollection: users/{userId}/brendi_orders/{orderId}
-    if (targetUserId && targetUserId !== "default_store_owner") {
-      try {
-        const userOrderRef = db.collection("users").doc(targetUserId).collection("brendi_orders").doc(orderId);
-        await userOrderRef.set(orderData, { merge: true });
-      } catch (subErr: any) {
-        console.warn("[BRENDI-WEBHOOK] User subcollection mirror warning:", subErr.message);
-      }
+    // Also mirror in root brendi_orders collection
+    try {
+      const rootOrderRef = db.collection("brendi_orders").doc(orderId);
+      await rootOrderRef.set(orderData, { merge: true });
+    } catch (rootErr: any) {
+      console.warn("[BRENDI-WEBHOOK] Root collection mirror warning:", rootErr.message);
     }
 
-    console.log(`[BRENDI-WEBHOOK] Pedido ${orderId} (${channel}) salvo com sucesso na coleção brendi_orders com Firebase Admin SDK para usuário ${targetUserId}.`);
+    console.log(`[BRENDI-WEBHOOK] ✅ Pedido ${orderId} (${channel}) salvo com sucesso na subcoleção do usuário ${targetUserId} (${matchedUser.email || 'sem email'}).`);
 
     return res.status(200).json({ 
       success: true, 

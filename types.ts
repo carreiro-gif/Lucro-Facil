@@ -348,6 +348,17 @@ export interface CollaboratorPayment {
   notes?: string;
 }
 
+export interface UserIntegrationBrendi {
+  storeUuid: string;
+  webhookSecret: string;
+  active?: boolean;
+  updatedAt?: string;
+}
+
+export interface UserIntegrations {
+  brendi?: UserIntegrationBrendi;
+}
+
 export interface BrendiOrderItem {
   id?: string;
   name: string;

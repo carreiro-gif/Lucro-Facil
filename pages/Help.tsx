@@ -769,33 +769,42 @@ const Help: React.FC = () => {
           content: (
             <div className="space-y-4 text-gray-350 text-sm leading-relaxed">
               <p>
-                A integração com a <strong>Brendi</strong> permite que todos os pedidos realizados no seu balcão (PDV), delivery próprio e marketplaces vinculados (iFood e 99Food) entrem <strong>automaticamente em tempo real</strong> no Cardápio Blindado através do padrão oficial <strong>OpenDelivery da Abrasel</strong>.
+                A integração com a <strong>Brendi</strong> funciona como um SaaS multi-lojas: cada restaurante cadastra suas próprias credenciais (Store UUID e Chave Secreta) de forma isolada e segura. Todos os pedidos realizados no seu balcão (PDV), delivery próprio e marketplaces vinculados (iFood e 99Food) entram <strong>automaticamente em tempo real</strong> no Cardápio Blindado através do padrão oficial <strong>OpenDelivery da Abrasel</strong>.
               </p>
               <div className="space-y-3 mt-4">
                 <div className="flex gap-3">
                   <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">1</span>
                   <div>
-                    <h4 className="font-bold text-gray-200 text-sm">Acesse o Painel da Brendi</h4>
+                    <h4 className="font-bold text-gray-200 text-sm">Acesse a tela de Integrações</h4>
                     <p className="text-gray-400 text-xs mt-0.5">
-                      Entre em <code className="bg-slate-900 px-1.5 py-0.5 rounded text-purple-400">app.brendi.com.br/integrations</code> com suas credenciais de lojista.
+                      No menu lateral do Cardápio Blindado, clique em <strong>Integrações</strong> (na seção Operacional) e localize o card da <strong>Brendi</strong>.
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">2</span>
                   <div>
-                    <h4 className="font-bold text-gray-200 text-sm">Localize a Seção de Webhook / OpenDelivery</h4>
+                    <h4 className="font-bold text-gray-200 text-sm">Obtenha suas credenciais na Brendi</h4>
                     <p className="text-gray-400 text-xs mt-0.5">
-                      Procure a opção de <strong>Webhooks</strong> ou <strong>Integrações OpenDelivery</strong> nas configurações da sua loja.
+                      Acesse <code className="bg-slate-900 px-1.5 py-0.5 rounded text-purple-400">app.brendi.com.br/integrations</code>, faça login no painel da sua loja e copie o seu <strong>Store UUID</strong> e a <strong>Chave Secreta do Webhook</strong>.
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">3</span>
                   <div>
-                    <h4 className="font-bold text-gray-200 text-sm">Insira a URL do Webhook</h4>
+                    <h4 className="font-bold text-gray-200 text-sm">Cadastre as credenciais no Cardápio Blindado</h4>
                     <p className="text-gray-400 text-xs mt-0.5">
-                      Cole a URL oficial do seu sistema no campo de destino do webhook:
+                      Clique no botão <strong>Configurar Integração</strong>, cole o seu <strong>Store UUID</strong> e a <strong>Chave Secreta</strong> e clique em <strong>Salvar</strong>.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">4</span>
+                  <div>
+                    <h4 className="font-bold text-gray-200 text-sm">Cole a URL do Webhook na Brendi</h4>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      No painel da Brendi, configure a URL de destino oficial do webhook:
                     </p>
                     <div className="mt-2 p-2.5 bg-slate-950 border border-purple-800/40 rounded-xl flex items-center justify-between">
                       <code className="text-xs font-mono text-purple-300 select-all">
@@ -805,20 +814,11 @@ const Help: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">4</span>
-                  <div>
-                    <h4 className="font-bold text-gray-200 text-sm">Salve as Configurações</h4>
-                    <p className="text-gray-400 text-xs mt-0.5">
-                      Clique em <strong>Salvar Integração</strong> na Brendi. A partir desse momento, todo novo pedido emitido na sua loja será despachado via webhook para o Cardápio Blindado.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-3">
                   <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shrink-0 text-xs mt-0.5">✓</span>
                   <div>
                     <h4 className="font-bold text-emerald-400 text-sm">Acompanhe na aba Brendi ao Vivo</h4>
                     <p className="text-gray-400 text-xs mt-0.5">
-                      No Cardápio Blindado, abra a tela <strong>Integrar Vendas</strong> e clique na aba <strong className="text-purple-400">Brendi em tempo real</strong>. O indicador verde confirmará que a conexão está ativa!
+                      Abra a tela <strong>Integrar Vendas</strong> e clique na aba <strong className="text-purple-400">Brendi em tempo real</strong>. O indicador verde confirmará que a conexão está ativa e os pedidos aparecerão automaticamente!
                     </p>
                   </div>
                 </div>
