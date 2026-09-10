@@ -242,6 +242,8 @@ function cleanUndefined(obj: any): any {
 
 // Main Vercel Serverless / Express Handler
 export default async function handler(req: any, res: any) {
+  console.log("BRENDI RAW BODY " + JSON.stringify(req.body, null, 2));
+
   // Allow CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
