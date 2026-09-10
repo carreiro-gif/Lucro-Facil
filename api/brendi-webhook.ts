@@ -14,57 +14,76 @@ let adminDbInstance: Firestore | null = null;
 
 function getAdminDb(): Firestore {
   if (!adminDbInstance) {
+    // 1. Primeiro verifica se o Firebase Admin já foi inicializado para não inicializar duas vezes
     if (getApps().length === 0) {
-      let credential: any = undefined;
+      const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
 
-      // 1. Tenta carregar FIREBASE_SERVICE_ACCOUNT (JSON direto ou base64)
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      // 2. Segundo tenta ler a variável FIREBASE_SERVICE_ACCOUNT que contém o JSON completo
+      if (rawSa && rawSa.length > 0) {
+        let saObj: any = null;
         try {
-          const rawSa = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
-          const parsed = rawSa.startsWith("{") 
-            ? JSON.parse(rawSa) 
-            : JSON.parse(Buffer.from(rawSa, "base64").toString("utf-8"));
-          credential = cert(parsed);
-          console.log("[BRENDI-WEBHOOK] Firebase Admin autenticado com sucesso via FIREBASE_SERVICE_ACCOUNT.");
-        } catch (e: any) {
-          console.error("[BRENDI-WEBHOOK] Erro ao analisar FIREBASE_SERVICE_ACCOUNT:", e.message);
+          let cleanSa = rawSa;
+          if ((cleanSa.startsWith("'") && cleanSa.endsWith("'")) || (cleanSa.startsWith('"') && cleanSa.endsWith('"') && !cleanSa.endsWith('"}'))) {
+            cleanSa = cleanSa.slice(1, -1).trim();
+          }
+          saObj = JSON.parse(cleanSa);
+        } catch (err: any) {
+          try {
+            const decoded = Buffer.from(rawSa, "base64").toString("utf-8");
+            saObj = JSON.parse(decoded);
+          } catch (b64Err: any) {
+            console.error("[FIREBASE-ADMIN] Falha ao fazer parse de FIREBASE_SERVICE_ACCOUNT:", err.message);
+          }
         }
-      }
 
-      // 2. Tenta carregar via variáveis individuais: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
-      if (!credential && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-        try {
-          const projectId = (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "lucro-facil-28aaf").trim();
-          const clientEmail = process.env.FIREBASE_CLIENT_EMAIL.trim();
-          const privateKey = process.env.FIREBASE_PRIVATE_KEY
-            .replace(/\\n/g, "\n")
-            .replace(/^["']|["']$/g, "")
-            .trim();
+        if (saObj) {
+          const privateKey = (saObj.private_key || saObj.privateKey || "").replace(/\\n/g, "\n");
+          const clientEmail = saObj.client_email || saObj.clientEmail;
+          const projectId = saObj.project_id || saObj.projectId || process.env.FIREBASE_PROJECT_ID || "lucro-facil-28aaf";
 
-          credential = cert({
+          initializeApp({
+            credential: cert({
+              projectId,
+              clientEmail,
+              privateKey,
+            }),
             projectId,
-            clientEmail,
-            privateKey,
           });
-          console.log("[BRENDI-WEBHOOK] Firebase Admin autenticado via credenciais individuais (PROJECT_ID, CLIENT_EMAIL, PRIVATE_KEY).");
-        } catch (e: any) {
-          console.error("[BRENDI-WEBHOOK] Erro ao inicializar com credenciais individuais:", e.message);
+          console.log(`[FIREBASE-ADMIN] ✅ Autenticação realizada com sucesso via método: FIREBASE_SERVICE_ACCOUNT (Projeto: ${projectId}, Client Email: ${clientEmail})`);
         }
       }
 
-      const projectId = (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "lucro-facil-28aaf").trim();
+      // 3. Se não existir, usa as variáveis individuais FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY
+      if (getApps().length === 0) {
+        const projectId = (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "lucro-facil-28aaf").replace(/^["']|["']$/g, "").trim();
+        const clientEmail = (process.env.FIREBASE_CLIENT_EMAIL || "").replace(/^["']|["']$/g, "").trim();
+        let privateKey = (process.env.FIREBASE_PRIVATE_KEY || "").replace(/^["']|["']$/g, "").trim();
 
-      if (credential) {
-        initializeApp({
-          credential,
-          projectId,
-        });
-      } else {
-        console.warn("[BRENDI-WEBHOOK] Nenhuma credencial explícita do Firebase Admin configurada. Inicializando com Application Default Credentials...");
-        initializeApp({
-          projectId,
-        });
+        // A FIREBASE_PRIVATE_KEY deve ter os caracteres \n substituídos por quebras de linha reais
+        if (privateKey) {
+          privateKey = privateKey.replace(/\\n/g, "\n");
+        }
+
+        if (clientEmail && privateKey) {
+          initializeApp({
+            credential: cert({
+              projectId,
+              clientEmail,
+              privateKey,
+            }),
+            projectId,
+          });
+          console.log(`[FIREBASE-ADMIN] ✅ Autenticação realizada com sucesso via método: VARIÁVEIS INDIVIDUAIS (FIREBASE_PROJECT_ID: ${projectId}, FIREBASE_CLIENT_EMAIL: ${clientEmail})`);
+        } else {
+          console.error("[FIREBASE-ADMIN] ❌ ATENÇÃO: Nenhuma credencial válida encontrada em FIREBASE_SERVICE_ACCOUNT nem em (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY).");
+          initializeApp({
+            projectId,
+          });
+          console.log(`[FIREBASE-ADMIN] Inicializado com Application Default Credentials para o projeto: ${projectId}`);
+        }
       }
+    } else {
+      console.log("[FIREBASE-ADMIN] Instância já inicializada anteriormente. Reutilizando app existente.");
     }
 
     adminDbInstance = getFirestore();
