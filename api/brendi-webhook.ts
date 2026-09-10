@@ -298,7 +298,29 @@ function cleanUndefined(obj: any): any {
 
 // Main Vercel Serverless / Express Handler
 export default async function handler(req: any, res: any) {
-  console.log("BRENDI RAW BODY " + JSON.stringify(req.body, null, 2));
+  console.log("BRENDI EVENTO COMPLETO", JSON.stringify(req.body, null, 2));
+  console.log("BRENDI POSSIVEIS IDENTIFICADORES:", {
+    "req.body.merchantId": req.body?.merchantId,
+    "req.body.storeId": req.body?.storeId,
+    "req.body.restaurantId": req.body?.restaurantId,
+    "req.body.merchant": req.body?.merchant,
+    "req.body.store": req.body?.store,
+    "req.body.id": req.body?.id,
+    "req.body.storeUuid": req.body?.storeUuid,
+    "req.body.order?.merchantId": req.body?.order?.merchantId,
+    "req.body.order?.storeId": req.body?.order?.storeId,
+    "req.body.order?.restaurantId": req.body?.order?.restaurantId,
+    "req.body.order?.merchant": req.body?.order?.merchant,
+    "req.body.order?.store": req.body?.order?.store,
+    "req.body.order?.id": req.body?.order?.id,
+    "req.body.order?.storeUuid": req.body?.order?.storeUuid,
+    "req.body.establishmentId": req.body?.establishmentId,
+    "req.body.order?.establishmentId": req.body?.order?.establishmentId,
+    "req.headers['x-store-id']": req.headers?.["x-store-id"],
+    "req.headers['x-merchant-id']": req.headers?.["x-merchant-id"],
+    "req.headers['x-brendi-store-id']": req.headers?.["x-brendi-store-id"],
+    "req.query": req.query
+  });
 
   // Allow CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
