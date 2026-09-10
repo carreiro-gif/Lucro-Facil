@@ -214,6 +214,72 @@ async function findUserByStoreUuid(
   return null;
 }
 
+// Token cache for Brendi OpenDelivery API
+const brendiTokenCache: { [key: string]: { token: string; expiresAt: number } } = {};
+
+async function getBrendiAccessToken(clientId: string, clientSecret: string): Promise<string | null> {
+  if (!clientId || !clientSecret) return null;
+  const cacheKey = `${clientId}:${clientSecret}`;
+  const now = Date.now();
+  if (brendiTokenCache[cacheKey] && brendiTokenCache[cacheKey].expiresAt > now + 60000) {
+    return brendiTokenCache[cacheKey].token;
+  }
+
+  try {
+    const res = await fetch("https://api.brendi.com.br/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId.trim(),
+        client_secret: clientSecret.trim(),
+        grant_type: "client_credentials"
+      }).toString()
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`[BRENDI-TOKEN] Falha ao obter token (Status ${res.status}):`, errText);
+      return null;
+    }
+
+    const data: any = await res.json();
+    if (data.access_token) {
+      const expiresInSec = Number(data.expires_in || 3600);
+      brendiTokenCache[cacheKey] = {
+        token: data.access_token,
+        expiresAt: now + expiresInSec * 1000
+      };
+      return data.access_token;
+    }
+  } catch (err: any) {
+    console.warn("[BRENDI-TOKEN] Erro na requisição de token OAuth:", err.message);
+  }
+  return null;
+}
+
+async function fetchBrendiOrderDetails(orderUrl: string, token: string): Promise<any | null> {
+  if (!orderUrl || !token) return null;
+  try {
+    const res = await fetch(orderUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`[BRENDI-ORDER] Falha ao buscar detalhes do pedido em ${orderUrl} (Status ${res.status}):`, errText);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    console.warn("[BRENDI-ORDER] Erro ao buscar orderURL:", err.message);
+  }
+  return null;
+}
+
 // Normalize incoming item objects from OpenDelivery specification
 function extractItems(rawPayload: any): Array<{ name: string; quantity: number; unitPrice: number; totalPrice: number; notes?: string }> {
   const rawItems = rawPayload?.order?.items || rawPayload?.items || rawPayload?.order?.orderItems || [];
@@ -370,11 +436,17 @@ export default async function handler(req: any, res: any) {
     );
 
     const merchantId = String(
+      payload.virtualBrand || 
+      req.headers["x-app-merchantid"] ||
+      req.headers["x-brendi-store-id"] ||
       payload.merchantId || 
-      payload.order?.merchantId || 
       payload.storeId || 
+      payload.order?.merchantId || 
+      payload.order?.storeId || 
       payload.merchant?.id || 
       payload.store?.id || 
+      payload.order?.merchant?.id ||
+      payload.order?.store?.id ||
       req.query?.storeUuid || 
       req.query?.merchantId || 
       ""
@@ -410,19 +482,40 @@ export default async function handler(req: any, res: any) {
 
     const targetUserId = matchedUser.userId;
 
+    let workingPayload = payload;
+    let items = extractItems(workingPayload);
+    let total = extractTotal(workingPayload, items);
+
+    // If payload is an OpenDelivery notification event with orderURL and no embedded items, fetch full order
+    if (payload.orderURL && items.length === 0) {
+      const clientId = matchedUser.storeUuid || merchantId;
+      const clientSecret = matchedUser.webhookSecret || DEFAULT_WEBHOOK_SECRET;
+
+      console.log(`[BRENDI-WEBHOOK] 🔄 Buscando detalhes completos do pedido ${orderId} na API Brendi (${payload.orderURL})...`);
+      const token = await getBrendiAccessToken(clientId, clientSecret);
+      if (token) {
+        const fullOrder = await fetchBrendiOrderDetails(payload.orderURL, token);
+        if (fullOrder) {
+          console.log(`[BRENDI-WEBHOOK] ✅ Detalhes do pedido ${orderId} recebidos: ${fullOrder.items?.length || 0} itens, canal: ${fullOrder.salesChannel || fullOrder.type}`);
+          workingPayload = { ...payload, ...fullOrder, order: fullOrder };
+          items = extractItems(workingPayload);
+          total = extractTotal(workingPayload, items);
+        }
+      }
+    }
+
     const createdAt = 
-      payload.createdAt || 
-      payload.order?.createdAt || 
-      payload.orderTiming?.schedule?.startDateTime || 
+      workingPayload.createdAt || 
+      workingPayload.order?.createdAt || 
+      workingPayload.orderTiming?.schedule?.startDateTime || 
       new Date().toISOString();
 
-    const items = extractItems(payload);
-    const total = extractTotal(payload, items);
-    const channel = resolveSalesChannel(merchantId, payload);
+    const channel = resolveSalesChannel(merchantId, workingPayload);
 
-    const customerName = payload.order?.customer?.name || payload.customer?.name || undefined;
-    const customerPhone = payload.order?.customer?.phone?.number || payload.customer?.phone || undefined;
-    const deliveryType = payload.orderType || payload.order?.orderType || payload.deliveryType || undefined;
+    const customerName = workingPayload.order?.customer?.name || workingPayload.customer?.name || undefined;
+    const customerPhone = workingPayload.order?.customer?.phone?.number || workingPayload.customer?.phone || undefined;
+    const deliveryType = workingPayload.orderType || workingPayload.order?.orderType || workingPayload.type || workingPayload.deliveryType || undefined;
+    const displayId = workingPayload.displayId || workingPayload.order?.displayId || undefined;
 
     // Filter relevant OpenDelivery statuses
     const validStatuses = [
@@ -436,6 +529,7 @@ export default async function handler(req: any, res: any) {
     const orderData = cleanUndefined({
       id: orderId,
       orderId,
+      displayId,
       createdAt,
       channel,
       merchantId,
