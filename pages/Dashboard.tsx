@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
-import { DollarSign, Target, Dna, UtensilsCrossed, Settings, Receipt, Beef, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, ChevronRight, Zap } from 'lucide-react';
+import { DollarSign, Target, Dna, UtensilsCrossed, Settings, Receipt, Beef, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, ChevronRight, Zap, Trophy } from 'lucide-react';
 import { formatPercent } from '../constants';
 import { TrialBlindagemWidget } from '../components/TrialBlindagemWidget';
 
@@ -637,6 +637,40 @@ const Dashboard: React.FC = () => {
                    </span>
                </div>
             </div>
+        </div>
+      </div>
+
+      {/* Ranking de Vendas e Rentabilidade CTA */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-brand-red/10 to-purple-500/10 border border-amber-500/30 dark:border-amber-500/20 rounded-2xl p-5 md:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-8">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-2xl border border-amber-500/30 shrink-0">
+            <Trophy className="h-7 w-7" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white px-2 py-0.5 rounded">NOVO</span>
+              <h3 className="font-black text-gray-900 dark:text-white uppercase text-base">Ranking de Vendas & Rentabilidade Real</h3>
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 max-w-2xl leading-relaxed">
+              Classificação dos produtos mais vendidos da sua loja ao menos vendido, cálculo de <strong>lucro líquido real em R$</strong> deduzindo o CMV de insumos e custos fixos/CFI, identificação de Campeões Magros e diagnósticos do que reformular.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+          <button
+            onClick={() => navigateTo('profit')}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-red hover:bg-[#b00720] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-brand-red/20 transition cursor-pointer"
+          >
+            <Trophy size={15} />
+            <span>Ver Ranking</span>
+            <ChevronRight size={15} />
+          </button>
+          <button
+            onClick={() => navigateTo('sales-import')}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+          >
+            <span>Integrar Vendas</span>
+          </button>
         </div>
       </div>
 

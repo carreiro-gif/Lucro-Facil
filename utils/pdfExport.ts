@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable, { UserOptions } from 'jspdf-autotable';
-import { Product, Combo, Ingredient, Expense, MonthlyData, CfiConfig, PlatformConfig, MenuCategory, SalesTransaction } from '../types';
+import { Product, Combo, Ingredient, Expense, MonthlyData, CfiConfig, PlatformConfig, MenuCategory, SalesTransaction, CategoryRankingItem, RealtimeMonthMetrics } from '../types';
 
 // Formatters
 export const formatCurrency = (val: number): string => {
@@ -1213,4 +1213,187 @@ export const exportSalesImportReport = (params: {
 
   applyFooters(doc);
   doc.save(sanitizeFileName(storeName, 'Integrar_Vendas'));
+};
+
+export const exportCategoryRankingReport = ({
+  storeName,
+  monthLabel,
+  metrics,
+  items
+}: {
+  storeName: string;
+  monthLabel: string;
+  metrics: RealtimeMonthMetrics;
+  items: CategoryRankingItem[];
+}) => {
+  const doc = new jsPDF('landscape');
+  let currentY = drawDocumentHeader(doc, 'RANKING DE VENDAS & LUCRO REAL', storeName, [
+    `Período: ${monthLabel}`,
+    `Faturamento: ${formatCurrency(metrics.revenue)}`,
+    `Lucro Líquido Real: ${formatCurrency(metrics.netProfitReal)} (${formatPct(metrics.profitMargin)})`
+  ]);
+
+  currentY += 4;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const boxWidth = (pageWidth - 28 - 12) / 4;
+  const boxHeight = 16;
+
+  // Box 1: Faturamento
+  doc.setFillColor(245, 247, 250);
+  doc.roundedRect(14, currentY, boxWidth, boxHeight, 2, 2, 'F');
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(100, 116, 139);
+  doc.text('FATURAMENTO REAL', 18, currentY + 5);
+  doc.setFontSize(10.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(formatCurrency(metrics.revenue), 18, currentY + 12);
+
+  // Box 2: CMV Insumos
+  doc.setFillColor(245, 247, 250);
+  doc.roundedRect(14 + boxWidth + 4, currentY, boxWidth, boxHeight, 2, 2, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('CMV TOTAL INSUMOS', 18 + boxWidth + 4, currentY + 5);
+  doc.setFontSize(10.5);
+  doc.setTextColor(220, 38, 38);
+  doc.text(`${formatCurrency(metrics.cmvTotalInsumos)} (${formatPct(metrics.cmvPercentAvg)})`, 18 + boxWidth + 4, currentY + 12);
+
+  // Box 3: Custos Fixos / CFI
+  doc.setFillColor(245, 247, 250);
+  doc.roundedRect(14 + (boxWidth + 4) * 2, currentY, boxWidth, boxHeight, 2, 2, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('CUSTOS FIXOS / CFI', 18 + (boxWidth + 4) * 2, currentY + 5);
+  doc.setFontSize(10.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(formatCurrency(metrics.fixedCosts), 18 + (boxWidth + 4) * 2, currentY + 12);
+
+  // Box 4: Lucro Líquido Real
+  const isProfit = metrics.netProfitReal >= 0;
+  doc.setFillColor(isProfit ? 240 : 254, isProfit ? 253 : 242, isProfit ? 244 : 242);
+  doc.roundedRect(14 + (boxWidth + 4) * 3, currentY, boxWidth, boxHeight, 2, 2, 'F');
+  doc.setFontSize(7.5);
+  doc.setTextColor(isProfit ? 22 : 185, isProfit ? 101 : 28, isProfit ? 52 : 28);
+  doc.text('LUCRO LÍQUIDO REAL', 18 + (boxWidth + 4) * 3, currentY + 5);
+  doc.setFontSize(11);
+  doc.text(`${formatCurrency(metrics.netProfitReal)} (${formatPct(metrics.profitMargin)})`, 18 + (boxWidth + 4) * 3, currentY + 12);
+
+  currentY += boxHeight + 6;
+
+  // Group items by category
+  const categories = Array.from(new Set(items.map(it => it.category || 'Outros')));
+  const tableBody: any[] = [];
+
+  categories.forEach(cat => {
+    const catItems = items.filter(it => (it.category || 'Outros') === cat);
+    if (catItems.length === 0) return;
+
+    tableBody.push([
+      {
+        content: `📂 ${cat.toUpperCase()} (${catItems.length} ${catItems.length === 1 ? 'item' : 'itens'})`,
+        colSpan: 9,
+        styles: {
+          fillColor: [230, 235, 245],
+          textColor: [26, 26, 46],
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'left'
+        }
+      }
+    ]);
+
+    catItems.forEach(item => {
+      let decisionText = 'VALE A PENA CONTINUAR';
+      if (item.decision === 'save_margin') decisionText = 'SALVA-MARGEM (ALERTA)';
+      else if (item.decision === 'potential') decisionText = 'POTENCIAL / PROMOVER';
+      else if (item.decision === 'remove') decisionText = 'DEVE TIRAR / REFORMULAR';
+
+      tableBody.push([
+        `#${item.rankOverall}`,
+        item.name,
+        item.totalQty.toString(),
+        formatCurrency(item.totalRevenue),
+        `${formatCurrency(item.unitCmv)} (${formatPct(item.cmvPercent)})`,
+        formatCurrency(item.totalCmv),
+        formatCurrency(item.netProfit),
+        formatPct(item.netMarginPercent),
+        decisionText
+      ]);
+    });
+  });
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [[
+      'Rank',
+      'Produto / Item',
+      'Qtd Vendida',
+      'Faturamento R$',
+      'CMV Unit. (%)',
+      'CMV Total Insumos',
+      'Lucro Líquido Real',
+      'Margem Real',
+      'Diagnóstico / Veredito'
+    ]],
+    body: tableBody,
+    theme: 'grid',
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2,
+      lineColor: [220, 225, 235],
+      lineWidth: 0.2
+    },
+    headStyles: {
+      fillColor: [26, 26, 46],
+      textColor: [245, 185, 19],
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 55, halign: 'left' },
+      2: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+      4: { cellWidth: 28, halign: 'center' },
+      5: { cellWidth: 28, halign: 'right' },
+      6: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+      7: { cellWidth: 20, halign: 'center' },
+      8: { cellWidth: 50, halign: 'left', fontStyle: 'bold' }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body') {
+        const row = data.row.raw as any[];
+        if (Array.isArray(row) && row.length > 8) {
+          const decision = row[8];
+          if (data.column.index === 6) {
+            const rawProfitText = String(row[6] || '');
+            if (rawProfitText.includes('-')) {
+              data.cell.styles.textColor = [220, 38, 38];
+            } else {
+              data.cell.styles.textColor = [22, 163, 74];
+            }
+          }
+          if (data.column.index === 8) {
+            if (typeof decision === 'string') {
+              if (decision.includes('VALE A PENA')) {
+                data.cell.styles.textColor = [22, 163, 74];
+              } else if (decision.includes('SALVA-MARGEM')) {
+                data.cell.styles.textColor = [217, 119, 6];
+              } else if (decision.includes('POTENCIAL')) {
+                data.cell.styles.textColor = [37, 99, 235];
+              } else if (decision.includes('TIRAR')) {
+                data.cell.styles.textColor = [220, 38, 38];
+              }
+            }
+          }
+        }
+      }
+    },
+    margin: { left: 14, right: 14, bottom: 16 }
+  });
+
+  applyFooters(doc);
+  doc.save(sanitizeFileName(storeName, `Ranking_Vendas_Lucro_${monthLabel.replace(/\s+/g, '_')}`));
 };

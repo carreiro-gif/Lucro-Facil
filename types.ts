@@ -384,3 +384,46 @@ export interface BrendiOrder {
   processed?: boolean;
 }
 
+export interface CategoryRankingItem {
+  id: string;
+  name: string;
+  category: string;
+  type: 'product' | 'combo' | 'unregistered';
+  totalQty: number;
+  totalRevenue: number;
+  avgPrice: number;
+  unitCmv: number;
+  totalCmv: number;
+  cmvPercent: number;
+  grossProfit: number;
+  fixedCostShare: number;
+  netProfit: number;
+  netMarginPercent: number;
+  rankOverall: number;
+  rankCategory: number;
+  decision: 'continue' | 'save_margin' | 'potential' | 'remove';
+  recommendation: string;
+  hasFichaTecnica: boolean;
+}
+
+export interface RealtimeMonthMetrics {
+  monthKey: string;
+  revenue: number;
+  manualRevenue: number;
+  brendiRevenue: number;
+  orderCount: number;
+  ticketMedio: number;
+  cmvTotalInsumos: number;
+  cmvPercentAvg: number;
+  fixedCosts: number;
+  cfiPercent: number;
+  netProfitReal: number;
+  profitMargin: number;
+  breakEvenR$: number;
+  gapToBe: number;
+  isBreakEvenReached: boolean;
+  brendiOrdersCount: number;
+  isRealtimeActive: boolean;
+  lastOrderAt?: string;
+}
+

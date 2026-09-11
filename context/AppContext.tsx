@@ -1,7 +1,10 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus } from '../types';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics } from '../types';
 import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
+import { useAuth } from './AuthContext';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface AppContextType extends GlobalState {
   addIngredient: (ing: Ingredient) => void;
@@ -90,6 +93,11 @@ interface AppContextType extends GlobalState {
   getSortedProducts: () => Product[];
   getCmvAvgPercent: () => number;
   calculateBreakEven: (month: string) => number;
+  brendiOrders: BrendiOrder[];
+  isBrendiSyncing: boolean;
+  getComboCMV: (combo: Combo) => number;
+  getRealtimeMonthMetrics: (monthKey?: string) => RealtimeMonthMetrics;
+  getCategoryRanking: (monthKey?: string) => CategoryRankingItem[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -138,6 +146,146 @@ export const AppProvider: React.FC<{
     }
     return storeId === '1' ? INITIAL_STATE : EMPTY_STATE;
   });
+
+  const { user, emulatedUser } = useAuth();
+  const activeUserId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
+
+  const [brendiOrders, setBrendiOrders] = useState<BrendiOrder[]>([]);
+  const [isBrendiSyncing, setIsBrendiSyncing] = useState<boolean>(false);
+
+  const syncRealtimeRevenueAndOrders = (orderList: BrendiOrder[]) => {
+    if (!orderList || orderList.length === 0) return;
+
+    const monthlyMap: Record<string, { revenue: number; count: number }> = {};
+    orderList.forEach(o => {
+      const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+      if (isCancelled) return;
+      const m = (o.createdAt || '').slice(0, 7);
+      if (!m) return;
+
+      if (!monthlyMap[m]) {
+        monthlyMap[m] = { revenue: 0, count: 0 };
+      }
+      monthlyMap[m].revenue += Number(o.total || 0);
+      monthlyMap[m].count += 1;
+    });
+
+    // Update localStorage orders map for Ticket Médio in BreakEven & Dashboard
+    try {
+      const savedOrders = JSON.parse(localStorage.getItem('lucro_facil_be_monthly_orders_v1') || '{}');
+      let changed = false;
+      Object.entries(monthlyMap).forEach(([m, data]) => {
+        if (!savedOrders[m] || Number(savedOrders[m]) < data.count) {
+          savedOrders[m] = data.count;
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem('lucro_facil_be_monthly_orders_v1', JSON.stringify(savedOrders));
+      }
+    } catch (e) {}
+
+    // Synchronize state.monthlyRevenue if Brendi revenue is present
+    setState(prev => {
+      let stateChanged = false;
+      const revList = [...(prev.monthlyRevenue || [])];
+
+      Object.entries(monthlyMap).forEach(([m, data]) => {
+        const idx = revList.findIndex(r => r.month === m);
+        if (idx >= 0) {
+          if (revList[idx].revenue < data.revenue) {
+            revList[idx] = { ...revList[idx], revenue: data.revenue };
+            stateChanged = true;
+          }
+        } else if (data.revenue > 0) {
+          revList.push({ month: m, revenue: data.revenue });
+          stateChanged = true;
+        }
+      });
+
+      if (stateChanged) {
+        return { ...prev, monthlyRevenue: revList };
+      }
+      return prev;
+    });
+  };
+
+  // Real-time listener for Brendi Orders from Firestore
+  useEffect(() => {
+    if (!activeUserId) {
+      setBrendiOrders([]);
+      setIsBrendiSyncing(false);
+      return;
+    }
+
+    setIsBrendiSyncing(true);
+    const ordersColRef = collection(db, 'users', activeUserId, 'brendi_orders');
+    const q = query(ordersColRef, orderBy('createdAt', 'desc'), limit(500));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: BrendiOrder[] = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data() as any;
+        list.push({
+          id: docSnap.id,
+          orderId: d.orderId || docSnap.id,
+          createdAt: d.createdAt || new Date().toISOString(),
+          channel: d.channel || 'Brendi Balcão',
+          merchantId: d.merchantId,
+          items: Array.isArray(d.items) ? d.items : [],
+          total: Number(d.total || 0),
+          status: d.status || 'CONCLUDED',
+          customerName: d.customerName,
+          customerPhone: d.customerPhone,
+          deliveryType: d.deliveryType,
+          userId: d.userId,
+          processed: d.processed || false
+        });
+      });
+
+      if (list.length === 0) {
+        // Fallback to root collection if user subcollection is not yet populated
+        try {
+          const rootRef = collection(db, 'brendi_orders');
+          const rootQ = query(rootRef, orderBy('createdAt', 'desc'), limit(100));
+          const unsubRoot = onSnapshot(rootQ, (rootSnap) => {
+            if (!rootSnap.empty) {
+              const rootList: BrendiOrder[] = [];
+              rootSnap.forEach(rd => {
+                const rdata = rd.data() as any;
+                rootList.push({
+                  id: rd.id,
+                  orderId: rdata.orderId || rd.id,
+                  createdAt: rdata.createdAt || new Date().toISOString(),
+                  channel: rdata.channel || 'Brendi Balcão',
+                  merchantId: rdata.merchantId,
+                  items: Array.isArray(rdata.items) ? rdata.items : [],
+                  total: Number(rdata.total || 0),
+                  status: rdata.status || 'CONCLUDED',
+                  customerName: rdata.customerName,
+                  customerPhone: rdata.customerPhone,
+                  deliveryType: rdata.deliveryType,
+                  userId: rdata.userId,
+                  processed: rdata.processed || false
+                });
+              });
+              setBrendiOrders(rootList);
+              syncRealtimeRevenueAndOrders(rootList);
+            }
+          });
+        } catch (e) {}
+      }
+
+      setBrendiOrders(list);
+      setIsBrendiSyncing(false);
+      syncRealtimeRevenueAndOrders(list);
+    }, (error) => {
+      console.warn('[AppContext] Real-time brendi_orders listener warning:', error);
+      setIsBrendiSyncing(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeUserId]);
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -737,6 +885,366 @@ export const AppProvider: React.FC<{
     return mcPct > 0 ? fixedCosts / mcPct : 0;
   };
 
+  const getComboCMV = (combo: Combo): number => {
+    let cmvCombo = 0;
+    const itemCosts: number[] = [];
+    
+    (combo.items || []).forEach(item => {
+      const prod = (state.products || []).find(p => p.id === item.productId);
+      if (prod) {
+        itemCosts.push(getProductCMV(prod) * item.quantity);
+      } else {
+        itemCosts.push(0);
+      }
+    });
+
+    if (combo.type === 'free_choice') {
+      const sortedCosts = [...itemCosts].sort((a, b) => b - a);
+      const freeChoiceCount = combo.freeChoiceCount || 2;
+      cmvCombo = sortedCosts.slice(0, freeChoiceCount).reduce((acc, val) => acc + val, 0);
+    } else {
+      cmvCombo = itemCosts.reduce((acc, val) => acc + val, 0);
+    }
+
+    cmvCombo += (combo.customPackagingCost || 0);
+    return cmvCombo;
+  };
+
+  const getRealtimeMonthMetrics = (monthKey?: string): RealtimeMonthMetrics => {
+    const targetMonth = monthKey || new Date().toISOString().slice(0, 7);
+
+    // 1. Monthly Revenue
+    const manualRevEntry = (state.monthlyRevenue || []).find(r => r.month === targetMonth);
+    const manualRevenue = manualRevEntry ? Number(manualRevEntry.revenue) : 0;
+
+    // Filter non-cancelled Brendi orders for target month
+    const validBrendiOrders = (brendiOrders || []).filter(o => {
+      const m = (o.createdAt || '').slice(0, 7);
+      const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+      return m === targetMonth && !isCancelled;
+    });
+
+    const brendiRevenue = validBrendiOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const brendiOrdersCount = validBrendiOrders.length;
+
+    // Effective revenue for this month
+    const effectiveRevenue = Math.max(manualRevenue, brendiRevenue);
+
+    // Order Count
+    let orderCount = brendiOrdersCount;
+    if (orderCount === 0) {
+      try {
+        const saved = localStorage.getItem('lucro_facil_be_monthly_orders_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          orderCount = Number(parsed[targetMonth]) || 0;
+        }
+      } catch (e) {}
+    }
+    const ticketMedio = orderCount > 0 && effectiveRevenue > 0 ? effectiveRevenue / orderCount : 0;
+
+    // 2. Real CMV of sold items
+    let cmvTotalInsumos = 0;
+    let itemsSoldRevenue = 0;
+
+    const productMap = new Map<string, Product>();
+    (state.products || []).forEach(p => {
+      productMap.set(p.name.trim().toLowerCase(), p);
+      if (p.id) productMap.set(p.id, p);
+    });
+
+    const comboMap = new Map<string, Combo>();
+    (state.combos || []).forEach(c => {
+      comboMap.set(c.name.trim().toLowerCase(), c);
+      if (c.id) comboMap.set(c.id, c);
+    });
+
+    const avgCmvFallbackPct = getCmvAvgPercent();
+
+    // From Brendi orders
+    validBrendiOrders.forEach(o => {
+      (o.items || []).forEach(it => {
+        const rawName = (it.name || '').trim().toLowerCase();
+        const qty = Number(it.quantity) || 1;
+        const lineTotal = Number(it.totalPrice) || ((Number(it.unitPrice) || 0) * qty);
+        itemsSoldRevenue += lineTotal;
+
+        const prod = productMap.get(rawName);
+        const combo = comboMap.get(rawName);
+
+        if (prod) {
+          const unitCmv = getProductCMV(prod);
+          cmvTotalInsumos += (unitCmv * qty);
+        } else if (combo) {
+          const unitCmv = getComboCMV(combo);
+          cmvTotalInsumos += (unitCmv * qty);
+        } else {
+          cmvTotalInsumos += lineTotal * (avgCmvFallbackPct / 100);
+        }
+      });
+    });
+
+    // Also include salesTransactions for this month
+    const monthSalesTrans = (state.salesTransactions || []).filter(t => {
+      const m = (t.date || '').slice(0, 7);
+      const isFromBrendi = t.id?.startsWith('brendi_') || (t as any).orderId;
+      return m === targetMonth && !isFromBrendi;
+    });
+
+    monthSalesTrans.forEach(t => {
+      const rawName = (t.productName || '').trim().toLowerCase();
+      const qty = Number(t.quantity) || 1;
+      const lineTotal = Number(t.total) || ((Number(t.price) || 0) * qty);
+      itemsSoldRevenue += lineTotal;
+
+      const prod = productMap.get(rawName);
+      const combo = comboMap.get(rawName);
+
+      if (prod) {
+        cmvTotalInsumos += (getProductCMV(prod) * qty);
+      } else if (combo) {
+        cmvTotalInsumos += (getComboCMV(combo) * qty);
+      } else {
+        cmvTotalInsumos += lineTotal * (avgCmvFallbackPct / 100);
+      }
+    });
+
+    // Fallback if no itemized sales but revenue is entered manually
+    if (effectiveRevenue > itemsSoldRevenue && itemsSoldRevenue === 0) {
+      cmvTotalInsumos = effectiveRevenue * (avgCmvFallbackPct / 100);
+    }
+
+    // 3. Fixed Costs / CFI
+    const fixedCosts = (state.expenses || [])
+      .filter(e => e.month === targetMonth || !e.month)
+      .reduce((sum, e) => sum + Number(e.value || 0), 0);
+
+    const cfiPercent = calculateTotalCfiPercent();
+
+    // 4. Net Profit Real in R$ (Faturamento - CMV Real Insumos - Custos Fixos)
+    const netProfitReal = effectiveRevenue - cmvTotalInsumos - fixedCosts;
+    const profitMargin = effectiveRevenue > 0 ? (netProfitReal / effectiveRevenue) * 100 : 0;
+    const cmvPercentAvg = effectiveRevenue > 0 ? (cmvTotalInsumos / effectiveRevenue) * 100 : avgCmvFallbackPct;
+
+    // 5. Break-even
+    const breakEvenR$ = calculateBreakEven(targetMonth);
+    const gapToBe = Math.max(0, breakEvenR$ - effectiveRevenue);
+    const isBreakEvenReached = effectiveRevenue >= breakEvenR$ && breakEvenR$ > 0;
+
+    const lastOrderAt = validBrendiOrders[0]?.createdAt;
+
+    return {
+      monthKey: targetMonth,
+      revenue: effectiveRevenue,
+      manualRevenue,
+      brendiRevenue,
+      orderCount,
+      ticketMedio,
+      cmvTotalInsumos,
+      cmvPercentAvg,
+      fixedCosts,
+      cfiPercent,
+      netProfitReal,
+      profitMargin,
+      breakEvenR$,
+      gapToBe,
+      isBreakEvenReached,
+      brendiOrdersCount,
+      isRealtimeActive: brendiOrdersCount > 0,
+      lastOrderAt
+    };
+  };
+
+  const getCategoryRanking = (monthKey?: string): CategoryRankingItem[] => {
+    const targetMonth = monthKey || new Date().toISOString().slice(0, 7);
+
+    // Filter non-cancelled Brendi orders for this month
+    const validBrendiOrders = (brendiOrders || []).filter(o => {
+      const m = (o.createdAt || '').slice(0, 7);
+      const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+      return m === targetMonth && !isCancelled;
+    });
+
+    const itemMap = new Map<string, {
+      rawName: string;
+      totalQty: number;
+      totalRevenue: number;
+    }>();
+
+    // Aggregate from Brendi orders
+    validBrendiOrders.forEach(o => {
+      (o.items || []).forEach(it => {
+        const rawName = (it.name || 'Produto').trim();
+        const normKey = rawName.toLowerCase();
+        const qty = Number(it.quantity) || 1;
+        const lineTotal = Number(it.totalPrice) || ((Number(it.unitPrice) || 0) * qty);
+
+        const curr = itemMap.get(normKey) || { rawName, totalQty: 0, totalRevenue: 0 };
+        curr.totalQty += qty;
+        curr.totalRevenue += lineTotal;
+        itemMap.set(normKey, curr);
+      });
+    });
+
+    // Also aggregate from salesTransactions for this month
+    const monthSalesTrans = (state.salesTransactions || []).filter(t => {
+      const m = (t.date || '').slice(0, 7);
+      const isFromBrendi = t.id?.startsWith('brendi_') || (t as any).orderId;
+      return m === targetMonth && !isFromBrendi;
+    });
+
+    monthSalesTrans.forEach(t => {
+      const rawName = (t.productName || 'Produto').trim();
+      const normKey = rawName.toLowerCase();
+      const qty = Number(t.quantity) || 1;
+      const lineTotal = Number(t.total) || ((Number(t.price) || 0) * qty);
+
+      const curr = itemMap.get(normKey) || { rawName, totalQty: 0, totalRevenue: 0 };
+      curr.totalQty += qty;
+      curr.totalRevenue += lineTotal;
+      itemMap.set(normKey, curr);
+    });
+
+    // Lookup maps
+    const productMap = new Map<string, Product>();
+    (state.products || []).forEach(p => {
+      productMap.set(p.name.trim().toLowerCase(), p);
+    });
+
+    const comboMap = new Map<string, Combo>();
+    (state.combos || []).forEach(c => {
+      comboMap.set(c.name.trim().toLowerCase(), c);
+    });
+
+    const totalMonthRevenue = Array.from(itemMap.values()).reduce((sum, it) => sum + it.totalRevenue, 0);
+    const monthFixedCosts = (state.expenses || [])
+      .filter(e => e.month === targetMonth || !e.month)
+      .reduce((sum, e) => sum + Number(e.value || 0), 0);
+
+    const avgCmvPercentFallback = getCmvAvgPercent();
+
+    // If no sales yet, populate ranking from registered products so the user can analyze menu items
+    if (itemMap.size === 0 && (state.products || []).length > 0) {
+      (state.products || []).forEach(p => {
+        itemMap.set(p.name.trim().toLowerCase(), {
+          rawName: p.name,
+          totalQty: 0,
+          totalRevenue: 0
+        });
+      });
+    }
+
+    const rankingList: CategoryRankingItem[] = [];
+
+    itemMap.forEach((entry, normKey) => {
+      const prod = productMap.get(normKey);
+      const combo = comboMap.get(normKey);
+
+      let id = entry.rawName;
+      let name = entry.rawName;
+      let category = 'Outros';
+      let itemType: 'product' | 'combo' | 'unregistered' = 'unregistered';
+      let unitCmv = 0;
+      let hasFichaTecnica = false;
+
+      if (prod) {
+        id = prod.id;
+        name = prod.name;
+        category = prod.category || 'Hambúrgueres';
+        itemType = 'product';
+        unitCmv = getProductCMV(prod);
+        hasFichaTecnica = Boolean(prod.ingredients && prod.ingredients.length > 0 && unitCmv > 0);
+      } else if (combo) {
+        id = combo.id;
+        name = combo.name;
+        category = combo.category || 'Combos';
+        itemType = 'combo';
+        unitCmv = getComboCMV(combo);
+        hasFichaTecnica = true;
+      } else {
+        unitCmv = entry.totalQty > 0 ? (entry.totalRevenue / entry.totalQty) * (avgCmvPercentFallback / 100) : 0;
+      }
+
+      const totalQty = entry.totalQty;
+      const totalRevenue = entry.totalRevenue;
+      const avgPrice = totalQty > 0 ? totalRevenue / totalQty : (prod?.fixedPriceStore || 0);
+      const totalCmv = unitCmv * (totalQty > 0 ? totalQty : 1);
+      const cmvPercent = avgPrice > 0 ? (unitCmv / avgPrice) * 100 : avgCmvPercentFallback;
+      const grossProfit = totalRevenue > 0 ? (totalRevenue - (unitCmv * totalQty)) : (avgPrice - unitCmv);
+
+      // Parcela proporcional do Custo Fixo
+      const fixedCostShare = totalMonthRevenue > 0 ? (totalRevenue / totalMonthRevenue) * monthFixedCosts : 0;
+      const netProfit = grossProfit - fixedCostShare;
+      const netMarginPercent = (totalRevenue > 0 ? totalRevenue : avgPrice) > 0
+        ? (netProfit / (totalRevenue > 0 ? totalRevenue : avgPrice)) * 100
+        : 0;
+
+      rankingList.push({
+        id,
+        name,
+        category,
+        type: itemType,
+        totalQty,
+        totalRevenue,
+        avgPrice,
+        unitCmv,
+        totalCmv: unitCmv * totalQty,
+        cmvPercent,
+        grossProfit,
+        fixedCostShare,
+        netProfit,
+        netMarginPercent,
+        rankOverall: 0,
+        rankCategory: 0,
+        decision: 'continue',
+        recommendation: '',
+        hasFichaTecnica
+      });
+    });
+
+    // Sort by totalQty desc (or totalRevenue desc)
+    rankingList.sort((a, b) => {
+      if (b.totalQty !== a.totalQty) return b.totalQty - a.totalQty;
+      return b.totalRevenue - a.totalRevenue;
+    });
+
+    // Calculate volume threshold for classification
+    const maxQty = rankingList.length > 0 ? rankingList[0].totalQty : 0;
+    const highVolumeThreshold = Math.max(1, maxQty * 0.3);
+
+    rankingList.forEach((item, idx) => {
+      item.rankOverall = idx + 1;
+
+      const isHighVolume = item.totalQty >= highVolumeThreshold;
+      const isGoodMargin = item.cmvPercent <= 35 && item.netProfit > 0;
+      const isCriticalCmv = item.cmvPercent > 38;
+
+      if (isHighVolume && isGoodMargin) {
+        item.decision = 'continue';
+        item.recommendation = '🏆 Campeão de Lucro! Alta saída e excelente margem. Mantenha em destaque no cardápio!';
+      } else if (isHighVolume && isCriticalCmv) {
+        item.decision = 'save_margin';
+        item.recommendation = '⚠️ Salva-Margem Urgente! Vende muito mas margem está espremida. Combine com batata/refri turbinado!';
+      } else if (!isHighVolume && isGoodMargin) {
+        item.decision = 'potential';
+        item.recommendation = '💎 Alta Rentabilidade! Margem excelente mas pouca saída. Melhore a foto e coloque no topo do cardápio!';
+      } else {
+        item.decision = 'remove';
+        item.recommendation = '❌ Candidato a Retirada. Vende pouco e gera pouco lucro ou prejuízo. Reformule a receita ou retire do cardápio.';
+      }
+    });
+
+    // Category Rank
+    const categoryCountMap: Record<string, number> = {};
+    rankingList.forEach(item => {
+      const cat = item.category || 'Outros';
+      categoryCountMap[cat] = (categoryCountMap[cat] || 0) + 1;
+      item.rankCategory = categoryCountMap[cat];
+    });
+
+    return rankingList;
+  };
+
   // Accounts Receivable Actions
   const addAccountReceivable = (item: AccountReceivable) => {
     setState(s => ({
@@ -991,7 +1499,12 @@ export const AppProvider: React.FC<{
       getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
       getSortedProducts,
       getCmvAvgPercent,
-      calculateBreakEven
+      calculateBreakEven,
+      brendiOrders,
+      isBrendiSyncing,
+      getComboCMV,
+      getRealtimeMonthMetrics,
+      getCategoryRanking
     }}>
       {children}
     </AppContext.Provider>

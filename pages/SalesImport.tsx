@@ -19,7 +19,8 @@ import {
   FileText,
   DollarSign,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Trophy
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
@@ -29,6 +30,7 @@ import { IFoodLogo, Food99Logo, KeetaLogo, WhatsAppLogo, BrendiLogo } from '../c
 import { ExportReportButton } from '../components/ExportReportButton';
 import { exportSalesImportReport } from '../utils/pdfExport';
 import { BrendiRealtimeTab } from '../components/BrendiRealtimeTab';
+import { CategorySalesRanking } from '../components/CategorySalesRanking';
 
 const parseBrOrUsMoney = (val: string): number => {
   if (!val) return 0;
@@ -102,7 +104,7 @@ const SalesImport: React.FC = () => {
 
 
   // Navigation and active states
-  const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual' | 'brendi'>('paste');
+  const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual' | 'brendi' | 'ranking'>('paste');
   const [showHelp, setShowHelp] = useState(true);
 
   // Form states for manual entry
@@ -949,7 +951,7 @@ const SalesImport: React.FC = () => {
       {/* Main interactive tabs & forms container */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className={`bg-white dark:bg-[#111827] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 space-y-4 ${
-          activeSubTab === 'brendi' ? 'col-span-1 lg:col-span-12' : 'col-span-1 lg:col-span-7'
+          activeSubTab === 'brendi' || activeSubTab === 'ranking' ? 'col-span-1 lg:col-span-12' : 'col-span-1 lg:col-span-7'
         }`}>
           <div className="flex border-b border-gray-200 dark:border-gray-800 pb-2 overflow-x-auto gap-2">
             <button 
@@ -994,7 +996,26 @@ const SalesImport: React.FC = () => {
               Brendi em tempo real
               <span className="bg-emerald-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-black animate-pulse">AO VIVO</span>
             </button>
+            <button 
+              onClick={() => { setActiveSubTab('ranking'); setImportLog(null); }}
+              className={`pb-2 px-3 sm:px-4 text-xs sm:text-sm font-black transition tracking-wider uppercase whitespace-nowrap flex items-center gap-1.5 ${
+                activeSubTab === 'ranking' 
+                  ? 'border-b-2 border-brand-red text-brand-red' 
+                  : 'text-amber-600 dark:text-amber-400 hover:text-amber-700'
+              }`}
+            >
+              <Trophy className="w-4 h-4" />
+              Ranking de Vendas & Lucro Real
+              <span className="bg-amber-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-black">NOVO</span>
+            </button>
           </div>
+
+          {/* Tab 5: Ranking de Vendas & Lucro Real */}
+          {activeSubTab === 'ranking' && (
+            <div className="pt-2">
+              <CategorySalesRanking />
+            </div>
+          )}
 
           {/* Tab 4: Brendi em tempo real */}
           {activeSubTab === 'brendi' && (
@@ -1249,7 +1270,7 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
         </div>
 
         {/* Xande embedded chat module */}
-        {activeSubTab !== 'brendi' && (
+        {activeSubTab !== 'brendi' && activeSubTab !== 'ranking' && (
           <div id="xande-chat-section" className="col-span-1 lg:col-span-5 bg-gradient-to-br from-[#1e293b] to-[#111827] text-white rounded-2xl shadow-sm border border-gray-800 p-5 flex flex-col h-[480px]">
           <div className="flex items-center justify-between border-b border-gray-800 pb-3">
             <div className="flex items-center gap-2">

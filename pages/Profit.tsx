@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { ScrollText, Info, HelpCircle, X } from 'lucide-react';
+import { ScrollText, Info, HelpCircle, X, Trophy, ListChecks } from 'lucide-react';
 import { formatPercent } from '../constants';
 import { Product, Combo } from '../types';
 import { ExportReportButton } from '../components/ExportReportButton';
 import { exportProfitReport } from '../utils/pdfExport';
+import { CategorySalesRanking } from '../components/CategorySalesRanking';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -28,6 +29,7 @@ const Profit: React.FC = () => {
   } = useApp();
   const [showHelp, setShowHelp] = useState(false);
   const [activeEdit, setActiveEdit] = useState<{ id: string; type: 'price' | 'delivery'; value: string } | null>(null);
+  const [profitView, setProfitView] = useState<'ranking' | 'menu'>('ranking');
 
   const totalCfiPercent = calculateTotalCfiPercent();
   
@@ -137,47 +139,83 @@ const Profit: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
            <div className="flex items-center gap-2">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase">Lucro Atual</h2>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase">Lucro Atual & Ranking de Vendas</h2>
                 <button onClick={() => setShowHelp(!showHelp)} className="text-gray-400 hover:text-brand-red transition-colors"><HelpCircle size={20} /></button>
            </div>
-          <p className="text-gray-500 dark:text-gray-400">Análise de margem real baseada no preço praticado hoje.</p>
+          <p className="text-gray-500 dark:text-gray-400">
+            {profitView === 'ranking' 
+              ? 'Classificação do produto mais vendido ao menos vendido, rentabilidade real líquida e diagnósticos estratégicos.'
+              : 'Análise de margem unitária baseada no preço praticado no cardápio.'}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <ExportReportButton
-            onExportPDF={() => {
-              exportProfitReport({
-                storeName: storeInfo?.name || 'Minha Loja',
-                totalCfiPercent,
-                menuCategories: menuCategories || [],
-                products: sortedProducts,
-                combos: combos || [],
-                getProductCMV
-              });
-            }}
-          />
+          {profitView === 'menu' && (
+            <ExportReportButton
+              onExportPDF={() => {
+                exportProfitReport({
+                  storeName: storeInfo?.name || 'Minha Loja',
+                  totalCfiPercent,
+                  menuCategories: menuCategories || [],
+                  products: sortedProducts,
+                  combos: combos || [],
+                  getProductCMV
+                });
+              }}
+            />
+          )}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-2.5 rounded-xl flex items-center gap-2 text-xs text-blue-800 dark:text-blue-200 shadow-sm">
              <Info className="text-blue-500 dark:text-blue-400 shrink-0" size={16} />
-             <div><span className="font-bold">Nota:</span> CFI e ordem são automáticos.</div>
+             <div><span className="font-bold">Nota:</span> Integrado ao Brendi e fichas técnicas.</div>
           </div>
         </div>
       </div>
 
-      {showHelp && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in mb-4">
-            <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
-            <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2">Ordem do Cardápio</h4>
-            <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                Esta lista respeita a organização por seções e a ordem manual que você definiu na <strong>Ficha Técnica</strong>.
-            </p>
-        </div>
-      )}
-
-      <div className="md:hidden flex items-center gap-2 justify-center bg-brand-red/5 dark:bg-brand-red/10 border border-brand-red/10 dark:border-brand-red/20 text-brand-red dark:text-red-400 py-2 px-3 rounded-lg text-[11px] font-bold select-none shadow-sm mb-3">
-        <span className="animate-bounce">↔</span>
-        <span>DESLIZE A TABELA PARA OS LADOS PARA VER TODOS OS DADOS</span>
+      {/* Sub-tab Switcher */}
+      <div className="flex flex-wrap items-center gap-2 bg-gray-100 dark:bg-gray-800/80 p-1.5 rounded-2xl w-fit border border-gray-200 dark:border-gray-700 shadow-sm">
+        <button
+          onClick={() => setProfitView('ranking')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition ${
+            profitView === 'ranking'
+              ? 'bg-brand-red text-white shadow-md shadow-brand-red/30'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <Trophy size={16} />
+          <span>Ranking de Vendas & Lucro Real (Mais ao Menos Vendido)</span>
+        </button>
+        <button
+          onClick={() => setProfitView('menu')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition ${
+            profitView === 'menu'
+              ? 'bg-brand-red text-white shadow-md shadow-brand-red/30'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <ListChecks size={16} />
+          <span>Cardápio & Preço Praticado (Tabela Cadastral)</span>
+        </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-xl">
+      {profitView === 'ranking' ? (
+        <CategorySalesRanking />
+      ) : (
+        <>
+          {showHelp && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 rounded-xl relative animate-fade-in mb-4">
+                <button onClick={() => setShowHelp(false)} className="absolute top-2 right-2 text-blue-400 hover:text-blue-300"><X size={16}/></button>
+                <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-2">Ordem do Cardápio</h4>
+                <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                    Esta lista respeita a organização por seções e a ordem manual que você definiu na <strong>Ficha Técnica</strong>.
+                </p>
+            </div>
+          )}
+
+          <div className="md:hidden flex items-center gap-2 justify-center bg-brand-red/5 dark:bg-brand-red/10 border border-brand-red/10 dark:border-brand-red/20 text-brand-red dark:text-red-400 py-2 px-3 rounded-lg text-[11px] font-bold select-none shadow-sm mb-3">
+            <span className="animate-bounce">↔</span>
+            <span>DESLIZE A TABELA PARA OS LADOS PARA VER TODOS OS DADOS</span>
+          </div>
+
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead>
@@ -373,6 +411,8 @@ const Profit: React.FC = () => {
             </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };
