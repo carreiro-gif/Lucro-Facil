@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Upload, 
   Plus, 
@@ -20,7 +21,11 @@ import {
   DollarSign,
   Layers,
   ArrowRight,
-  Trophy
+  Trophy,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  X
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
@@ -31,6 +36,12 @@ import { ExportReportButton } from '../components/ExportReportButton';
 import { exportSalesImportReport } from '../utils/pdfExport';
 import { BrendiRealtimeTab } from '../components/BrendiRealtimeTab';
 import { CategorySalesRanking } from '../components/CategorySalesRanking';
+import { 
+  saveSalesDataRecord, 
+  saveSalesDataBatch, 
+  deleteSalesDataByMonth, 
+  clearAllSalesData 
+} from '../services/salesDataService';
 
 const parseBrOrUsMoney = (val: string): number => {
   if (!val) return 0;
@@ -60,6 +71,9 @@ const parseBrOrUsMoney = (val: string): number => {
 };
 
 const SalesImport: React.FC = () => {
+  const { user, emulatedUser } = useAuth();
+  const activeUserId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
+
   const { 
     products, 
     combos = [],
@@ -70,8 +84,18 @@ const SalesImport: React.FC = () => {
     addSalesTransactionsBatch,
     deleteSalesTransaction,
     clearSalesTransactions,
+    clearSalesTransactionsByMonth,
+    updateMonthlyRevenueFromIntegration,
     storeInfo
   } = useApp();
+
+  // Mês selecionado - padrão é o mês atual (YYYY-MM)
+  const defaultMonthKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonthKey);
+  const [showClearModal, setShowClearModal] = useState<boolean>(false);
 
   const totalCfiPercent = calculateTotalCfiPercent();
 
@@ -106,6 +130,19 @@ const SalesImport: React.FC = () => {
   // Navigation and active states
   const [activeSubTab, setActiveSubTab] = useState<'paste' | 'file' | 'manual' | 'brendi' | 'ranking'>('paste');
   const [showHelp, setShowHelp] = useState(true);
+
+  // Listen for tab switch requests (e.g. from Dashboard or Integrations)
+  useEffect(() => {
+    const handleSubTabChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && ['paste', 'file', 'manual', 'brendi', 'ranking'].includes(customEvent.detail)) {
+        setActiveSubTab(customEvent.detail as any);
+        setImportLog(null);
+      }
+    };
+    window.addEventListener('change-sales-subtab', handleSubTabChange);
+    return () => window.removeEventListener('change-sales-subtab', handleSubTabChange);
+  }, []);
 
   // Form states for manual entry
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -207,6 +244,43 @@ const SalesImport: React.FC = () => {
 
     addSalesTransaction(newTransaction);
 
+    // Salvar na coleção sales_data e atualizar faturamento
+    const itemCmv = prod ? getProductCMV(prod) : (combo ? getComboCMV(combo) : 0);
+    const saleTotal = (pricePaid + subsidy) * qty;
+    const saleCmv = itemCmv * qty;
+    const saleFees = (channelFee + coupon) * qty;
+    const netReceived = saleTotal - saleFees;
+    const saleCfi = netReceived * (totalCfiPercent / 100);
+    const saleProfit = netReceived - saleCmv - saleCfi;
+    const manualMonth = manualDate.slice(0, 7);
+
+    if (activeUserId) {
+      saveSalesDataRecord({
+        id: `manual_${newTransaction.id}`,
+        saleDate: manualDate,
+        month: manualMonth,
+        channel: manualChannel === 'store' ? 'Loja Física' : (manualChannel === 'food99' ? '99Food' : (manualChannel === 'keeta' ? 'Keeta' : 'iFood')),
+        totalAmount: saleTotal,
+        cmvTotal: saleCmv,
+        feesTotal: saleFees,
+        netProfit: saleProfit,
+        source: 'Manual',
+        orderId: manualOrderId.trim() || undefined,
+        items: [{
+          name: resolvedName,
+          qty,
+          unitPrice: pricePaid,
+          totalPrice: saleTotal,
+          cmvUnit: itemCmv
+        }]
+      }, activeUserId);
+    }
+
+    const existingMonthGross = (salesTransactions || [])
+      .filter(t => t.date && t.date.slice(0, 7) === manualMonth)
+      .reduce((sum, t) => sum + ((t.pricePaidByCustomer + t.platformSubsidy) * t.qty), 0) + saleTotal;
+    updateMonthlyRevenueFromIntegration(manualMonth, existingMonthGross);
+
     // Reset inputs but keep date & channel
     setSelectedProductId('');
     setManualQty('1');
@@ -217,7 +291,6 @@ const SalesImport: React.FC = () => {
     setManualOrderId('');
 
     // Let Xande celebrate
-    const itemCmv = prod ? getProductCMV(prod) : (combo ? getComboCMV(combo) : 0);
     addXandeBotMessage(`Excelente! Registrei a venda de ${qty}x **${resolvedName}** no canal **${manualChannel.toUpperCase()}**. O CMV teórico dos insumos deste item é **R$ ${(itemCmv * qty).toFixed(2)}**.`);
   };
 
@@ -449,6 +522,57 @@ const SalesImport: React.FC = () => {
 
     if (importedTransactions.length > 0) {
       addSalesTransactionsBatch(importedTransactions);
+
+      // Salvar na coleção sales_data e sincronizar faturamento
+      if (activeUserId) {
+        const records = importedTransactions.map(t => {
+          const prod = products.find(p => p.id === t.productId);
+          const combo = combos.find(c => c.id === t.productId);
+          const unitCmv = prod ? getProductCMV(prod) : (combo ? getComboCMV(combo) : (t.pricePaidByCustomer * 0.32));
+          const totalGross = t.totalAmount ?? ((t.pricePaidByCustomer + t.platformSubsidy) * t.qty);
+          const totalCmv = unitCmv * t.qty;
+          const totalFees = (t.feePaid + t.couponCostByStore) * t.qty;
+          const netRec = totalGross - totalFees;
+          const totalCfi = netRec * (totalCfiPercent / 100);
+          const netProfit = netRec - totalCmv - totalCfi;
+          const m = (t.date || '').slice(0, 7) || selectedMonth;
+
+          return {
+            id: `planilha_${t.id}`,
+            saleDate: t.date || new Date().toISOString().slice(0, 10),
+            month: m,
+            channel: t.channel === 'store' ? 'Loja Física' : (t.channel === 'food99' ? '99Food' : (t.channel === 'keeta' ? 'Keeta' : 'iFood')),
+            totalAmount: totalGross,
+            cmvTotal: totalCmv,
+            feesTotal: totalFees,
+            netProfit: netProfit,
+            source: 'Planilha' as const,
+            orderId: t.orderId,
+            items: [{
+              name: t.productName,
+              qty: t.qty,
+              unitPrice: t.pricePaidByCustomer,
+              totalPrice: totalGross,
+              cmvUnit: unitCmv
+            }]
+          };
+        });
+
+        saveSalesDataBatch(records, activeUserId);
+
+        // Agrupar faturamento por mês e atualizar faturamento
+        const monthTotals: Record<string, number> = {};
+        records.forEach(r => {
+          monthTotals[r.month] = (monthTotals[r.month] || 0) + r.totalAmount;
+        });
+        Object.entries(monthTotals).forEach(([m, val]) => {
+          const existing = (salesTransactions || [])
+            .filter(t => t.date && t.date.slice(0, 7) === m)
+            .reduce((sum, t) => sum + ((t.pricePaidByCustomer + t.platformSubsidy) * t.qty), 0);
+          updateMonthlyRevenueFromIntegration(m, existing + val);
+        });
+      }
+
       setImportLog({
         success: true,
         message: `Sucesso! Importamos ${successCount} linhas de venda.${
@@ -493,12 +617,20 @@ const SalesImport: React.FC = () => {
     e.target.value = '';
   };
 
-  // Automated deduplication engine (iFood vs PDV / duplicated OrderIds)
+  // Transações estritamente filtradas pelo mês selecionado (padrão é o mês atual)
+  const filteredSalesTransactions = useMemo(() => {
+    return (salesTransactions || []).filter(t => {
+      if (!t.date) return false;
+      return t.date.slice(0, 7) === selectedMonth;
+    });
+  }, [salesTransactions, selectedMonth]);
+
+  // Automated deduplication engine (iFood vs PDV / duplicated OrderIds) dentro do mês selecionado
   const duplicateAnomalies = useMemo(() => {
     const duplicates: Array<{ itemA: SalesTransaction; itemB: SalesTransaction }> = [];
     const hash: Record<string, SalesTransaction> = {};
 
-    salesTransactions.forEach(t => {
+    filteredSalesTransactions.forEach(t => {
       if (t.orderId) {
         // Match strictly by orderId
         if (hash[t.orderId]) {
@@ -523,7 +655,7 @@ const SalesImport: React.FC = () => {
     });
 
     return duplicates;
-  }, [salesTransactions]);
+  }, [filteredSalesTransactions]);
 
   // Clean duplication list: keeps iFood/original platform, de-duplicates store proxy Mirror entries
   const handleResolveDuplicates = () => {
@@ -548,7 +680,7 @@ const SalesImport: React.FC = () => {
     addXandeBotMessage(`Prontinho! Removi **${idsToDelete.length} itens duplicados** no seu faturamento para garantir que o seu faturamento real não fique inflado de forma incorreta.`);
   };
 
-  // Sales aggregates & derived metrics
+  // Sales aggregates & derived metrics - refletindo APENAS o mês selecionado
   const coreStats = useMemo(() => {
     let grossRevenue = 0;
     let netRevenue = 0;
@@ -556,7 +688,7 @@ const SalesImport: React.FC = () => {
     let totalCfiCost = 0;
     let salesCount = 0;
 
-    salesTransactions.forEach(t => {
+    filteredSalesTransactions.forEach(t => {
       const prod = products.find(p => p.id === t.productId);
       const isUnregistered = t.productId === 'temp_unregistered';
       
@@ -625,11 +757,11 @@ const SalesImport: React.FC = () => {
       salesCount,
       profitMargin
     };
-  }, [salesTransactions, products, getProductCMV, totalCfiPercent]);
+  }, [filteredSalesTransactions, products, combos, getProductCMV, getComboCMV, totalCfiPercent]);
 
-  // Alerta de itens com prejuízo bruto
+  // Alerta de itens com prejuízo bruto no mês selecionado
   const deficitSales = useMemo(() => {
-    return salesTransactions.filter(t => {
+    return filteredSalesTransactions.filter(t => {
       const prod = products.find(p => p.id === t.productId);
       const isUnregistered = t.productId === 'temp_unregistered';
       
@@ -648,7 +780,7 @@ const SalesImport: React.FC = () => {
       const netReceivedUnit = (t.pricePaidByCustomer + t.platformSubsidy) - t.couponCostByStore - t.feePaid;
       return netReceivedUnit < itemCmv;
     });
-  }, [salesTransactions, products, combos, getProductCMV, getComboCMV]);
+  }, [filteredSalesTransactions, products, combos, getProductCMV, getComboCMV]);
 
   // Xande internal responses (dynamic simulation or real Gemini call)
   const addXandeBotMessage = (text: string) => {
@@ -753,6 +885,166 @@ const SalesImport: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* 0. SELETOR DE MÊS E ANO - BEM VISÍVEL NO TOPO DA TELA ANTES DE QUALQUER OUTRA COISA */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-[#111827] dark:via-[#1f2937] dark:to-[#111827] p-4 sm:p-5 rounded-2xl border-2 border-brand-yellow/50 shadow-xl text-white">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-brand-yellow/15 border border-brand-yellow/40 text-brand-yellow flex items-center justify-center shrink-0 shadow-inner">
+              <Calendar size={22} className="animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-brand-yellow bg-brand-yellow/20 px-2 py-0.5 rounded border border-brand-yellow/30">
+                  Período de Análise
+                </span>
+                <span className="text-xs font-bold text-slate-300">
+                  {filteredSalesTransactions.length} {filteredSalesTransactions.length === 1 ? 'pedido' : 'pedidos'} em {selectedMonth}
+                </span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight mt-0.5">
+                Mês de Referência das Vendas
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            {/* Controles de Navegação de Mês */}
+            <div className="flex items-center bg-slate-950/90 border border-slate-700 rounded-xl p-1 shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const prevDate = new Date(y, m - 2, 1);
+                  setSelectedMonth(`${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`);
+                }}
+                className="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition"
+                title="Mês Anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <div className="px-3 flex items-center gap-2">
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedMonth(e.target.value);
+                  }}
+                  className="bg-transparent text-white font-black text-sm sm:text-base outline-none cursor-pointer focus:ring-0"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const nextDate = new Date(y, m, 1);
+                  setSelectedMonth(`${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`);
+                }}
+                className="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition"
+                title="Próximo Mês"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* Atalho Mês Atual */}
+            {selectedMonth !== defaultMonthKey && (
+              <button
+                type="button"
+                onClick={() => setSelectedMonth(defaultMonthKey)}
+                className="px-3.5 py-2 bg-brand-yellow/20 hover:bg-brand-yellow/30 text-brand-yellow border border-brand-yellow/40 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm"
+              >
+                Mês Atual
+              </button>
+            )}
+
+            {/* Botão Limpar Vendas com confirmação inteligente */}
+            {salesTransactions.length > 0 && (
+              <button 
+                type="button"
+                onClick={() => setShowClearModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 transition shadow-sm ml-auto lg:ml-0"
+                title="Limpar vendas registradas"
+              >
+                <Trash2 className="h-4 w-4" />
+                Limpar Vendas
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Inteligente de Confirmação para Limpeza de Vendas */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-white">Como deseja limpar as vendas?</h3>
+                <p className="text-xs text-slate-400">Escolha o escopo de limpeza de vendas:</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  clearSalesTransactionsByMonth(selectedMonth);
+                  if (activeUserId) {
+                    deleteSalesDataByMonth(activeUserId, selectedMonth);
+                  }
+                  updateMonthlyRevenueFromIntegration(selectedMonth, 0);
+                  setShowClearModal(false);
+                  addXandeBotMessage(`Prontinho! As vendas de **${selectedMonth}** foram limpas com sucesso.`);
+                }}
+                className="w-full text-left p-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 transition group"
+              >
+                <div className="font-bold text-sm text-white group-hover:text-brand-yellow">
+                  1. Limpar apenas o mês selecionado ({selectedMonth})
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Apaga somente os {filteredSalesTransactions.length} pedidos deste mês. Os outros meses continuam intactos.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  clearSalesTransactions();
+                  if (activeUserId) {
+                    clearAllSalesData(activeUserId);
+                  }
+                  setShowClearModal(false);
+                  addXandeBotMessage("Todas as vendas de todos os meses foram limpas com sucesso.");
+                }}
+                className="w-full text-left p-4 rounded-xl bg-red-950/30 hover:bg-red-950/50 border border-red-800/50 hover:border-red-600 transition group"
+              >
+                <div className="font-bold text-sm text-red-300 group-hover:text-red-200">
+                  2. Limpar TODOS os meses ({salesTransactions.length} pedidos no total)
+                </div>
+                <div className="text-xs text-red-400/80 mt-0.5">
+                  Remove todo o histórico de vendas de todos os meses.
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowClearModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#1e293b]/50 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
         <div>
@@ -774,7 +1066,7 @@ const SalesImport: React.FC = () => {
                 totalCfiCost: coreStats.totalCfiCost,
                 netProfit: coreStats.profitLoss,
                 netMarginPct: coreStats.profitMargin,
-                transactions: salesTransactions || []
+                transactions: filteredSalesTransactions
               });
             }}
           />
@@ -785,17 +1077,6 @@ const SalesImport: React.FC = () => {
             <Info className="h-4 w-4" />
             {showHelp ? 'Ocultar Ajuda' : 'Ver Ajuda'}
           </button>
-          {salesTransactions.length > 0 && (
-            <button 
-              onClick={() => {
-                if(window.confirm('Quer limpar TODAS as vendas integradas para começar do zero?')) clearSalesTransactions();
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 hover:bg-red-100 dark:hover:bg-red-900/30 transition shadow-sm"
-            >
-              <Trash2 className="h-4 w-4" />
-              Limpar Vendas
-            </button>
-          )}
         </div>
       </div>
 
@@ -1013,7 +1294,7 @@ const SalesImport: React.FC = () => {
           {/* Tab 5: Ranking de Vendas & Lucro Real */}
           {activeSubTab === 'ranking' && (
             <div className="pt-2">
-              <CategorySalesRanking />
+              <CategorySalesRanking selectedMonth={selectedMonth} />
             </div>
           )}
 
@@ -1026,6 +1307,8 @@ const SalesImport: React.FC = () => {
               getComboCMV={getComboCMV}
               addSalesTransactionsBatch={addSalesTransactionsBatch}
               totalCfiPercent={totalCfiPercent}
+              selectedMonth={selectedMonth}
+              onSelectMonth={setSelectedMonth}
             />
           )}
 
@@ -1362,19 +1645,21 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
       <div className="bg-white dark:bg-[#111827] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/35">
           <div>
-            <h3 className="font-extrabold text-sm text-gray-900 dark:text-white uppercase tracking-wider">Histórico de Pedidos Integrados ({salesTransactions.length} registros)</h3>
+            <h3 className="font-extrabold text-sm text-gray-900 dark:text-white uppercase tracking-wider">
+              Histórico de Pedidos Integrados ({filteredSalesTransactions.length} {filteredSalesTransactions.length === 1 ? 'registro' : 'registros'} em {selectedMonth})
+            </h3>
             <p className="text-xs text-gray-400 mt-0.5">Auditoria detalhada com receita líquida recebida, CMV correspondente e lucro de cada item.</p>
           </div>
         </div>
 
-        {salesTransactions.length === 0 ? (
+        {filteredSalesTransactions.length === 0 ? (
           <div className="p-10 flex flex-col items-center justify-center text-center space-y-4">
             <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
               <FileText className="h-6 w-6" />
             </div>
             <div>
-              <h4 className="font-extrabold text-sm text-gray-800 dark:text-gray-200 uppercase">Nenhum pedido integrado ainda</h4>
-              <p className="text-xs text-gray-400 mt-1 max-w-sm">Cole dados de planilhas de marketplaces / PDV ou preencha o formulário manual ao lado para visualizar a margem líquida real de suas vendas!</p>
+              <h4 className="font-extrabold text-sm text-gray-800 dark:text-gray-200 uppercase">Nenhum pedido integrado para o mês de {selectedMonth}</h4>
+              <p className="text-xs text-gray-400 mt-1 max-w-sm">Cole dados de planilhas de marketplaces / PDV, lance manualmente ou processe pedidos da Brendi para visualizar a margem líquida real deste mês!</p>
             </div>
           </div>
         ) : (
@@ -1395,7 +1680,7 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-xs">
-                {salesTransactions.map((t, idx) => {
+                {filteredSalesTransactions.map((t, idx) => {
                   const prod = products.find(p => p.id === t.productId);
                   const isUnregistered = t.productId === 'temp_unregistered';
                   

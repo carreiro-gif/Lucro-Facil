@@ -17,14 +17,36 @@ import {
   PlusCircle,
   Zap,
   ShoppingBag,
-  Plug
+  Plug,
+  Store,
+  Percent,
+  TrendingUp,
+  DollarSign,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  CheckCircle2
 } from 'lucide-react';
 import { collection, onSnapshot, query, orderBy, limit, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Product, Combo, SalesTransaction, BrendiOrder, BrendiOrderItem } from '../types';
+import { useApp } from '../context/AppContext';
+import { Product, Combo, SalesTransaction, BrendiOrder, BrendiOrderItem, BrendiChannelFees, SalesDataRecord } from '../types';
 import { formatMoney, formatPercent } from '../constants';
-import { BrendiLogo, IFoodLogo, Food99Logo } from './PlatformLogos';
+import { BrendiLogo, IFoodLogo, Food99Logo, KeetaLogo } from './PlatformLogos';
+import { 
+  DEFAULT_BRENDI_CHANNEL_FEES, 
+  getSuggestedChannelFees, 
+  getSavedChannelFees, 
+  saveChannelFeesToStorage, 
+  identifyOrderChannel, 
+  calculateBrendiOrderFinancials 
+} from '../utils/brendiProfit';
+import { 
+  saveSalesDataBatch, 
+  getSalesDataForMonth, 
+  deleteSalesDataByMonth 
+} from '../services/salesDataService';
 
 interface BrendiRealtimeTabProps {
   products: Product[];
@@ -34,6 +56,8 @@ interface BrendiRealtimeTabProps {
   addSalesTransactionsBatch: (transactions: SalesTransaction[]) => void;
   totalCfiPercent: number;
   onNavigateToIntegrations?: () => void;
+  selectedMonth?: string;
+  onSelectMonth?: (month: string) => void;
 }
 
 const WEBHOOK_URL = 'https://app-cardapioblindado.vercel.app/api/brendi-webhook';
@@ -55,11 +79,78 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
   getComboCMV,
   addSalesTransactionsBatch,
   totalCfiPercent,
-  onNavigateToIntegrations
+  onNavigateToIntegrations,
+  selectedMonth: externalSelectedMonth,
+  onSelectMonth
 }) => {
   const { user, emulatedUser } = useAuth();
   const activeUserId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
   const activeEmail = emulatedUser ? emulatedUser.email : user?.email;
+
+  const { platformConfig, monthlyRevenue, updateMonthlyRevenueFromIntegration, brendiOrders = [] } = useApp();
+
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const [internalMonth, setInternalMonth] = useState<string>(externalSelectedMonth || currentMonthKey);
+
+  const monthToProcess = externalSelectedMonth || internalMonth;
+  const setMonthToProcess = (m: string) => {
+    setInternalMonth(m);
+    if (onSelectMonth) onSelectMonth(m);
+  };
+
+  const [isProcessingMonth, setIsProcessingMonth] = useState(false);
+  const [showConfirmRecalculateModal, setShowConfirmRecalculateModal] = useState(false);
+  const [confirmModalInfo, setConfirmModalInfo] = useState<{
+    targetMonth: string;
+    isManualWarning: boolean;
+    existingCount: number;
+    message: string;
+  } | null>(null);
+
+  const [showProcessSuccessModal, setShowProcessSuccessModal] = useState(false);
+  const [processResultSummary, setProcessResultSummary] = useState<{
+    targetMonth: string;
+    count: number;
+    grossRevenue: number;
+    totalCmv: number;
+    netProfitEstimated: number;
+  } | null>(null);
+
+  const suggestedFees = useMemo(() => {
+    return getSuggestedChannelFees(platformConfig, products);
+  }, [platformConfig, products]);
+
+  const [channelFees, setChannelFees] = useState<BrendiChannelFees>(() => {
+    return getSavedChannelFees(activeUserId) || suggestedFees;
+  });
+
+  // Sync and load channel fees
+  useEffect(() => {
+    if (!activeUserId) return;
+    const loadFees = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', activeUserId));
+        if (snap.exists()) {
+          const fees = snap.data()?.integrations?.brendi?.channelFees;
+          if (fees) {
+            setChannelFees(fees);
+            saveChannelFeesToStorage(fees, activeUserId);
+          }
+        }
+      } catch (err) {
+        console.warn('[BRENDI-TAB] Erro ao carregar taxas de canal:', err);
+      }
+    };
+    loadFees();
+
+    const handleFeesUpdated = (e: any) => {
+      if (e.detail) {
+        setChannelFees(e.detail);
+      }
+    };
+    window.addEventListener('brendi-channel-fees-updated', handleFeesUpdated);
+    return () => window.removeEventListener('brendi-channel-fees-updated', handleFeesUpdated);
+  }, [activeUserId]);
 
   const [orders, setOrders] = useState<BrendiOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,6 +282,9 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
       }
 
       setOrders(list);
+      if (list.length > 0) {
+        setHasConfiguredBrendi(true);
+      }
       setLoading(false);
     }, (error) => {
       console.warn('[BRENDI-REALTIME] Snapshot error:', error);
@@ -233,7 +327,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
     }
   }, [orders]);
 
-  // 3. Today's Summary & Channel distribution
+  // 3. Today's Summary & Financial breakdown
   const todaySummary = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     const todayOrders = orders.filter(o => {
@@ -243,38 +337,87 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
     });
 
     const totalOrdersCount = todayOrders.length;
-    const grossRevenue = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    let grossRevenue = 0;
+    let totalPlatformFees = 0;
+    let netRevenue = 0;
+    let totalCMV = 0;
+    let totalNetProfit = 0;
 
     const channels = {
-      brendiBalcao: { count: 0, total: 0 },
-      brendiDelivery: { count: 0, total: 0 },
-      ifood: { count: 0, total: 0 },
-      food99: { count: 0, total: 0 }
+      brendiBalcao: { count: 0, gross: 0, fees: 0, net: 0, profit: 0 },
+      brendiDelivery: { count: 0, gross: 0, fees: 0, net: 0, profit: 0 },
+      ifood: { count: 0, gross: 0, fees: 0, net: 0, profit: 0 },
+      food99: { count: 0, gross: 0, fees: 0, net: 0, profit: 0 },
+      keeta: { count: 0, gross: 0, fees: 0, net: 0, profit: 0 }
     };
 
     todayOrders.forEach(o => {
-      const ch = (o.channel || '').toLowerCase();
-      if (ch.includes('ifood')) {
-        channels.ifood.count += 1;
-        channels.ifood.total += o.total;
-      } else if (ch.includes('99') || ch.includes('food99')) {
-        channels.food99.count += 1;
-        channels.food99.total += o.total;
-      } else if (ch.includes('balc') || ch.includes('balcao') || ch.includes('indoor')) {
-        channels.brendiBalcao.count += 1;
-        channels.brendiBalcao.total += o.total;
+      const fin = calculateBrendiOrderFinancials({
+        order: o,
+        channelFees,
+        products,
+        combos,
+        getProductCMV,
+        getComboCMV,
+        totalCfiPercent
+      });
+
+      grossRevenue += fin.grossTotal;
+      totalPlatformFees += fin.feeAmount;
+      netRevenue += fin.netRevenue;
+      totalCMV += fin.cmvTotal;
+      totalNetProfit += fin.netProfitReal;
+
+      if (fin.channelKey === 'ifood') {
+        channels.ifood.count++;
+        channels.ifood.gross += fin.grossTotal;
+        channels.ifood.fees += fin.feeAmount;
+        channels.ifood.net += fin.netRevenue;
+        channels.ifood.profit += fin.netProfitReal;
+      } else if (fin.channelKey === 'food99') {
+        channels.food99.count++;
+        channels.food99.gross += fin.grossTotal;
+        channels.food99.fees += fin.feeAmount;
+        channels.food99.net += fin.netRevenue;
+        channels.food99.profit += fin.netProfitReal;
+      } else if (fin.channelKey === 'keeta') {
+        channels.keeta.count++;
+        channels.keeta.gross += fin.grossTotal;
+        channels.keeta.fees += fin.feeAmount;
+        channels.keeta.net += fin.netRevenue;
+        channels.keeta.profit += fin.netProfitReal;
+      } else if (fin.channelKey === 'brendiBalcao') {
+        channels.brendiBalcao.count++;
+        channels.brendiBalcao.gross += fin.grossTotal;
+        channels.brendiBalcao.fees += fin.feeAmount;
+        channels.brendiBalcao.net += fin.netRevenue;
+        channels.brendiBalcao.profit += fin.netProfitReal;
       } else {
-        channels.brendiDelivery.count += 1;
-        channels.brendiDelivery.total += o.total;
+        channels.brendiDelivery.count++;
+        channels.brendiDelivery.gross += fin.grossTotal;
+        channels.brendiDelivery.fees += fin.feeAmount;
+        channels.brendiDelivery.net += fin.netRevenue;
+        channels.brendiDelivery.profit += fin.netProfitReal;
       }
     });
+
+    const netProfitPercent = grossRevenue > 0 ? (totalNetProfit / grossRevenue) * 100 : 0;
+    const cmvPercent = grossRevenue > 0 ? (totalCMV / grossRevenue) * 100 : 0;
+    const feesPercent = grossRevenue > 0 ? (totalPlatformFees / grossRevenue) * 100 : 0;
 
     return {
       totalOrdersCount,
       grossRevenue,
+      totalPlatformFees,
+      feesPercent,
+      netRevenue,
+      totalCMV,
+      cmvPercent,
+      totalNetProfit,
+      netProfitPercent,
       channels
     };
-  }, [orders]);
+  }, [orders, channelFees, products, combos, getProductCMV, getComboCMV, totalCfiPercent]);
 
   // 4. Unmatched products check (Fuzzy matching with Ficha Técnica / Combos)
   const unmatchedAnalysis = useMemo(() => {
@@ -378,11 +521,12 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
   const displayedOrders = useMemo(() => {
     return orders.filter(o => {
       if (selectedChannelFilter !== 'all') {
-        const ch = (o.channel || '').toLowerCase();
-        if (selectedChannelFilter === 'brendi_balcao' && !ch.includes('balc') && !ch.includes('indoor')) return false;
-        if (selectedChannelFilter === 'brendi_delivery' && (ch.includes('balc') || !ch.includes('brendi'))) return false;
-        if (selectedChannelFilter === 'ifood' && !ch.includes('ifood')) return false;
-        if (selectedChannelFilter === 'food99' && !ch.includes('99')) return false;
+        const { channelKey } = identifyOrderChannel(o);
+        if (selectedChannelFilter === 'brendi_balcao' && channelKey !== 'brendiBalcao') return false;
+        if (selectedChannelFilter === 'brendi_delivery' && channelKey !== 'brendiDelivery') return false;
+        if (selectedChannelFilter === 'ifood' && channelKey !== 'ifood') return false;
+        if (selectedChannelFilter === 'food99' && channelKey !== 'food99') return false;
+        if (selectedChannelFilter === 'keeta' && channelKey !== 'keeta') return false;
       }
 
       if (orderSearchTerm.trim()) {
@@ -427,18 +571,15 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
     periodOrders.forEach(o => {
       totalProcessedOrders++;
       const orderDate = (o.createdAt || '').slice(0, 10) || todayStr;
-      const ch = (o.channel || '').toLowerCase();
+      const { channelKey } = identifyOrderChannel(o);
       
       let mappedChannel: 'ifood' | 'food99' | 'keeta' | 'store' = 'store';
-      let feePercent = 3.0; // Default balcão/delivery
+      if (channelKey === 'ifood') mappedChannel = 'ifood';
+      else if (channelKey === 'food99') mappedChannel = 'food99';
+      else if (channelKey === 'keeta') mappedChannel = 'keeta';
+      else mappedChannel = 'store';
 
-      if (ch.includes('ifood')) {
-        mappedChannel = 'ifood';
-        feePercent = 17.1;
-      } else if (ch.includes('99') || ch.includes('food99')) {
-        mappedChannel = 'food99';
-        feePercent = 12.1;
-      }
+      const feePercent = Number(channelFees[channelKey] ?? 0);
 
       (o.items || []).forEach((item, itemIdx) => {
         const norm = normalizeName(item.name);
@@ -465,7 +606,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
           couponCostByStore: 0,
           feePaid: Number(feePaid.toFixed(2)),
           totalAmount: lineTotal,
-          notes: `Importado da Brendi (${o.channel})`
+          notes: `Importado da Brendi (${o.channel || mappedChannel}) - Taxa ${feePercent}%`
         });
       });
     });
@@ -481,6 +622,192 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
       setShowProcessModal(false);
       setProcessStatusLog(null);
     }, 3500);
+  };
+
+  // 7.1 Processamento Oficial dos Pedidos do Mês Selecionado (Requisitos Única Fonte de Verdade)
+  const handleProcessMonthOrders = async (forceOverwrite: boolean = false) => {
+    if (!activeUserId) {
+      alert('Usuário não autenticado.');
+      return;
+    }
+
+    const targetMonth = monthToProcess;
+
+    // 1. Verificar se já existem vendas processadas para aquele mês ou edição manual
+    try {
+      const existingRecords = await getSalesDataForMonth(activeUserId, targetMonth);
+      const revEntry = monthlyRevenue?.find(r => r.month === targetMonth);
+      const isManual = typeof revEntry === 'object' && revEntry?.isManual === true;
+
+      if (!forceOverwrite) {
+        if (isManual) {
+          setConfirmModalInfo({
+            targetMonth,
+            isManualWarning: true,
+            existingCount: existingRecords.length,
+            message: `O faturamento do mês ${targetMonth} foi editado manualmente (R$ ${formatMoney(revEntry?.revenue || 0)}). Deseja realmente recalcular e sobrescrever com os dados atuais da integração com a Brendi?`
+          });
+          setShowConfirmRecalculateModal(true);
+          return;
+        }
+
+        if (existingRecords.length > 0) {
+          setConfirmModalInfo({
+            targetMonth,
+            isManualWarning: false,
+            existingCount: existingRecords.length,
+            message: `Já existem ${existingRecords.length} registros de vendas salvos para o mês ${targetMonth}. O faturamento deste mês será recalculado com base nos pedidos atuais da Brendi. Deseja continuar?`
+          });
+          setShowConfirmRecalculateModal(true);
+          return;
+        }
+      }
+
+      setShowConfirmRecalculateModal(false);
+      setIsProcessingMonth(true);
+
+      // 2. Buscar todos os pedidos da coleção brendi_orders com status igual a CONCLUDED, FINALIZADO ou DELIVERED que pertençam ao mês e ano selecionados
+      const validStatuses = ['CONCLUDED', 'FINALIZADO', 'DELIVERED'];
+      const monthOrders = orders.filter(o => {
+        const oMonth = (o.createdAt || '').slice(0, 7);
+        if (oMonth !== targetMonth) return false;
+        const st = (o.status || '').toUpperCase().trim();
+        return validStatuses.includes(st);
+      });
+
+      if (monthOrders.length === 0) {
+        alert(`Nenhum pedido com status Concluído, Finalizado ou Entregue foi encontrado na Brendi para o mês ${targetMonth}.`);
+        setIsProcessingMonth(false);
+        return;
+      }
+
+      // Build normalization maps
+      const normProdMap = new Map<string, Product>();
+      products.forEach(p => normProdMap.set(normalizeName(p.name), p));
+
+      const normComboMap = new Map<string, Combo>();
+      combos.forEach(c => normComboMap.set(normalizeName(c.name), c));
+
+      const salesRecords: SalesDataRecord[] = [];
+      const newTransactions: SalesTransaction[] = [];
+      let totalGross = 0;
+      let totalCmv = 0;
+      let totalFees = 0;
+
+      monthOrders.forEach(o => {
+        const orderDate = (o.createdAt || '').slice(0, 10) || `${targetMonth}-01`;
+        const { channelKey } = identifyOrderChannel(o);
+        
+        let mappedChannel: 'ifood' | 'food99' | 'keeta' | 'store' = 'store';
+        if (channelKey === 'ifood') mappedChannel = 'ifood';
+        else if (channelKey === 'food99') mappedChannel = 'food99';
+        else if (channelKey === 'keeta') mappedChannel = 'keeta';
+        else mappedChannel = 'store';
+
+        const feePercent = Number(channelFees[channelKey] ?? 0);
+
+        (o.items || []).forEach((item, itemIdx) => {
+          const norm = normalizeName(item.name);
+          const prod = normProdMap.get(norm);
+          const combo = normComboMap.get(norm);
+
+          const qty = item.quantity || 1;
+          const unitPrice = item.unitPrice || (item.totalPrice ? item.totalPrice / qty : 0);
+          const lineTotal = item.totalPrice || (unitPrice * qty);
+
+          // 3. Cruzar itens com fichas técnicas cadastradas para calcular o CMV real. Se não tiver, usar 32% como CMV estimado
+          let itemCmvUnit = 0;
+          if (prod) {
+            itemCmvUnit = getProductCMV(prod);
+          } else if (combo) {
+            itemCmvUnit = getComboCMV(combo);
+          } else {
+            itemCmvUnit = unitPrice * 0.32;
+          }
+          const lineCmv = itemCmvUnit * qty;
+
+          // 4. Aplicar taxas de canal corretas
+          const lineFee = lineTotal * (feePercent / 100);
+
+          totalGross += lineTotal;
+          totalCmv += lineCmv;
+          totalFees += lineFee;
+
+          const recId = `brendi_${o.id}_${itemIdx}_${Date.now()}`;
+
+          salesRecords.push({
+            id: recId,
+            userId: activeUserId,
+            date: orderDate,
+            month: targetMonth,
+            referenceMonth: targetMonth,
+            channel: mappedChannel,
+            productName: item.name,
+            productId: prod ? prod.id : (combo ? combo.id : 'temp_unregistered'),
+            qty,
+            unitPrice,
+            grossRevenue: lineTotal,
+            cmv: lineCmv,
+            channelFee: lineFee,
+            source: 'Brendi',
+            notes: `Brendi (${o.channel || mappedChannel}) - Taxa ${feePercent}%`,
+            createdAt: new Date().toISOString()
+          });
+
+          newTransactions.push({
+            id: recId,
+            date: orderDate,
+            orderId: o.orderId || o.id,
+            productId: prod ? prod.id : (combo ? combo.id : 'temp_unregistered'),
+            productName: item.name,
+            qty,
+            channel: mappedChannel,
+            pricePaidByCustomer: unitPrice,
+            platformSubsidy: 0,
+            couponCostByStore: 0,
+            feePaid: Number((lineFee / qty).toFixed(2)),
+            totalAmount: lineTotal,
+            notes: `Importado da Brendi (${o.channel || mappedChannel}) - Taxa ${feePercent}%`
+          });
+        });
+      });
+
+      // 6. Salvar todos esses registros na coleção única sales_data do Firestore associados ao mês e ano selecionados
+      if (forceOverwrite) {
+        await deleteSalesDataByMonth(activeUserId, targetMonth);
+      }
+      await saveSalesDataBatch(salesRecords, activeUserId);
+
+      // Adicionar transações ao estado do app
+      addSalesTransactionsBatch(newTransactions);
+
+      // 7. Atualizar o faturamento daquele mês na aba de Faturamento com o valor bruto total calculado pela integração
+      updateMonthlyRevenueFromIntegration(
+        targetMonth, 
+        totalGross, 
+        { source: 'Brendi', updatedAt: new Date().toISOString() }, 
+        true
+      );
+
+      // 8. Exibir resumo de processamento
+      const cfiCost = totalGross * (totalCfiPercent / 100);
+      const netProfitEstimated = totalGross - totalCmv - totalFees - cfiCost;
+
+      setProcessResultSummary({
+        targetMonth,
+        count: monthOrders.length,
+        grossRevenue: totalGross,
+        totalCmv,
+        netProfitEstimated
+      });
+      setShowProcessSuccessModal(true);
+
+    } catch (err: any) {
+      console.error('Erro ao processar pedidos da Brendi:', err);
+      alert('Erro no processamento: ' + err.message);
+    } finally {
+      setIsProcessingMonth(false);
+    }
   };
 
   // Helper for mock test order insertion (development testing)
@@ -525,7 +852,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
     }
   };
 
-  if (!checkingConfig && hasConfiguredBrendi === false) {
+  if (!checkingConfig && hasConfiguredBrendi === false && orders.length === 0 && (brendiOrders || []).length === 0) {
     return (
       <div className="bg-white dark:bg-[#111827] rounded-2xl border border-gray-200 dark:border-gray-800 p-8 text-center max-w-2xl mx-auto my-8 shadow-sm space-y-6 animate-fade-in">
         <div className="w-16 h-16 rounded-2xl bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/50 flex items-center justify-center mx-auto">
@@ -556,7 +883,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
           </ol>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={() => {
               if (onNavigateToIntegrations) {
@@ -565,11 +892,17 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
                 window.dispatchEvent(new CustomEvent('change-tab', { detail: 'integrations' }));
               }
             }}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-600/20 transition transform active:scale-95"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-600/20 transition transform active:scale-95 cursor-pointer"
           >
             <Plug className="w-4 h-4" />
             Configurar agora
             <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setHasConfiguredBrendi(true)}
+            className="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer"
+          >
+            Ver Feed de Pedidos
           </button>
         </div>
       </div>
@@ -667,65 +1000,225 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
         </div>
       </div>
 
+      {/* 2. PAINEL OFICIAL DE PROCESSAMENTO DE VENDAS DO MÊS (ÚNICA FONTE DE VERDADE) */}
+      <div className="bg-gradient-to-r from-purple-900/90 via-slate-900 to-purple-950 border-2 border-purple-500/60 rounded-2xl p-4 sm:p-5 shadow-xl text-white">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-400/40 text-purple-300 flex items-center justify-center">
+                <Sparkles size={18} />
+              </div>
+              <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                Processar Pedidos e Consolidar Faturamento do Mês
+              </h3>
+              <span className="px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 text-[10px] font-black uppercase tracking-wider border border-purple-400/40">
+                Oficial
+              </span>
+            </div>
+            <p className="text-xs text-purple-200/80 max-w-2xl leading-relaxed">
+              Calcula o CMV real dos itens via fichas técnicas (ou 32% estimado), desconta as taxas por canal, consolida na base única <code className="text-purple-300 bg-purple-950/80 px-1 py-0.5 rounded font-mono">sales_data</code> e atualiza a aba Faturamento automaticamente.
+            </p>
+          </div>
+
+          {/* Month selector & Process Button */}
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center bg-slate-950/80 border border-purple-400/40 rounded-xl px-2 py-1.5 shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  const [y, m] = monthToProcess.split('-').map(Number);
+                  const prev = new Date(y, m - 2, 1);
+                  const newM = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+                  setMonthToProcess(newM);
+                }}
+                className="p-1 text-purple-300 hover:text-white transition"
+                title="Mês anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <input
+                type="month"
+                value={monthToProcess}
+                onChange={(e) => setMonthToProcess(e.target.value)}
+                className="bg-transparent text-white text-xs font-bold px-2 py-0.5 border-none focus:outline-none focus:ring-0 cursor-pointer"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const [y, m] = monthToProcess.split('-').map(Number);
+                  const next = new Date(y, m, 1);
+                  const newM = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+                  setMonthToProcess(newM);
+                }}
+                className="p-1 text-purple-300 hover:text-white transition"
+                title="Próximo mês"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            <button
+              id="btn-processar-pedidos-mes"
+              disabled={isProcessingMonth}
+              onClick={() => handleProcessMonthOrders(false)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/25 transition transform active:scale-95 disabled:opacity-50"
+            >
+              {isProcessingMonth ? (
+                <>
+                  <RefreshCw className="animate-spin" size={16} />
+                  <span>Processando...</span>
+                </>
+              ) : (
+                <>
+                  <Play size={15} className="fill-current" />
+                  <span>Processar Pedidos do Mês</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Informação sobre os pedidos elegíveis deste mês */}
+        <div className="mt-3 pt-3 border-t border-purple-500/30 flex flex-wrap items-center justify-between gap-2 text-xs text-purple-200">
+          <div className="flex items-center gap-4">
+            <span>
+              Mês selecionado: <strong className="text-white font-bold">{monthToProcess}</strong>
+            </span>
+            <span>
+              Pedidos concluídos disponíveis: <strong className="text-white font-bold">
+                {orders.filter(o => {
+                  const oMonth = (o.createdAt || '').slice(0, 7);
+                  if (oMonth !== monthToProcess) return false;
+                  const st = (o.status || '').toUpperCase().trim();
+                  return ['CONCLUDED', 'FINALIZADO', 'DELIVERED'].includes(st);
+                }).length}
+              </strong>
+            </span>
+            <span>
+              Total bruto em pedidos: <strong className="text-emerald-300 font-bold">
+                {formatMoney(
+                  orders.filter(o => {
+                    const oMonth = (o.createdAt || '').slice(0, 7);
+                    if (oMonth !== monthToProcess) return false;
+                    const st = (o.status || '').toUpperCase().trim();
+                    return ['CONCLUDED', 'FINALIZADO', 'DELIVERED'].includes(st);
+                  }).reduce((acc, o) => acc + (Number(o.total) || 0), 0)
+                )}
+              </strong>
+            </span>
+          </div>
+          <span className="text-[11px] text-purple-300/80">
+            *Atualiza instantaneamente Faturamento, CMV e o DRE de Lucro Real
+          </span>
+        </div>
+      </div>
+
       {/* 2. Today's Summary Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <div className="bg-white dark:bg-[#1e293b]/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Hoje (Brendi)</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl md:text-2xl font-black text-gray-900 dark:text-white font-mono">
-              {todaySummary.totalOrdersCount}
-            </span>
-            <span className="text-xs text-gray-400">pedidos</span>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Faturamento Bruto */}
+          <div className="bg-white dark:bg-[#1e293b]/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block">Faturamento Bruto</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-lg md:text-xl font-black text-gray-900 dark:text-white font-mono">
+                {formatMoney(todaySummary.grossRevenue)}
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold mt-1">
+              {todaySummary.totalOrdersCount} {todaySummary.totalOrdersCount === 1 ? 'pedido hoje' : 'pedidos hoje'}
+            </p>
           </div>
-          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
-            Faturamento: {formatMoney(todaySummary.grossRevenue)}
-          </p>
+
+          {/* Total Taxas de Plataforma */}
+          <div className="bg-white dark:bg-[#1e293b]/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-widest text-red-500 dark:text-red-400 block">Taxas de Plataforma</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-lg md:text-xl font-black text-red-600 dark:text-red-400 font-mono">
+                {todaySummary.totalPlatformFees > 0 ? `-${formatMoney(todaySummary.totalPlatformFees)}` : 'R$ 0,00'}
+              </span>
+            </div>
+            <p className="text-[10px] text-red-500/80 font-bold mt-1">
+              {formatPercent(todaySummary.feesPercent)} do faturamento
+            </p>
+          </div>
+
+          {/* Faturamento Líquido */}
+          <div className="bg-white dark:bg-[#1e293b]/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 dark:text-blue-400 block">Faturamento Líquido</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-lg md:text-xl font-black text-blue-600 dark:text-blue-400 font-mono">
+                {formatMoney(todaySummary.netRevenue)}
+              </span>
+            </div>
+            <p className="text-[10px] text-blue-500/80 font-bold mt-1">
+              Repasse real estimado
+            </p>
+          </div>
+
+          {/* CMV Total */}
+          <div className="bg-white dark:bg-[#1e293b]/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 dark:text-amber-400 block">CMV dos Produtos</span>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-lg md:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                {formatMoney(todaySummary.totalCMV)}
+              </span>
+            </div>
+            <p className="text-[10px] text-amber-500/80 font-bold mt-1">
+              {formatPercent(todaySummary.cmvPercent)} do faturamento
+            </p>
+          </div>
+
+          {/* Lucro Líquido Real */}
+          <div className="bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 rounded-xl border border-emerald-300 dark:border-emerald-800/80 shadow-sm col-span-2 md:col-span-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Lucro Real no Bolso</span>
+              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white">Líquido</span>
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className={`text-lg md:text-xl font-black font-mono ${todaySummary.totalNetProfit >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'}`}>
+                {formatMoney(todaySummary.totalNetProfit)}
+              </span>
+            </div>
+            <p className={`text-[10px] font-bold mt-1 ${todaySummary.totalNetProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+              Margem: {formatPercent(todaySummary.netProfitPercent)}
+            </p>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1e293b]/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-1.5">
-            <BrendiLogo className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">Brendi Balcão</span>
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-lg md:text-xl font-black text-gray-900 dark:text-white font-mono">
-              {formatMoney(todaySummary.channels.brendiBalcao.total)}
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-400 font-bold mt-1">
-            {todaySummary.channels.brendiBalcao.count} {todaySummary.channels.brendiBalcao.count === 1 ? 'pedido' : 'pedidos'}
-          </p>
-        </div>
+        {/* Channel breakdown bar */}
+        <div className="flex flex-wrap items-center gap-2 text-xs bg-gray-50 dark:bg-[#1a2333]/50 p-2.5 rounded-xl border border-gray-200/80 dark:border-gray-800 text-gray-600 dark:text-gray-300">
+          <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 shrink-0">Canais Hoje:</span>
+          
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-mono">
+            <Store className="w-3 h-3 text-purple-600" /> Balcão ({channelFees.brendiBalcao}%): <strong>{formatMoney(todaySummary.channels.brendiBalcao.gross)}</strong> ({todaySummary.channels.brendiBalcao.count})
+          </span>
 
-        <div className="bg-white dark:bg-[#1e293b]/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-1.5">
-            <BrendiLogo className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">Brendi Delivery</span>
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-lg md:text-xl font-black text-gray-900 dark:text-white font-mono">
-              {formatMoney(todaySummary.channels.brendiDelivery.total)}
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-400 font-bold mt-1">
-            {todaySummary.channels.brendiDelivery.count} {todaySummary.channels.brendiDelivery.count === 1 ? 'pedido' : 'pedidos'}
-          </p>
-        </div>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-mono">
+            <BrendiLogo className="w-3 h-3" /> Delivery ({channelFees.brendiDelivery}%): <strong>{formatMoney(todaySummary.channels.brendiDelivery.gross)}</strong> ({todaySummary.channels.brendiDelivery.count})
+          </span>
 
-        <div className="bg-white dark:bg-[#1e293b]/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-2">
-            <IFoodLogo className="w-3.5 h-3.5" />
-            <Food99Logo className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">iFood & 99Food</span>
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-lg md:text-xl font-black text-gray-900 dark:text-white font-mono">
-              {formatMoney(todaySummary.channels.ifood.total + todaySummary.channels.food99.total)}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-mono">
+            <IFoodLogo className="w-3 h-3" /> iFood ({channelFees.ifood}%): <strong>{formatMoney(todaySummary.channels.ifood.gross)}</strong> ({todaySummary.channels.ifood.count})
+          </span>
+
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-mono">
+            <Food99Logo className="w-3 h-3" /> 99Food ({channelFees.food99}%): <strong>{formatMoney(todaySummary.channels.food99.gross)}</strong> ({todaySummary.channels.food99.count})
+          </span>
+
+          {channelFees.keeta > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] font-mono">
+              <KeetaLogo className="w-3 h-3" /> Keeta ({channelFees.keeta}%): <strong>{formatMoney(todaySummary.channels.keeta.gross)}</strong> ({todaySummary.channels.keeta.count})
             </span>
-          </div>
-          <p className="text-[10px] text-gray-400 font-bold mt-1">
-            {todaySummary.channels.ifood.count + todaySummary.channels.food99.count} pedidos integrados
-          </p>
+          )}
+
+          {onNavigateToIntegrations && (
+            <button
+              onClick={onNavigateToIntegrations}
+              className="ml-auto text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold flex items-center gap-1"
+            >
+              <Percent className="w-3 h-3" /> Ajustar Taxas
+            </button>
+          )}
         </div>
       </div>
 
@@ -738,7 +1231,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
               Pedidos Recebidos da Brendi em Tempo Real
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Transmitidos diretamente via OpenDelivery da Abrasel.
+              Transmitidos via OpenDelivery da Abrasel com cálculo detalhado de taxas e lucro real.
             </p>
           </div>
 
@@ -754,6 +1247,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
               <option value="brendi_delivery">Brendi Delivery</option>
               <option value="ifood">iFood</option>
               <option value="food99">99Food</option>
+              <option value="keeta">Keeta</option>
             </select>
 
             {/* Search filter */}
@@ -805,13 +1299,17 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase text-gray-400 tracking-wider">
                   <th className="pb-2.5">ID / Hora</th>
                   <th className="pb-2.5">Canal</th>
                   <th className="pb-2.5">Produtos Vendidos</th>
-                  <th className="pb-2.5 text-right">Valor Total</th>
+                  <th className="pb-2.5 text-right">Valor Bruto</th>
+                  <th className="pb-2.5 text-right">Taxas (Canal)</th>
+                  <th className="pb-2.5 text-right">Valor Líquido</th>
+                  <th className="pb-2.5 text-right">CMV Insumos</th>
+                  <th className="pb-2.5 text-right">Lucro Real</th>
                   <th className="pb-2.5 text-center">Status</th>
                 </tr>
               </thead>
@@ -824,8 +1322,19 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
 
                   const isCancelled = order.status === 'CANCELLED' || order.status === 'CANCELLATION_REQUESTED';
 
+                  const fin = calculateBrendiOrderFinancials({
+                    order,
+                    channelFees,
+                    products,
+                    combos,
+                    getProductCMV,
+                    getComboCMV,
+                    totalCfiPercent
+                  });
+
                   return (
                     <tr key={order.id} className={`hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition ${isCancelled ? 'opacity-50 line-through' : ''}`}>
+                      {/* ID / Hora */}
                       <td className="py-3 font-mono">
                         <span className="font-bold text-gray-900 dark:text-white block">
                           #{order.orderId || order.id.slice(-6)}
@@ -835,15 +1344,18 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
                         </span>
                       </td>
 
+                      {/* Canal */}
                       <td className="py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          order.channel?.toLowerCase().includes('ifood')
+                          fin.channelKey === 'ifood'
                             ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300'
-                            : order.channel?.toLowerCase().includes('99')
+                            : fin.channelKey === 'food99'
                             ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300'
+                            : fin.channelKey === 'keeta'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300'
                             : 'bg-purple-100 dark:bg-purple-950/50 text-purple-800 dark:text-purple-300'
                         }`}>
-                          {order.channel}
+                          {fin.channelLabel}
                         </span>
                         {order.customerName && (
                           <span className="block text-[10px] text-gray-400 mt-0.5 truncate max-w-[130px]">
@@ -852,6 +1364,7 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
                         )}
                       </td>
 
+                      {/* Produtos Vendidos */}
                       <td className="py-3">
                         <div className="space-y-0.5 max-w-sm">
                           {(order.items || []).map((item, idx) => (
@@ -869,10 +1382,52 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
                         </div>
                       </td>
 
-                      <td className="py-3 text-right font-mono font-black text-gray-900 dark:text-white text-sm">
-                        {formatMoney(order.total)}
+                      {/* Valor Bruto */}
+                      <td className="py-3 text-right font-mono font-bold text-gray-900 dark:text-white text-xs">
+                        {formatMoney(fin.grossTotal)}
                       </td>
 
+                      {/* Taxas Descontadas */}
+                      <td className="py-3 text-right font-mono text-xs">
+                        {fin.feeAmount > 0 ? (
+                          <div>
+                            <span className="text-red-600 dark:text-red-400 font-bold block">
+                              -{formatMoney(fin.feeAmount)}
+                            </span>
+                            <span className="text-[10px] text-gray-400 block font-normal">
+                              ({fin.feePercent}%)
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-[11px]">R$ 0,00 (0%)</span>
+                        )}
+                      </td>
+
+                      {/* Valor Líquido */}
+                      <td className="py-3 text-right font-mono font-bold text-blue-600 dark:text-blue-400 text-xs">
+                        {formatMoney(fin.netRevenue)}
+                      </td>
+
+                      {/* CMV dos Produtos */}
+                      <td className="py-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400 text-xs">
+                        {formatMoney(fin.cmvTotal)}
+                      </td>
+
+                      {/* Lucro Real no Bolso */}
+                      <td className="py-3 text-right font-mono text-xs">
+                        <div className={`font-black ${fin.isProfitPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {formatMoney(fin.netProfitReal)}
+                        </div>
+                        <span className={`inline-block text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 ${
+                          fin.isProfitPositive 
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                            : 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
+                        }`}>
+                          {formatPercent(fin.netProfitPercent)}
+                        </span>
+                      </td>
+
+                      {/* Status */}
                       <td className="py-3 text-center">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                           isCancelled
@@ -1086,6 +1641,139 @@ export const BrendiRealtimeTab: React.FC<BrendiRealtimeTabProps> = ({
                 className="px-5 py-2 bg-gray-900 text-white dark:bg-white dark:text-gray-900 text-xs font-black uppercase rounded-xl hover:opacity-90 transition"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Recálculo do Faturamento */}
+      {showConfirmRecalculateModal && confirmModalInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 text-white space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-amber-400">
+              <AlertTriangle size={26} />
+              <h3 className="text-base font-black uppercase tracking-tight">
+                {confirmModalInfo.isManualWarning ? 'Atenção: Faturamento Editado Manualmente' : 'Recalcular Faturamento do Mês?'}
+              </h3>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              {confirmModalInfo.message}
+            </p>
+
+            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs space-y-1.5 text-slate-400">
+              <div>Mês de referência: <strong className="text-white">{confirmModalInfo.targetMonth}</strong></div>
+              <div>Registros atuais existentes: <strong className="text-white">{confirmModalInfo.existingCount}</strong></div>
+              {confirmModalInfo.isManualWarning && (
+                <div className="text-amber-400 font-bold">
+                  *A edição manual será substituída pelo valor bruto total apurado na integração da Brendi.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmRecalculateModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProcessMonthOrders(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black uppercase tracking-wider transition shadow-lg shadow-purple-600/30"
+              >
+                Sim, Recalcular e Sobrescrever
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Resumo de Sucesso do Processamento */}
+      {showProcessSuccessModal && processResultSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="bg-slate-900 border-2 border-emerald-500/50 rounded-2xl max-w-lg w-full p-6 text-white space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={28} />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  Pedidos Processados com Sucesso!
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Dados consolidados na base única e sincronizados com a aba Faturamento para o mês <strong className="text-white">{processResultSummary.targetMonth}</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Scorecard de Resumo */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                  Pedidos Processados
+                </span>
+                <span className="text-xl font-black text-white font-mono mt-1 block">
+                  {processResultSummary.count} pedidos
+                </span>
+                <span className="text-[10px] text-emerald-400 font-bold">
+                  Status concluído / entregue
+                </span>
+              </div>
+
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                  Faturamento Bruto
+                </span>
+                <span className="text-xl font-black text-emerald-400 font-mono mt-1 block">
+                  {formatMoney(processResultSummary.grossRevenue)}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Atualizado em Faturamento
+                </span>
+              </div>
+
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                  CMV Total dos Insumos
+                </span>
+                <span className="text-xl font-black text-red-400 font-mono mt-1 block">
+                  {formatMoney(processResultSummary.totalCmv)}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Via Fichas Técnicas
+                </span>
+              </div>
+
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                  Lucro Líquido Estimado
+                </span>
+                <span className={`text-xl font-black font-mono mt-1 block ${
+                  processResultSummary.netProfitEstimated >= 0 ? 'text-emerald-400' : 'text-red-400'
+                }`}>
+                  {formatMoney(processResultSummary.netProfitEstimated)}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Descontando taxas e CFI
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
+              <strong className="text-brand-yellow font-bold">Tudo pronto:</strong> O faturamento e o CMV já estão refletidos nas abas de <em>Faturamento</em>, <em>Lucro Atual</em> e no <em>Ranking de Vendas</em>!
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowProcessSuccessModal(false)}
+                className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-wider transition shadow-lg shadow-emerald-500/20"
+              >
+                Concluir e Ver Resultados
               </button>
             </div>
           </div>

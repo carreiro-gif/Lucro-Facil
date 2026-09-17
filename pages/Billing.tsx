@@ -94,9 +94,21 @@ const Billing: React.FC = () => {
     let newData;
 
     if (exists) {
-      newData = monthlyRevenue.map(r => r.month === monthKey ? { ...r, revenue: parsedNum } : r);
+      newData = monthlyRevenue.map(r => r.month === monthKey ? { 
+        ...r, 
+        revenue: parsedNum, 
+        isManual: true, 
+        source: 'manual', 
+        updatedAt: new Date().toISOString() 
+      } : r);
     } else {
-      newData = [...monthlyRevenue, { month: monthKey, revenue: parsedNum }];
+      newData = [...monthlyRevenue, { 
+        month: monthKey, 
+        revenue: parsedNum, 
+        isManual: true, 
+        source: 'manual', 
+        updatedAt: new Date().toISOString() 
+      }];
     }
     
     updateMonthlyRevenue(newData);
@@ -110,7 +122,9 @@ const Billing: React.FC = () => {
       return {
         label: m.label,
         key: monthKey,
-        value: entry ? entry.revenue : 0
+        value: entry ? entry.revenue : 0,
+        isManual: entry?.isManual,
+        source: entry?.source
       };
     });
   }, [viewYear, monthlyRevenue]);
@@ -206,7 +220,20 @@ const Billing: React.FC = () => {
                                 <tr key={month.key} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                                     <td className="px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-300 w-1/3">
                                         <div className="flex flex-col">
-                                            <span className="font-semibold text-gray-900 dark:text-gray-200">{month.label}</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-semibold text-gray-900 dark:text-gray-200">{month.label}</span>
+                                                {month.value > 0 && (
+                                                    month.isManual ? (
+                                                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold border border-blue-200/60 dark:border-blue-900/50" title="Valor inserido manualmente">
+                                                            Manual
+                                                        </span>
+                                                    ) : (month.source ? (
+                                                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 font-bold border border-purple-200/60 dark:border-purple-900/50" title={`Origem: ${month.source}`}>
+                                                            {month.source}
+                                                        </span>
+                                                    ) : null)
+                                                )}
+                                            </div>
                                             {month.value > 0 && (
                                                 <div className="flex flex-wrap items-center gap-1.5 mt-1 no-print">
                                                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-black text-white uppercase tracking-wider ${

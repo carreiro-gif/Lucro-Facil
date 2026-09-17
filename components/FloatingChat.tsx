@@ -128,8 +128,8 @@ const getWelcomeData = (tab: string) => {
       };
     case 'collaborators':
       return {
-        message: "Oi! Sou o Xande, seu consultor de lucro do Cardápio Blindado. Vamos gerenciar a equipe e os custos de mão de obra! Lembre-se: diárias, salários e pró-labore entram nas Despesas Fixas (CFI), enquanto as taxas de entrega são custos variáveis do pedido.",
-        suggestions: ["Como lançar o fechamento do dia?", "Como o pró-labore entra no CFI?", "Taxas de entrega x Despesas Fixas"]
+        message: "Oi! Sou o Xande, seu consultor financeiro do Lucro Fácil. Vejo que você está no módulo de Colaboradores e Equipe! Aqui você controla diárias, fechamentos, salários, taxas de entrega (variáveis) e o custo real da alimentação da equipe sem poluir seu Contas a Pagar. Quer uma análise da sua mão de obra?",
+        suggestions: ["Quanto tenho a pagar para a equipe?", "Qual meu CMO (Custo de Mão de Obra)?", "Como funciona a alimentação da equipe?"]
       };
     case 'accounts-receivable':
       return {
@@ -248,6 +248,35 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
         }))
       };
 
+      const currentMonthStr = new Date().toISOString().slice(0, 7);
+      const activeCollabs = (appState.collaborators || []).filter(c => c.status === 'active');
+      const pendingPayments = (appState.collaboratorPayments || []).filter(p => p.status === 'pendente' || p.status === 'parcial');
+      const totalPendingAmount = pendingPayments.reduce((acc, p) => acc + (p.pendingBalance ?? (p.totalPaid - (p.amountPaid || 0))), 0);
+      const paidThisMonth = (appState.collaboratorPayments || [])
+        .filter(p => p.date.startsWith(currentMonthStr) && (p.status === 'pago' || (p.amountPaid || 0) > 0))
+        .reduce((acc, p) => acc + (p.status === 'pago' ? p.totalPaid : (p.amountPaid || 0)), 0);
+      const deliveryFeesTotal = (appState.collaboratorPayments || [])
+        .filter(p => p.date.startsWith(currentMonthStr))
+        .reduce((acc, p) => acc + (p.deliveryFeeAmount || 0), 0);
+      const mealsTotalCost = (appState.collaboratorMeals || [])
+        .filter(m => m.date.startsWith(currentMonthStr))
+        .reduce((acc, m) => acc + (m.totalCost || 0), 0);
+
+      const collaboratorsSummary = {
+        equipe_ativa_qtd: activeCollabs.length,
+        total_pendente_a_pagar: totalPendingAmount,
+        total_pago_mes_atual: paidThisMonth,
+        total_taxas_entrega_mes: deliveryFeesTotal,
+        total_custo_alimentacao_mes: mealsTotalCost,
+        pendentes_detalhe: pendingPayments.slice(0, 10).map(p => ({
+          colaborador: p.collaboratorName,
+          cargo: p.collaboratorRole,
+          data: p.date,
+          saldo_pendente: p.pendingBalance ?? (p.totalPaid - (p.amountPaid || 0)),
+          status: p.status
+        }))
+      };
+
       const smartContext = {
         tela_ativa: activeTab,
         faturamento_mes_atual: currentMonthRevenue,
@@ -256,7 +285,8 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
         ponto_equilibrio_calculado: breakEvenCalculated,
         produtos: productsSummary,
         ingredientes: ingredientsSummary,
-        contas_a_receber: accountsReceivableSummary
+        contas_a_receber: accountsReceivableSummary,
+        colaboradores: collaboratorsSummary
       };
 
       // Pass previous history minus the new message to recreate conversation context

@@ -38,6 +38,24 @@
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last save timestamp" }
       },
       "required": ["id", "userId", "updatedAt"]
+    },
+    "salesRecord": {
+      "title": "Sales Data Record",
+      "description": "Consolidated single source of truth for all sales data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction ID" },
+        "saleDate": { "type": "string", "description": "Date of sale" },
+        "month": { "type": "string", "description": "Reference month YYYY-MM" },
+        "channel": { "type": "string", "description": "Sales channel" },
+        "totalAmount": { "type": "number", "description": "Gross amount" },
+        "cmvTotal": { "type": "number", "description": "Calculated total CMV" },
+        "feesTotal": { "type": "number", "description": "Calculated platform/channel fees" },
+        "netProfit": { "type": "number", "description": "Net real profit" },
+        "source": { "type": "string", "enum": ["Planilha", "Manual", "Brendi"] },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "saleDate", "month", "channel", "totalAmount", "cmvTotal", "source"]
     }
   },
   "firestore": {
@@ -48,6 +66,10 @@
     "/users/{userId}/stores/{storeId}": {
       "schema": "storeData",
       "description": "Each store belonging to a user containing its complete global state"
+    },
+    "/sales_data/{saleId}": {
+      "schema": "salesRecord",
+      "description": "Consolidated sales records across all sources"
     }
   }
 }

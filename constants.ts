@@ -493,6 +493,7 @@ export const INITIAL_STATE: GlobalState = {
   ingredientCategories: INITIAL_INGREDIENT_CATEGORIES,
   collaborators: [],
   collaboratorPayments: [],
+  collaboratorMeals: [],
   customCollaboratorRoles: [],
   accountsReceivable: [],
   customReceivableOrigins: []
@@ -526,6 +527,7 @@ export const EMPTY_STATE: GlobalState = {
   ingredientCategories: INITIAL_INGREDIENT_CATEGORIES,
   collaborators: [],
   collaboratorPayments: [],
+  collaboratorMeals: [],
   customCollaboratorRoles: [],
   accountsReceivable: [],
   customReceivableOrigins: []

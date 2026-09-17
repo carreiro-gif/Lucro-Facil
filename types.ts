@@ -134,6 +134,44 @@ export interface Supplier {
 export interface MonthlyData {
   month: string;
   revenue: number;
+  isManual?: boolean;
+  source?: 'manual' | 'integration' | 'consolidated';
+  updatedAt?: string;
+}
+
+export interface SalesDataRecord {
+  id: string;
+  saleDate?: string;
+  date?: string;
+  month: string;
+  referenceMonth?: string;
+  channel: string;
+  totalAmount?: number;
+  grossRevenue?: number;
+  cmvTotal?: number;
+  cmv?: number;
+  feesTotal?: number;
+  channelFee?: number;
+  netProfit?: number;
+  source: 'Planilha' | 'Manual' | 'Brendi' | string;
+  orderId?: string;
+  customerName?: string;
+  productName?: string;
+  productId?: string;
+  qty?: number;
+  unitPrice?: number;
+  notes?: string;
+  items?: Array<{
+    name: string;
+    qty: number;
+    unitPrice: number;
+    totalPrice: number;
+    cmvUnit: number;
+  }>;
+  userId?: string;
+  storeId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CfiConfig {
@@ -243,6 +281,7 @@ export interface GlobalState {
   ingredientCategories?: IngredientCategory[];
   collaborators?: Collaborator[];
   collaboratorPayments?: CollaboratorPayment[];
+  collaboratorMeals?: CollaboratorMeal[];
   customCollaboratorRoles?: string[];
   accountsReceivable?: AccountReceivable[];
   customReceivableOrigins?: CustomReceivableOrigin[];
@@ -311,6 +350,39 @@ export type RemunerationType =
   | 'pro_labore'
   | 'outro';
 
+export type PaymentFrequency = 
+  | 'no_dia'
+  | 'semanal'
+  | 'quinzenal'
+  | 'mensal'
+  | 'personalizado';
+
+export type PaymentMethod = 
+  | 'pix'
+  | 'dinheiro'
+  | 'cartao'
+  | 'transferencia'
+  | 'outro';
+
+export type CollaboratorCategory = 
+  | 'Administração'
+  | 'Cozinha/Produção'
+  | 'Atendimento'
+  | 'Entrega/Logística'
+  | 'Limpeza/Apoio'
+  | 'Gestão'
+  | 'Outros';
+
+export interface CollaboratorBenefitConfig {
+  id: string;
+  type: 'cartao_alimentacao' | 'cartao_refeicao' | 'vale_alimentacao' | 'vale_refeicao' | 'outro';
+  name: string;
+  monthlyAmount?: number; // valor fixo mensal pago pela empresa
+  dailyAmount?: number;   // valor por dia trabalhado
+  paidByCompany: number;  // valor total pago pela empresa
+  notes?: string;
+}
+
 export interface DayOfWeekRule {
   dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Domingo, 1 = Segunda, ... 6 = Sábado
   remunerationType: RemunerationType;
@@ -322,13 +394,19 @@ export interface Collaborator {
   id: string;
   name: string;
   role: string;
+  category?: string; // Categoria do cargo (Cozinha, Entrega, Atendimento, etc.)
   remunerationType: RemunerationType;
   defaultAmount: number;
+  paymentFrequency?: PaymentFrequency; // Frequência de pagamento (no_dia, semanal, quinzenal, mensal)
   weeklyRules?: DayOfWeekRule[];
   startDate?: string;
   status: 'active' | 'inactive';
+  pixKey?: string;
+  phone?: string;
   notes?: string;
+  benefits?: CollaboratorBenefitConfig[] | { providesMeals?: boolean };
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CollaboratorPayment {
@@ -338,14 +416,98 @@ export interface CollaboratorPayment {
   collaboratorRole: string;
   date: string; // YYYY-MM-DD (fechamento do dia) or YYYY-MM (competência)
   remunerationType: RemunerationType;
-  baseAmount: number; // Fixed expense portion (Salário, Diária, Pró-Labore) -> GOES TO DESPESAS FIXAS / CFI
-  deliveryFeeAmount: number; // Variable delivery fee -> DOES NOT GO TO DESPESAS FIXAS / CFI
+  baseAmount: number; // Mão de obra fixa (Salário, Diária, Pró-Labore) -> Vai para DESPESAS FIXAS / CFI
+  deliveryFeeAmount: number; // Taxas de entrega variáveis -> NÃO entra no CFI / Despesas Fixas
   deliveryCount?: number;
-  totalPaid: number; // baseAmount + deliveryFeeAmount
-  status: 'pago' | 'pendente';
+  totalPaid: number; // baseAmount + deliveryFeeAmount (valor total acordado)
+  amountPaid?: number; // Valor já pago efetivamente
+  pendingBalance?: number; // Saldo pendente caso pagamento seja parcial
+  status: 'pago' | 'pendente' | 'parcial';
   paymentDate?: string;
-  linkedExpenseId?: string; // ID of the linked Expense in Despesas
+  paymentMethod?: PaymentMethod;
+  linkedExpenseId?: string; // ID da Despesa vinculada em Contas a Pagar (se individual)
+  consolidatedExpenseId?: string; // ID do lote consolidado em Contas a Pagar (se consolidado)
+  periodStart?: string;
+  periodEnd?: string;
+  periodType?: 'diario' | 'semanal' | 'quinzenal' | 'mensal' | 'personalizado';
   notes?: string;
+  createdAt?: string;
+}
+
+export interface CollaboratorMealItem {
+  id: string;
+  type: 'product' | 'custom';
+  productId?: string;
+  name: string;
+  category?: 'lanche' | 'bebida' | 'sobremesa' | 'marmita' | 'outro';
+  cost: number; // CUSTO REAL DO PRODUTO (NUNCA PREÇO DE VENDA)
+  salePriceReference?: number; // Preço de venda apenas como referência comparativa
+  quantity: number;
+}
+
+export interface CollaboratorMeal {
+  id: string;
+  collaboratorId: string;
+  collaboratorName: string;
+  date: string; // YYYY-MM-DD
+  items?: CollaboratorMealItem[];
+  type?: 'produto_proprio' | 'item_externo';
+  productId?: string;
+  productName?: string;
+  category?: string;
+  quantity?: number;
+  unitCost?: number;
+  totalCost: number; // Custo real total absorvido pela empresa
+  notes?: string;
+  createdAt: string;
+}
+
+export interface BrendiChannelFees {
+  ifood: number;          // percentual total iFood
+  food99: number;         // percentual total 99Food
+  keeta: number;          // percentual total Keeta
+  brendiDelivery: number; // percentual total Brendi Delivery próprio
+  brendiBalcao: number;   // percentual total Brendi Balcão
+}
+
+export interface BrendiDetailedFeeChannel {
+  fee?: number;
+  onlinePayment?: number;
+  anticipation?: number;
+  delivery?: number;
+  coupon?: number;
+  feePercent?: number;
+  onlinePaymentPercent?: number;
+  anticipationPercent?: number;
+  deliveryReais?: number;
+  couponReais?: number;
+}
+
+export interface BrendiDetailedFees {
+  ifood: BrendiDetailedFeeChannel;
+  food99: BrendiDetailedFeeChannel;
+  keeta: BrendiDetailedFeeChannel;
+  brendiDelivery: {
+    fee?: number;
+    delivery?: number;
+    feePercent?: number;
+    deliveryReais?: number;
+  };
+  brendiBalcao: {
+    fee?: number;
+    feePercent?: number;
+  };
+}
+
+export interface BrendiSmartCampaign {
+  active: boolean;
+  dailyInvestment: number;
+}
+
+export interface BrendiMonthlySubscription {
+  plan: 'basic' | 'delivery'; // basic = R$ 110, delivery = R$ 150
+  feeAmount: number;
+  billingThreshold: number; // default R$ 1800
 }
 
 export interface UserIntegrationBrendi {
@@ -353,6 +515,10 @@ export interface UserIntegrationBrendi {
   webhookSecret: string;
   active?: boolean;
   updatedAt?: string;
+  channelFees?: BrendiChannelFees;
+  detailedFees?: BrendiDetailedFees;
+  smartCampaign?: BrendiSmartCampaign;
+  monthlySubscription?: BrendiMonthlySubscription;
 }
 
 export interface UserIntegrations {

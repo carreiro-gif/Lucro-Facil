@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
-import { DollarSign, Target, Dna, UtensilsCrossed, Settings, Receipt, Beef, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, ChevronRight, Zap, Trophy } from 'lucide-react';
+import { DollarSign, Target, Dna, UtensilsCrossed, Settings, Receipt, Beef, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ChevronLeft, Calendar, Zap, Trophy, Radio, Clock, ShoppingBag, Store, RefreshCw, ArrowRight } from 'lucide-react';
 import { formatPercent } from '../constants';
 import { TrialBlindagemWidget } from '../components/TrialBlindagemWidget';
+import { BrendiLogo, IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -20,7 +21,9 @@ const Dashboard: React.FC = () => {
     getCmvAvgPercent,
     calculateBreakEven,
     salesTransactions,
-    accountsReceivable = []
+    accountsReceivable = [],
+    brendiOrders = [],
+    isBrendiSyncing = false
   } = useApp();
   
   const storeId = storeInfo?.id || '1';
@@ -60,27 +63,138 @@ const Dashboard: React.FC = () => {
     setIsEditingGoal(false);
   };
 
-  // 1. Basic monthly revenue data
+  // 1. Selected Month Logic (Defaults to latest active month or current calendar month)
+  const currentCalendarMonth = new Date().toISOString().slice(0, 7);
   const activeRevenueMonths = useMemo(() => monthlyRevenue.filter(m => m.revenue > 0), [monthlyRevenue]);
-  const latestMonthKey = activeRevenueMonths.length > 0 
+  const defaultInitialMonth = activeRevenueMonths.length > 0 
     ? activeRevenueMonths[activeRevenueMonths.length - 1].month 
-    : new Date().toISOString().slice(0, 7);
+    : currentCalendarMonth;
 
-  const monthRevenue = monthlyRevenue.find(r => r.month === latestMonthKey)?.revenue || 0;
-  
-  // Previous month logic for trend
-  const prevMonthRevenue = activeRevenueMonths.length > 1 
-    ? activeRevenueMonths[activeRevenueMonths.length - 2].revenue 
-    : 0;
+  const [selectedMonth, setSelectedMonth] = useState<string>(defaultInitialMonth);
+
+  // Real-time Brendi orders for selected month
+  const validBrendiOrders = useMemo(() => {
+    return (brendiOrders || []).filter(o => {
+      const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+      const m = (o.createdAt || '').slice(0, 7);
+      return m === selectedMonth && !isCancelled;
+    });
+  }, [brendiOrders, selectedMonth]);
+
+  const brendiRevenueTotal = useMemo(() => {
+    return validBrendiOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  }, [validBrendiOrders]);
+
+  // Real-time Brendi orders for Today
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayBrendiOrders = useMemo(() => {
+    return (brendiOrders || []).filter(o => {
+      const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+      const d = (o.createdAt || '').slice(0, 10);
+      return d === todayStr && !isCancelled;
+    });
+  }, [brendiOrders, todayStr]);
+
+  const todayBrendiRevenue = useMemo(() => {
+    return todayBrendiOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  }, [todayBrendiOrders]);
+
+  const latestBrendiOrders = useMemo(() => {
+    return [...(brendiOrders || [])].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 5);
+  }, [brendiOrders]);
+
+  // Consolidated Sales and Revenue for the selected month (Single Source of Truth)
+  const monthSales = useMemo(() => {
+    return salesTransactions.filter(t => (t.date || '').slice(0, 7) === selectedMonth);
+  }, [salesTransactions, selectedMonth]);
+
+  const salesRevenueTotal = useMemo(() => {
+    return monthSales.reduce((sum, t) => sum + (Number(t.totalAmount) || (Number(t.pricePaidByCustomer) || 0) * (Number(t.qty) || 1)), 0);
+  }, [monthSales]);
+
+  const revEntry = useMemo(() => {
+    return monthlyRevenue.find(r => r.month === selectedMonth);
+  }, [monthlyRevenue, selectedMonth]);
+
+  // Exact consolidated revenue matching Faturamento tab, Lucro Real and Brendi real-time
+  const monthRevenue = useMemo(() => {
+    if (revEntry && typeof revEntry.revenue === 'number' && revEntry.revenue > 0) {
+      return Math.max(revEntry.revenue, brendiRevenueTotal);
+    }
+    if (salesRevenueTotal > 0 || brendiRevenueTotal > 0) {
+      return Math.max(salesRevenueTotal, brendiRevenueTotal);
+    }
+    return revEntry?.revenue || 0;
+  }, [revEntry, salesRevenueTotal, brendiRevenueTotal]);
+
+  // Real CMV for selected month based on items sold or avg CMV
+  const monthSalesCmv = useMemo(() => {
+    if (monthSales.length === 0) return 0;
+    return monthSales.reduce((sum, t) => {
+      let unitCmv = 0;
+      if (t.productId && t.productId !== 'temp_unregistered') {
+        const prod = products.find(p => p.id === t.productId);
+        if (prod) {
+          unitCmv = getProductCMV(prod);
+        }
+      }
+      if (unitCmv <= 0) {
+        unitCmv = (Number(t.pricePaidByCustomer) || 0) * 0.32;
+      }
+      return sum + (unitCmv * (Number(t.qty) || 1));
+    }, 0);
+  }, [monthSales, products, getProductCMV]);
+
+  // Real CMV for Brendi items if not yet imported into salesTransactions
+  const monthBrendiCmv = useMemo(() => {
+    if (validBrendiOrders.length === 0) return 0;
+    const productMap = new Map<string, any>();
+    products.forEach(p => {
+      productMap.set(p.name.trim().toLowerCase(), p);
+      if (p.id) productMap.set(p.id, p);
+    });
+    let total = 0;
+    validBrendiOrders.forEach(o => {
+      (o.items || []).forEach(it => {
+        const name = (it.name || '').trim().toLowerCase();
+        const qty = Number(it.quantity) || 1;
+        const lineTotal = Number(it.totalPrice) || ((Number(it.unitPrice) || 0) * qty);
+        const prod = productMap.get(name);
+        if (prod) {
+          total += getProductCMV(prod) * qty;
+        } else {
+          total += lineTotal * 0.32;
+        }
+      });
+    });
+    return total;
+  }, [validBrendiOrders, products, getProductCMV]);
+
+  // Previous month logic for trend relative to selected month
+  const prevMonthKey = useMemo(() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, [selectedMonth]);
+
+  const prevMonthRevenue = useMemo(() => {
+    const prevEntry = monthlyRevenue.find(r => r.month === prevMonthKey);
+    if (prevEntry && prevEntry.revenue > 0) return prevEntry.revenue;
+    const prevSales = salesTransactions.filter(t => (t.date || '').slice(0, 7) === prevMonthKey);
+    return prevSales.reduce((sum, t) => sum + (Number(t.totalAmount) || 0), 0);
+  }, [monthlyRevenue, salesTransactions, prevMonthKey]);
+
   const revenueTrend = prevMonthRevenue > 0 ? ((monthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : 0;
-  
+
   // Avg 3 months for alert
   const last3Months = activeRevenueMonths.slice(-3);
   const avg3Months = last3Months.length > 0 ? last3Months.reduce((a, b) => a + b.revenue, 0) / last3Months.length : 0;
   const isRevenueDroppingSignificantly = monthRevenue > 0 && avg3Months > 0 && monthRevenue < avg3Months * 0.85;
 
-  // 2. Costs & Profit Math
-  const monthFixedCosts = expenses.filter(e => e.month === latestMonthKey || !e.month).reduce((s, e) => s + e.value, 0);
+  // 2. Costs & Profit Math for selected month
+  const monthFixedCosts = useMemo(() => {
+    return expenses.filter(e => e.month === selectedMonth || !e.month).reduce((s, e) => s + e.value, 0);
+  }, [expenses, selectedMonth]);
 
   const avgCmvPercentResult = useMemo(() => {
     let totalPct = 0;
@@ -151,30 +265,42 @@ const Dashboard: React.FC = () => {
 
   const avgCmvPercent = avgCmvPercentResult.hasData ? avgCmvPercentResult.value : 35;
 
-  const totalCmvValue = monthRevenue * (avgCmvPercent / 100);
+  // Real or Estimated CMV
+  const totalCmvValue = useMemo(() => {
+    const totalItemCmv = monthSalesCmv + (monthSales.length === 0 ? monthBrendiCmv : 0);
+    if (totalItemCmv > 0) return totalItemCmv;
+    return monthRevenue * (avgCmvPercent / 100);
+  }, [monthSalesCmv, monthBrendiCmv, monthSales.length, monthRevenue, avgCmvPercent]);
+
   const realProfit = monthRevenue - totalCmvValue - monthFixedCosts;
   const profitMargin = monthRevenue > 0 ? (realProfit / monthRevenue) * 100 : 0;
 
-  // 3. Break Even 
+  // 3. Break Even for selected month
   const totalCfiPercent = calculateTotalCfiPercent();
-  const breakEvenR$ = calculateBreakEven(latestMonthKey);
+  const breakEvenR$ = calculateBreakEven(selectedMonth);
   const gapToBe = Math.max(0, breakEvenR$ - monthRevenue);
 
-  // 4. Ticket Médio
+  // 4. Ticket Médio for selected month (combining sales, Brendi orders, and saved counts)
   const orderCount = useMemo(() => {
-     let o = 0;
-     try {
-       const ordersMap = JSON.parse(localStorage.getItem('lucro_facil_be_monthly_orders_v1') || '{}');
-       if (ordersMap[latestMonthKey]) o = Number(ordersMap[latestMonthKey]);
-     } catch(e) {}
-     return o;
-  }, [latestMonthKey]);
-  // If orderCount is 0, we can fallback to monthRevenue / 35 something, but estimatedTicket is standard:
+    const fromSales = monthSales.length > 0 ? new Set(monthSales.map(t => t.orderId || t.id)).size : 0;
+    const fromBrendi = validBrendiOrders.length;
+    let fromSaved = 0;
+    try {
+      const ordersMap = JSON.parse(localStorage.getItem('lucro_facil_be_monthly_orders_v1') || '{}');
+      if (ordersMap[selectedMonth]) fromSaved = Number(ordersMap[selectedMonth]);
+    } catch(e) {}
+    return Math.max(fromSales, fromBrendi, fromSaved);
+  }, [monthSales, validBrendiOrders, selectedMonth]);
+
   const estimatedTicket = orderCount > 0 ? monthRevenue / orderCount : 0;
 
-  // Navigation Helper (Dispatch event for App.tsx)
-  const navigateTo = (tab: string) => {
-    window.dispatchEvent(new CustomEvent('change-tab', { detail: tab }));
+  // Navigation Helper (Dispatch event for App.tsx with optional subTab support)
+  const navigateTo = (tab: string, subTab?: string) => {
+    if (subTab) {
+      window.dispatchEvent(new CustomEvent('change-tab', { detail: { tab, subTab } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('change-tab', { detail: tab }));
+    }
   };
 
   const overdueExpensesCount = useMemo(() => {
@@ -205,6 +331,13 @@ const Dashboard: React.FC = () => {
     return { overdueReceivablesCount: count, overdueReceivablesAmount: amount };
   }, [accountsReceivable]);
 
+  const ifoodSubscriptionExpense = useMemo(() => {
+    return (expenses || []).find(e => 
+      e.month === selectedMonth && 
+      (e.description?.toLowerCase().trim() === 'mensalidade ifood' || e.id?.startsWith('exp_ifood_sub_'))
+    );
+  }, [expenses, selectedMonth]);
+
   const navigateToOverdueReceivables = () => {
     sessionStorage.setItem('filter_overdue_receivables', 'true');
     navigateTo('accounts-receivable');
@@ -228,15 +361,90 @@ const Dashboard: React.FC = () => {
       <TrialBlindagemWidget onNavigateTab={navigateTo} />
 
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white uppercase mb-1">Dashboard</h2>
           <p className="text-gray-500 dark:text-gray-400">Radiografia completa da saúde financeira da sua loja.</p>
+        </div>
+
+        {/* Seletor de Mês e Ano do Dashboard */}
+        <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1.5 rounded-xl shadow-sm">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider pl-2 flex items-center gap-1.5">
+            <Calendar size={14} className="text-brand-yellow" />
+            Mês:
+          </span>
+          <div className="flex items-center bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1">
+            <button
+              type="button"
+              onClick={() => {
+                const [y, m] = selectedMonth.split('-').map(Number);
+                const prev = new Date(y, m - 2, 1);
+                setSelectedMonth(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`);
+              }}
+              className="p-0.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition"
+              title="Mês anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-gray-900 dark:text-white text-xs font-bold px-2 py-0.5 border-none focus:outline-none cursor-pointer"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const [y, m] = selectedMonth.split('-').map(Number);
+                const next = new Date(y, m, 1);
+                setSelectedMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+              }}
+              className="p-0.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition"
+              title="Próximo mês"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          {revEntry?.isManual && (
+            <span className="text-[10px] font-black uppercase px-2 py-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              Manual
+            </span>
+          )}
+          {revEntry?.source && !revEntry.isManual && (
+            <span className="text-[10px] font-black uppercase px-2 py-1 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+              {revEntry.source}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Xande Alerts Panel */}
       <div className="flex flex-col gap-3">
+         {ifoodSubscriptionExpense && (
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-full text-red-600 dark:text-red-400">
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-red-800 dark:text-red-300 text-sm flex items-center gap-2">
+                    Mensalidade iFood Adicionada
+                    <span className="text-[10px] bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 px-2 py-0.5 rounded-full font-bold">Automático</span>
+                  </h4>
+                  <p className="text-xs text-red-700 dark:text-red-400/80">
+                    O faturamento do canal iFood ultrapassou o limite de cobrança no mês ({selectedMonth}). A mensalidade de <strong>{formatMoney(ifoodSubscriptionExpense.value)}</strong> foi adicionada às suas Despesas Fixas.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => navigateTo('expenses')} 
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-md shrink-0"
+              >
+                Editar nas Despesas <ChevronRight size={14}/>
+              </button>
+            </div>
+         )}
+
          {overdueReceivablesCount > 0 && (
             <div 
               className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95 cursor-pointer hover:bg-amber-100/10 dark:hover:bg-amber-950/50 transition" 
@@ -364,7 +572,27 @@ const Dashboard: React.FC = () => {
                  </span>
               )}
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1 relative z-10">Faturamento ({latestMonthKey})</p>
+            <div className="flex items-center justify-between mb-1 relative z-10">
+              <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase">
+                Faturamento Consolidado ({selectedMonth})
+              </p>
+              <div className="flex items-center gap-1">
+                {brendiRevenueTotal > 0 && (
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                    Brendi ao Vivo
+                  </span>
+                )}
+                {revEntry?.isManual ? (
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    Manual
+                  </span>
+                ) : revEntry?.source ? (
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                    {revEntry.source}
+                  </span>
+                ) : null}
+              </div>
+            </div>
             <h3 className="text-3xl font-black text-gray-900 dark:text-white relative z-10">{formatMoney(monthRevenue)}</h3>
         </div>
 
@@ -491,7 +719,249 @@ const Dashboard: React.FC = () => {
             </div>
             <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">Ticket Médio Estimado</p>
             <h3 className="text-3xl font-black text-gray-900 dark:text-white">{orderCount > 0 ? formatMoney(estimatedTicket) : '--'}</h3>
-            {orderCount > 0 && <p className="text-[10px] uppercase font-bold mt-1 text-gray-400 dark:text-gray-500">Base: {orderCount} pedidos</p>}
+            {orderCount > 0 && (
+              <p className="text-[10px] uppercase font-bold mt-1 text-gray-400 dark:text-gray-500">
+                Base: {orderCount} pedidos {validBrendiOrders.length > 0 ? `(${validBrendiOrders.length} da Brendi)` : ''}
+              </p>
+            )}
+        </div>
+      </div>
+
+      {/* Painel de Pedidos Brendi em Tempo Real */}
+      <div className="bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-900/40 rounded-2xl p-5 md:p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-gray-100 dark:border-gray-800 relative z-10">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/50 flex items-center justify-center shrink-0 shadow-sm">
+              <BrendiLogo className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-black text-gray-900 dark:text-white uppercase text-base">
+                  Pedidos Brendi em Tempo Real
+                </h3>
+                {isBrendiSyncing ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                    Sincronizando
+                  </span>
+                ) : validBrendiOrders.length > 0 || brendiOrders.length > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    OpenDelivery Ao Vivo
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                    <Radio className="w-2.5 h-2.5 text-purple-600" />
+                    Webhook Conectado
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Recepção instantânea de vendas do seu PDV, Balcão, Delivery Próprio, iFood e 99Food via OpenDelivery.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => navigateTo('sales-import', 'brendi')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-purple-600/20 transition cursor-pointer"
+            >
+              <Zap size={14} />
+              <span>Abrir Feed Completo Brendi</span>
+              <ChevronRight size={14} />
+            </button>
+            <button
+              onClick={() => navigateTo('integrations')}
+              className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer"
+              title="Configurar Store UUID e Chave de Webhook"
+            >
+              <Settings size={14} />
+              <span>Credenciais</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Mini Metrics for Brendi */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 my-5 relative z-10">
+          <div className="p-3.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30">
+            <p className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300 mb-1 flex items-center gap-1">
+              <Clock size={12} />
+              Pedidos Hoje
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-gray-900 dark:text-white">
+                {todayBrendiOrders.length}
+              </span>
+              <span className="text-xs font-bold text-gray-500">pedidos</span>
+            </div>
+            <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 mt-1">
+              {formatMoney(todayBrendiRevenue)} hoje
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+            <p className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-1">
+              <ShoppingBag size={12} />
+              Pedidos no Mês ({selectedMonth})
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-gray-900 dark:text-white">
+                {validBrendiOrders.length}
+              </span>
+              <span className="text-xs font-bold text-gray-500">pedidos</span>
+            </div>
+            <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">
+              Total recebido
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1 flex items-center gap-1">
+              <DollarSign size={12} />
+              Faturamento Brendi ({selectedMonth})
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {formatMoney(brendiRevenueTotal)}
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-gray-500 mt-1">
+              Integração OpenDelivery
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30">
+            <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-1 flex items-center gap-1">
+              <Receipt size={12} />
+              Ticket Médio Brendi
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-gray-900 dark:text-white">
+                {validBrendiOrders.length > 0 ? formatMoney(brendiRevenueTotal / validBrendiOrders.length) : '--'}
+              </span>
+            </div>
+            <p className="text-[11px] font-bold text-gray-500 mt-1">
+              Média por pedido
+            </p>
+          </div>
+        </div>
+
+        {/* Mini-Feed of Recent Brendi Orders */}
+        <div className="space-y-2.5 relative z-10">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              Últimos Pedidos Recebidos da Brendi
+            </h4>
+            {latestBrendiOrders.length > 0 && (
+              <button
+                onClick={() => navigateTo('sales-import', 'brendi')}
+                className="text-[11px] font-black text-purple-600 dark:text-purple-400 hover:underline uppercase flex items-center gap-1 cursor-pointer"
+              >
+                Ver todos os {brendiOrders.length} pedidos
+                <ArrowRight size={12} />
+              </button>
+            )}
+          </div>
+
+          {latestBrendiOrders.length > 0 ? (
+            <div className="divide-y divide-gray-100 dark:divide-gray-800 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden bg-gray-50/50 dark:bg-gray-950/30">
+              {latestBrendiOrders.map((ord) => {
+                const orderDate = ord.createdAt ? new Date(ord.createdAt) : new Date();
+                const timeFormatted = orderDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const dateFormatted = orderDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                const channelLower = (ord.channel || '').toLowerCase();
+                const isIfood = channelLower.includes('ifood');
+                const is99 = channelLower.includes('99');
+                const isDelivery = channelLower.includes('delivery');
+                const itemsSummary = (ord.items || []).map(i => `${i.quantity || 1}x ${i.name}`).slice(0, 2).join(', ');
+                const extraCount = (ord.items || []).length - 2;
+
+                return (
+                  <div key={ord.id} className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-purple-50/40 dark:hover:bg-purple-950/10 transition">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center shrink-0 shadow-xs">
+                        {isIfood ? (
+                          <IFoodLogo className="w-5 h-5" />
+                        ) : is99 ? (
+                          <Food99Logo className="w-5 h-5" />
+                        ) : (
+                          <BrendiLogo className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 dark:text-white text-xs">
+                            #{String(ord.orderId || ord.id).slice(-6)}
+                          </span>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                            isIfood ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-900/50' :
+                            is99 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/50' :
+                            isDelivery ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-900/50' :
+                            'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                          }`}>
+                            {ord.channel || 'Brendi Balcão'}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {dateFormatted} às {timeFormatted}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-md mt-0.5">
+                          {ord.customerName ? <strong className="text-gray-700 dark:text-gray-300">{ord.customerName}: </strong> : null}
+                          {itemsSummary || '1 item'} {extraCount > 0 ? `(+${extraCount})` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                      <span className="text-sm font-black text-gray-900 dark:text-white">
+                        {formatMoney(Number(ord.total || 0))}
+                      </span>
+                      <button
+                        onClick={() => navigateTo('sales-import', 'brendi')}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition cursor-pointer"
+                        title="Ver detalhes no Feed Brendi"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-6 rounded-xl border border-dashed border-gray-200 dark:border-gray-800 text-center bg-gray-50/30 dark:bg-gray-950/20 space-y-3">
+              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto">
+                <Radio size={20} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                  Aguardando pedidos em tempo real da Brendi
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                  Assim que um pedido for concluído no seu PDV ou aplicativo de delivery conectado à Brendi, ele entrará aqui automaticamente via OpenDelivery.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  onClick={() => navigateTo('sales-import', 'brendi')}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                >
+                  Acessar Central Brendi (Integrar Vendas)
+                </button>
+                <button
+                  onClick={() => navigateTo('integrations')}
+                  className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold transition cursor-pointer"
+                >
+                  Ver Configuração de Webhook
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -555,7 +1025,7 @@ const Dashboard: React.FC = () => {
                   <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                     {monthlyRevenue.map((entry, index) => {
                       let color = entry.revenue >= breakEvenR$ ? '#10B981' : '#EF4444'; // Green or Red
-                      if (entry.month === latestMonthKey) color = '#FBBF24'; // Golden Yellow for latest month
+                      if (entry.month === selectedMonth) color = '#FBBF24'; // Golden Yellow for selected month
                       if (entry.revenue === 0) color = '#9CA3AF'; // Empty
                       return <Cell key={`cell-${index}`} fill={color} />;
                     })}

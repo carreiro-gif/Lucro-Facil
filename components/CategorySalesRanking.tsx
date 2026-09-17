@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { 
   Trophy, 
@@ -60,6 +61,28 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
     d.setMonth(d.getMonth() - 1);
     return d.toISOString().slice(0, 7);
   });
+
+  // Lock body scroll, reset scroll to top and allow closing with Escape key
+  useEffect(() => {
+    if (showDreModal || showHistoryModal) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setShowDreModal(false);
+          setShowHistoryModal(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [showDreModal, showHistoryModal]);
 
   // Calculate real-time metrics and items
   const metrics: RealtimeMonthMetrics = useMemo(() => {
@@ -241,7 +264,10 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
 
           {/* DRE Button */}
           <button
-            onClick={() => setShowDreModal(true)}
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'instant' });
+              setShowDreModal(true);
+            }}
             className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
           >
             <DollarSign size={14} className="text-emerald-400" />
@@ -250,7 +276,10 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
 
           {/* History & Comparatives Button */}
           <button
-            onClick={() => setShowHistoryModal(true)}
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'instant' });
+              setShowHistoryModal(true);
+            }}
             className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
           >
             <Calendar size={14} className="text-blue-400" />
@@ -710,169 +739,202 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
         </table>
       </div>
 
-      {/* Modal DRE - Cálculo Transparente do Lucro em R$ */}
-      {showDreModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 relative overflow-hidden font-sans">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div>
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <DollarSign className="text-emerald-400" size={20} />
-                  DRE Simples: Composição do Lucro Real
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Demonstração transparente dos números do mês de {activeMonth}.
-                </p>
+      {/* Modal DRE - Em tela cheia ocupando toda a área visível imediatamente sem rolagem */}
+      {showDreModal && typeof document !== 'undefined' && createPortal(
+        <div 
+          id="modal-dre-lucro-real"
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[99999] w-screen h-screen min-h-[100dvh] max-h-[100dvh] bg-slate-950/98 backdrop-blur-md flex flex-col p-3 sm:p-5 md:p-6 text-white animate-fade-in font-sans overflow-hidden"
+        >
+          <div className="max-w-3xl w-full mx-auto flex-1 flex flex-col justify-between min-h-0 gap-2 sm:gap-3">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2 leading-tight">
+                    DRE Simples: Composição do Lucro Real
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Demonstração transparente dos números consolidados de <strong className="text-slate-200">{activeMonth}</strong>.
+                  </p>
+                </div>
               </div>
               <button
+                id="btn-fechar-dre-modal"
                 onClick={() => setShowDreModal(false)}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition shrink-0"
+                title="Fechar [ESC]"
               >
-                <X size={18} />
+                <X size={15} />
+                <span className="hidden sm:inline">Fechar (ESC)</span>
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Linhas do DRE - Compactas para caber 100% na tela visível sem rolagem */}
+            <div className="flex-1 flex flex-col justify-center gap-2 min-h-0 text-xs py-1">
               {/* (+) Faturamento Bruto */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-sm">
                 <div>
-                  <div className="font-bold text-white text-sm">(+) Faturamento Total do Mês</div>
-                  <div className="text-[11px] text-slate-400">Total bruto vendido (Brendi e balcão)</div>
+                  <div className="font-bold text-white text-xs sm:text-sm">(+) Faturamento Total do Mês</div>
+                  <div className="text-[10px] text-slate-400">Total bruto apurado e consolidado</div>
                 </div>
-                <div className="text-sm font-black text-white">
+                <div className="text-sm sm:text-base font-black text-white font-mono">
                   {formatCurrency(metrics.revenue)}
                 </div>
               </div>
 
               {/* (-) CMV dos Insumos */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-sm">
                 <div>
-                  <div className="font-bold text-red-400 text-sm">(-) CMV dos Insumos Vendidos</div>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="font-bold text-red-400 text-xs sm:text-sm">(-) CMV dos Insumos Vendidos</div>
+                  <div className="text-[10px] text-slate-400">
                     Custo real dos ingredientes ({formatPct(metrics.cmvPercentAvg)} da venda)
                   </div>
                 </div>
-                <div className="text-sm font-black text-red-400">
+                <div className="text-sm sm:text-base font-black text-red-400 font-mono">
                   - {formatCurrency(metrics.cmvTotalInsumos)}
                 </div>
               </div>
 
               {/* (=) Margem de Contribuição Bruta */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-slate-700">
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-800/70 border border-slate-700 shadow-sm">
                 <div>
-                  <div className="font-bold text-slate-200 text-sm">(=) Margem de Contribuição Bruta</div>
-                  <div className="text-[11px] text-slate-400">Sobra após pagar a comida</div>
+                  <div className="font-bold text-slate-200 text-xs sm:text-sm">(=) Margem de Contribuição Bruta</div>
+                  <div className="text-[10px] text-slate-400">Sobra após pagar a comida vendida</div>
                 </div>
-                <div className="text-sm font-black text-slate-200">
+                <div className="text-sm sm:text-base font-black text-slate-200 font-mono">
                   {formatCurrency(metrics.revenue - metrics.cmvTotalInsumos)}
                 </div>
               </div>
 
               {/* (-) Custos Fixos / CFI */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-sm">
                 <div>
-                  <div className="font-bold text-amber-400 text-sm">(-) Custos Fixos & CFI da Loja</div>
-                  <div className="text-[11px] text-slate-400">Aluguel, equipe, energia, taxas e despesas fixas</div>
+                  <div className="font-bold text-amber-400 text-xs sm:text-sm">(-) Custos Fixos & CFI da Loja</div>
+                  <div className="text-[10px] text-slate-400">Aluguel, equipe, energia, taxas e despesas fixas</div>
                 </div>
-                <div className="text-sm font-black text-amber-400">
+                <div className="text-sm sm:text-base font-black text-amber-400 font-mono">
                   - {formatCurrency(metrics.fixedCosts)}
                 </div>
               </div>
 
               {/* (=) Lucro Líquido Real Final */}
-              <div className={`flex items-center justify-between p-4 rounded-xl border ${
+              <div className={`flex items-center justify-between p-3 sm:p-3.5 rounded-xl border shadow-lg ${
                 metrics.netProfitReal >= 0 
-                  ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400' 
-                  : 'bg-red-950/30 border-red-500/40 text-red-400'
+                  ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-400 shadow-emerald-950/20' 
+                  : 'bg-red-950/40 border-red-500/50 text-red-400 shadow-red-950/20'
               }`}>
                 <div>
-                  <div className="font-black text-base">(=) LUCRO LÍQUIDO REAL NO BOLSO</div>
-                  <div className="text-xs text-slate-300">
-                    Margem Líquida Real: {formatPct(metrics.profitMargin)}
+                  <div className="font-black text-sm sm:text-base tracking-tight uppercase">(=) LUCRO LÍQUIDO REAL NO BOLSO</div>
+                  <div className="text-[11px] text-slate-300 font-medium">
+                    Margem Líquida Real: <strong className="text-white">{formatPct(metrics.profitMargin)}</strong>
                   </div>
                 </div>
-                <div className="text-xl font-black">
+                <div className="text-lg sm:text-2xl font-black font-mono">
                   {formatCurrency(metrics.netProfitReal)}
                 </div>
               </div>
             </div>
 
-            <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800 text-xs text-slate-400">
-              <span className="font-bold text-brand-yellow">Dica do Xande:</span> O lucro real considera cada grama de insumo vendida na ficha técnica e desconta os custos fixos da sua operação. Bater o ponto de equilíbrio nos primeiros 10 dias garante que o restante do mês seja de lucro puro!
-            </div>
+            {/* Dica do Xande & Botão de Fechar */}
+            <div className="space-y-2 shrink-0 pt-1.5 border-t border-slate-800">
+              <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                <span className="font-bold text-brand-yellow">Dica do Xande:</span> O lucro real considera cada grama de insumo vendida na ficha técnica e desconta os custos fixos da sua operação. Bater o ponto de equilíbrio nos primeiros 10 dias garante que o restante do mês seja de lucro puro!
+              </div>
 
-            <button
-              onClick={() => setShowDreModal(false)}
-              className="w-full py-3 bg-brand-yellow hover:bg-yellow-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition"
-            >
-              Fechar Detalhamento
-            </button>
+              <button
+                id="btn-voltar-dre"
+                onClick={() => setShowDreModal(false)}
+                className="w-full py-2.5 bg-brand-yellow hover:bg-yellow-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-brand-yellow/10"
+              >
+                Voltar ao Lucro Atual
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Modal Histórico Permanente & Comparativos */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-6 relative overflow-hidden font-sans max-h-[90vh] flex flex-col">
+      {/* Modal Histórico Permanente & Comparativos - Tela Cheia Sem Scroll na Janela */}
+      {showHistoryModal && typeof document !== 'undefined' && createPortal(
+        <div 
+          id="modal-historico-comparativo"
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[99999] w-screen h-screen min-h-[100dvh] max-h-[100dvh] bg-slate-950/98 backdrop-blur-md flex flex-col p-3 sm:p-5 text-white animate-fade-in font-sans overflow-hidden"
+        >
+          <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col gap-2.5 min-h-0">
             
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div>
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Calendar className="text-blue-400" size={20} />
-                  Histórico Permanente & Comparativo de Vendas Brendi
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Tudo que você vende na Brendi fica salvo permanentemente no banco para pesquisas e comparações.
-                </p>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0">
+                  <Calendar size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2 leading-tight">
+                    Histórico Permanente & Comparativo de Vendas
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Histórico completo registrado no banco de dados para comparativos e auditoria.
+                  </p>
+                </div>
               </div>
               <button
+                id="btn-fechar-historico-modal"
                 onClick={() => setShowHistoryModal(false)}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition shrink-0"
+                title="Fechar [ESC]"
               >
-                <X size={18} />
+                <X size={15} />
+                <span className="hidden sm:inline">Fechar (ESC)</span>
               </button>
             </div>
 
-            {/* Sub-Tabs: Comparativo vs Pesquisa */}
-            <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+            {/* Painel Central com Layout Otimizado para Tela Cheia Sem Scroll */}
+            <div className="flex-1 flex flex-col gap-2.5 min-h-0 overflow-hidden">
               
               {/* Comparador de Meses */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-4">
-                <div className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-2">
-                  <ArrowUpDown size={14} className="text-brand-yellow" />
-                  Comparador Direto de Meses
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2 shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <ArrowUpDown size={13} className="text-brand-yellow" />
+                    Comparador Direto de Meses
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    Compare os resultados consolidados de dois períodos
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Mês Base (A):</label>
+                    <label className="block text-[9px] font-bold text-slate-400 mb-0.5">Mês Base (A):</label>
                     <input 
                       type="month"
                       value={compareMonthA}
                       onChange={e => setCompareMonthA(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-xl px-3 py-2"
+                      className="w-full bg-slate-950 border border-slate-700 text-white text-xs font-bold rounded-lg px-2.5 py-1"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Mês Comparativo (B):</label>
+                    <label className="block text-[9px] font-bold text-slate-400 mb-0.5">Mês Comparativo (B):</label>
                     <input 
                       type="month"
                       value={compareMonthB}
                       onChange={e => setCompareMonthB(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-xl px-3 py-2"
+                      className="w-full bg-slate-950 border border-slate-700 text-white text-xs font-bold rounded-lg px-2.5 py-1"
                     />
                   </div>
                 </div>
 
                 {/* Comparison Grid */}
-                <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-3 gap-2 text-xs">
                   {/* Faturamento */}
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-1">
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">Faturamento</div>
-                    <div className="font-bold text-white">{formatCurrency(metricsA.revenue)} <span className="text-[10px] text-slate-500 font-normal">({compareMonthA})</span></div>
-                    <div className="font-bold text-slate-300">{formatCurrency(metricsB.revenue)} <span className="text-[10px] text-slate-500 font-normal">({compareMonthB})</span></div>
-                    <div className={`text-[11px] font-bold pt-1 ${
+                  <div className="p-2 bg-slate-950/80 rounded-xl border border-slate-800 space-y-0.5">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Faturamento</div>
+                    <div className="font-bold text-white text-xs font-mono">{formatCurrency(metricsA.revenue)} <span className="text-[9px] text-slate-500 font-normal">({compareMonthA})</span></div>
+                    <div className="font-bold text-slate-300 text-xs font-mono">{formatCurrency(metricsB.revenue)} <span className="text-[9px] text-slate-500 font-normal">({compareMonthB})</span></div>
+                    <div className={`text-[10px] font-bold pt-0.5 ${
                       metricsA.revenue >= metricsB.revenue ? 'text-emerald-400' : 'text-red-400'
                     }`}>
                       {metricsA.revenue >= metricsB.revenue ? '▲ +' : '▼ '}
@@ -881,21 +943,21 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
                   </div>
 
                   {/* Pedidos & Ticket */}
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-1">
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">Pedidos / Ticket</div>
-                    <div className="font-bold text-white">{metricsA.orderCount} ped. • {formatCurrency(metricsA.ticketMedio)}</div>
-                    <div className="font-bold text-slate-300">{metricsB.orderCount} ped. • {formatCurrency(metricsB.ticketMedio)}</div>
-                    <div className="text-[11px] font-bold text-slate-400 pt-1">
+                  <div className="p-2 bg-slate-950/80 rounded-xl border border-slate-800 space-y-0.5">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Pedidos / Ticket</div>
+                    <div className="font-bold text-white text-xs">{metricsA.orderCount} ped. • {formatCurrency(metricsA.ticketMedio)}</div>
+                    <div className="font-bold text-slate-300 text-xs">{metricsB.orderCount} ped. • {formatCurrency(metricsB.ticketMedio)}</div>
+                    <div className="text-[10px] font-bold text-slate-400 pt-0.5">
                       Dif: {metricsA.orderCount - metricsB.orderCount} pedidos
                     </div>
                   </div>
 
                   {/* Lucro Real */}
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-1">
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">Lucro Líquido Real</div>
-                    <div className="font-bold text-emerald-400">{formatCurrency(metricsA.netProfitReal)}</div>
-                    <div className="font-bold text-slate-300">{formatCurrency(metricsB.netProfitReal)}</div>
-                    <div className={`text-[11px] font-bold pt-1 ${
+                  <div className="p-2 bg-slate-950/80 rounded-xl border border-slate-800 space-y-0.5">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Lucro Líquido Real</div>
+                    <div className="font-bold text-emerald-400 text-xs font-mono">{formatCurrency(metricsA.netProfitReal)}</div>
+                    <div className="font-bold text-slate-300 text-xs font-mono">{formatCurrency(metricsB.netProfitReal)}</div>
+                    <div className={`text-[10px] font-bold pt-0.5 ${
                       metricsA.netProfitReal >= metricsB.netProfitReal ? 'text-emerald-400' : 'text-red-400'
                     }`}>
                       {metricsA.netProfitReal >= metricsB.netProfitReal ? '▲ +' : '▼ '}
@@ -906,60 +968,60 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
               </div>
 
               {/* Histórico Permanente de Pedidos */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-2">
-                    <ShoppingBag size={14} className="text-emerald-400" />
+              <div className="flex-1 flex flex-col gap-1.5 min-h-0">
+                <div className="flex items-center justify-between shrink-0">
+                  <div className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <ShoppingBag size={13} className="text-emerald-400" />
                     Pedidos Salvos no Sistema ({brendiOrders.length} registrados)
                   </div>
-                  <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={13} />
+                  <div className="relative w-56 sm:w-64">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
                     <input
                       type="text"
                       value={historySearch}
                       onChange={e => setHistorySearch(e.target.value)}
                       placeholder="Pesquisar pedido, cliente..."
-                      className="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl pl-8 pr-3 py-1.5 focus:outline-none"
+                      className="w-full bg-slate-900 border border-slate-800 text-white text-[11px] rounded-lg pl-7 pr-2.5 py-1 focus:outline-none focus:border-slate-600"
                     />
                   </div>
                 </div>
 
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/60 max-h-60 overflow-y-auto">
+                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/70 flex-1 min-h-[120px] overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase">
-                        <th className="py-2.5 px-3">Data / Hora</th>
-                        <th className="py-2.5 px-3">ID Pedido</th>
-                        <th className="py-2.5 px-3">Canal</th>
-                        <th className="py-2.5 px-3">Itens</th>
-                        <th className="py-2.5 px-3 text-right">Valor Total</th>
+                    <thead className="sticky top-0 z-10 bg-slate-950">
+                      <tr className="border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase">
+                        <th className="py-2 px-3">Data / Hora</th>
+                        <th className="py-2 px-3">ID Pedido</th>
+                        <th className="py-2 px-3">Canal</th>
+                        <th className="py-2 px-3">Itens</th>
+                        <th className="py-2 px-3 text-right">Valor Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {filteredHistoryOrders.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-slate-500">
+                          <td colSpan={5} className="py-6 text-center text-slate-500 text-xs">
                             Nenhum pedido encontrado.
                           </td>
                         </tr>
                       ) : (
                         filteredHistoryOrders.slice(0, 50).map(o => (
-                          <tr key={o.id} className="hover:bg-slate-900/50">
-                            <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">
+                          <tr key={o.id} className="hover:bg-slate-800/40 text-[11px]">
+                            <td className="py-2 px-3 text-slate-400 whitespace-nowrap">
                               {new Date(o.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-slate-300">
+                            <td className="py-2 px-3 font-mono text-slate-300">
                               {o.orderId?.slice(0, 8)}...
                             </td>
-                            <td className="py-2.5 px-3">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">
+                            <td className="py-2 px-3">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-300">
                                 {o.channel}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-slate-300 max-w-xs truncate">
+                            <td className="py-2 px-3 text-slate-300 max-w-xs truncate">
                               {(o.items || []).map(i => `${i.quantity}x ${i.name}`).join(', ') || 'Sem itens'}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-white">
+                            <td className="py-2 px-3 text-right font-bold text-white font-mono">
                               {formatCurrency(o.total || 0)}
                             </td>
                           </tr>
@@ -972,17 +1034,20 @@ export const CategorySalesRanking: React.FC<CategorySalesRankingProps> = ({
 
             </div>
 
-            <div className="pt-2 border-t border-slate-800">
+            {/* Footer */}
+            <div className="pt-1.5 border-t border-slate-800 shrink-0">
               <button
+                id="btn-voltar-historico"
                 onClick={() => setShowHistoryModal(false)}
-                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition"
               >
                 Voltar ao Ranking
               </button>
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

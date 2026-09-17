@@ -65,5 +65,14 @@ service cloud.firestore {
     match /brendi_orders/{orderId} {
       allow read, write: if isSignedIn();
     }
+
+    // Rules for sales_data (Consolidated sales data - single source of truth)
+    match /users/{userId}/sales_data/{saleId} {
+      allow read, write: if isStoreOwner(userId) || isSystemAdmin();
+    }
+
+    match /sales_data/{saleId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }

@@ -31,7 +31,7 @@ import { AccountsReceivable } from './pages/AccountsReceivable';
 import { Integrations } from './pages/Integrations';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
-import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode, Collaborator, CollaboratorPayment } from './types';
+import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode, Collaborator, CollaboratorPayment, CollaboratorMeal } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE, INITIAL_MENU_CATEGORIES, INITIAL_INGREDIENT_CATEGORIES } from './constants';
 import backupData from './backup_data.json';
 import { useAuth } from './context/AuthContext';
@@ -39,7 +39,8 @@ import { db } from './firebase';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { AuthScreen } from './components/AuthScreen';
 import { SubscriptionBlockScreen } from './components/SubscriptionBlockScreen';
-import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu, AlertTriangle, ShieldCheck, Trash2 } from 'lucide-react';
+import { purgeAllSalesDataAndBrendiOrders } from './services/salesDataService';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
@@ -335,38 +336,101 @@ const sanitizeGlobalState = (data: any): GlobalState => {
         id: c.id || 'collab_' + Math.random().toString(36).substr(2, 9),
         name: typeof c.name === 'string' ? c.name.trim() : '',
         role: typeof c.role === 'string' ? c.role.trim() : 'Outro',
+        category: typeof c.category === 'string' ? c.category.trim() : undefined,
         remunerationType: c.remunerationType || 'diaria',
         defaultAmount: fixMoney(c.defaultAmount),
+        paymentFrequency: c.paymentFrequency || 'no_dia',
         weeklyRules: Array.isArray(c.weeklyRules) ? c.weeklyRules.map((wr: any) => ({
           dayOfWeek: Number(wr.dayOfWeek) || 0,
           remunerationType: wr.remunerationType || 'diaria',
           baseValue: fixMoney(wr.baseValue),
           active: wr.active !== false
         })) : undefined,
+        benefits: Array.isArray(c.benefits) ? c.benefits.map((b: any) => ({
+          id: b.id || 'ben_' + Math.random().toString(36).substr(2, 9),
+          type: b.type || 'cartao_alimentacao',
+          name: typeof b.name === 'string' ? b.name : 'Benefício',
+          monthlyAmount: b.monthlyAmount !== undefined ? fixMoney(b.monthlyAmount) : undefined,
+          dailyAmount: b.dailyAmount !== undefined ? fixMoney(b.dailyAmount) : undefined,
+          paidByCompany: fixMoney(b.paidByCompany ?? b.monthlyAmount ?? b.dailyAmount),
+          notes: b.notes || undefined
+        })) : undefined,
         startDate: c.startDate || undefined,
         status: c.status === 'inactive' ? 'inactive' : 'active',
         notes: c.notes || undefined,
-        createdAt: c.createdAt || new Date().toISOString()
+        createdAt: c.createdAt || new Date().toISOString(),
+        updatedAt: c.updatedAt || undefined
       })).filter((c: any) => c.name.length > 0)
     : [];
 
   const collaboratorPayments: CollaboratorPayment[] = Array.isArray(safeData.collaboratorPayments)
-    ? safeData.collaboratorPayments.map((cp: any) => ({
-        id: cp.id || 'cp_' + Math.random().toString(36).substr(2, 9),
-        collaboratorId: cp.collaboratorId || '',
-        collaboratorName: cp.collaboratorName || '',
-        collaboratorRole: cp.collaboratorRole || '',
-        date: cp.date || new Date().toISOString().slice(0, 10),
-        remunerationType: cp.remunerationType || 'diaria',
-        baseAmount: fixMoney(cp.baseAmount),
-        deliveryFeeAmount: fixMoney(cp.deliveryFeeAmount),
-        deliveryCount: cp.deliveryCount !== undefined && cp.deliveryCount !== null && cp.deliveryCount !== '' ? Number(cp.deliveryCount) : undefined,
-        totalPaid: fixMoney(cp.totalPaid ?? (fixMoney(cp.baseAmount) + fixMoney(cp.deliveryFeeAmount))),
-        status: cp.status === 'pendente' ? 'pendente' : 'pago',
-        paymentDate: cp.paymentDate || undefined,
-        linkedExpenseId: cp.linkedExpenseId || undefined,
-        notes: cp.notes || undefined
-      }))
+    ? safeData.collaboratorPayments.map((cp: any) => {
+        const baseAmount = fixMoney(cp.baseAmount);
+        const deliveryFeeAmount = fixMoney(cp.deliveryFeeAmount);
+        const totalPaid = fixMoney(cp.totalPaid ?? (baseAmount + deliveryFeeAmount));
+        const amountPaid = cp.amountPaid !== undefined ? fixMoney(cp.amountPaid) : (cp.status === 'pago' ? totalPaid : 0);
+        const pendingBalance = cp.pendingBalance !== undefined ? fixMoney(cp.pendingBalance) : (cp.status === 'pago' ? 0 : Math.max(0, totalPaid - amountPaid));
+        
+        let status: 'pago' | 'pendente' | 'parcial' = 'pendente';
+        if (cp.status === 'pago' || (amountPaid >= totalPaid && totalPaid > 0)) {
+          status = 'pago';
+        } else if (cp.status === 'parcial' || (amountPaid > 0 && pendingBalance > 0)) {
+          status = 'parcial';
+        }
+
+        return {
+          id: cp.id || 'cp_' + Math.random().toString(36).substr(2, 9),
+          collaboratorId: cp.collaboratorId || '',
+          collaboratorName: cp.collaboratorName || '',
+          collaboratorRole: cp.collaboratorRole || '',
+          date: cp.date || new Date().toISOString().slice(0, 10),
+          remunerationType: cp.remunerationType || 'diaria',
+          baseAmount,
+          deliveryFeeAmount,
+          deliveryCount: cp.deliveryCount !== undefined && cp.deliveryCount !== null && cp.deliveryCount !== '' ? Number(cp.deliveryCount) : undefined,
+          totalPaid,
+          amountPaid,
+          pendingBalance,
+          status,
+          paymentDate: cp.paymentDate || undefined,
+          paymentMethod: cp.paymentMethod || undefined,
+          linkedExpenseId: cp.linkedExpenseId || undefined,
+          consolidatedExpenseId: cp.consolidatedExpenseId || undefined,
+          periodStart: cp.periodStart || undefined,
+          periodEnd: cp.periodEnd || undefined,
+          periodType: cp.periodType || undefined,
+          notes: cp.notes || undefined,
+          createdAt: cp.createdAt || new Date().toISOString()
+        };
+      })
+    : [];
+
+  const collaboratorMeals: CollaboratorMeal[] = Array.isArray(safeData.collaboratorMeals)
+    ? safeData.collaboratorMeals.map((cm: any) => {
+        const rawItems = Array.isArray(cm.items) ? cm.items.map((it: any) => ({
+          id: it.id || 'cmi_' + Math.random().toString(36).substr(2, 9),
+          type: it.type === 'custom' ? 'custom' : 'product',
+          productId: it.productId || undefined,
+          name: typeof it.name === 'string' ? it.name : 'Item de Refeição',
+          category: it.category || undefined,
+          cost: fixMoney(it.cost), // Custo real do produto/insumos
+          salePriceReference: it.salePriceReference !== undefined ? fixMoney(it.salePriceReference) : undefined,
+          quantity: Math.max(1, Number(it.quantity) || 1)
+        })) : [];
+
+        const computedTotal = rawItems.reduce((acc: number, cur: any) => acc + (cur.cost * cur.quantity), 0);
+
+        return {
+          id: cm.id || 'meal_' + Math.random().toString(36).substr(2, 9),
+          collaboratorId: cm.collaboratorId || '',
+          collaboratorName: cm.collaboratorName || '',
+          date: cm.date || new Date().toISOString().slice(0, 10),
+          items: rawItems,
+          totalCost: fixMoney(cm.totalCost ?? computedTotal),
+          notes: cm.notes || undefined,
+          createdAt: cm.createdAt || new Date().toISOString()
+        };
+      })
     : [];
 
   const customCollaboratorRoles: string[] = Array.isArray(safeData.customCollaboratorRoles)
@@ -395,6 +459,7 @@ const sanitizeGlobalState = (data: any): GlobalState => {
       ingredientCategories,
       collaborators,
       collaboratorPayments,
+      collaboratorMeals,
       customCollaboratorRoles,
       accountsReceivable,
       customReceivableOrigins
@@ -476,7 +541,21 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
     const handleOpenXande = () => setShowGlobalXande(true);
     const handleChangeTab = (e: Event) => {
         const customEvent = e as CustomEvent;
-        if (customEvent.detail) setActiveTab(customEvent.detail);
+        if (customEvent.detail) {
+          if (typeof customEvent.detail === 'string') {
+            setActiveTab(customEvent.detail);
+          } else if (typeof customEvent.detail === 'object') {
+            const targetTab = customEvent.detail.tab;
+            if (targetTab) {
+              setActiveTab(targetTab);
+              if (customEvent.detail.subTab) {
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('change-sales-subtab', { detail: customEvent.detail.subTab }));
+                }, 60);
+              }
+            }
+          }
+        }
     };
     window.addEventListener('open-global-xande', handleOpenXande);
     window.addEventListener('change-tab', handleChangeTab);
@@ -633,6 +712,7 @@ const App: React.FC = () => {
   const [stores, setStores] = useState<StoreInfo[]>([]);
   const [storesData, setStoresData] = useState<Record<string, GlobalState>>({});
   const [showOfflineFallback, setShowOfflineFallback] = useState(false);
+  const [isPurgingSales, setIsPurgingSales] = useState(false);
 
   // States and effects for Stone subscription checkout simulations
   const [showSimulatedModal, setShowSimulatedModal] = useState(false);
@@ -1368,6 +1448,74 @@ const App: React.FC = () => {
     ? (storesData[selectedStoreId] || { ...EMPTY_STATE, storeInfo: selectedStoreInfo! })
     : undefined;
 
+  const handlePurgeAllSalesData = async () => {
+    const isTargetAdmin = user?.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
+    if (!isTargetAdmin && profile?.role !== 'admin') {
+      alert("Acesso restrito: Apenas o administrador espacocarreiro@gmail.com tem permissão para esta operação.");
+      return;
+    }
+
+    const confirmMsg = 
+      "⚠️ AVISO CRÍTICO - ZERAR DADOS DE VENDAS:\n\n" +
+      "Você está prestes a apagar completamente:\n" +
+      "• Todos os pedidos da coleção 'brendi_orders' no Firestore;\n" +
+      "• Todos os dados consolidados da coleção 'sales_data' no Firestore;\n" +
+      "• Todos os dados de vendas salvas em 'Integrar Vendas';\n" +
+      "• Os faturamentos gerados automaticamente pelas integrações.\n\n" +
+      "🛡️ DADOS PRESERVADOS:\n" +
+      "Fichas técnicas, ingredientes, despesas, combos, CFI e configurações permanecerão 100% INTACTOS.\n\n" +
+      "Deseja realmente ZERAR todos os dados de vendas agora?";
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setIsPurgingSales(true);
+      const activeUid = emulatedUser ? emulatedUser.userId : (user ? user.uid : '');
+
+      // 1. Purge Firestore brendi_orders & sales_data collections + local cache
+      const { brendiCount, salesCount } = await purgeAllSalesDataAndBrendiOrders(activeUid);
+
+      // 2. Clear salesTransactions and reset auto monthly revenue in current state for all stores
+      setStoresData(prev => {
+        const updated: Record<string, GlobalState> = {};
+        Object.entries(prev).forEach(([sId, data]) => {
+          const storeData = data as GlobalState;
+          // Preserve only months that were manually entered by the user
+          const filteredRevenue = (storeData.monthlyRevenue || []).filter(m => m.isManual === true);
+          updated[sId] = {
+            ...storeData,
+            salesTransactions: [],
+            monthlyRevenue: filteredRevenue
+          };
+
+          // Persist store update in Firestore
+          if (activeUid) {
+            const storeRef = doc(db, 'users', activeUid, 'stores', sId);
+            setDoc(storeRef, cleanUndefined({
+              ...updated[sId],
+              id: sId,
+              userId: activeUid,
+              updatedAt: new Date().toISOString()
+            }), { merge: true }).catch(err => console.warn("Error updating store in firestore:", err));
+          }
+        });
+
+        try {
+          localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(updated));
+        } catch (e) {}
+
+        return updated;
+      });
+
+      alert(`✅ Limpeza concluída com sucesso!\n\nDados zerados:\n• ${brendiCount} pedidos da Brendi excluídos\n• ${salesCount} registros de vendas excluídos\n• Vendas integradas e faturamentos automáticos zerados.\n\nSuas fichas técnicas, ingredientes, despesas e configurações permanecem 100% preservados.`);
+    } catch (err: any) {
+      console.error("Erro ao zerar dados de vendas:", err);
+      alert("Ocorreu um erro ao tentar zerar os dados de vendas: " + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsPurgingSales(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* PROFESSIONAL ADMIN HUD EMULATOR FLOATING BAR */}
@@ -1383,6 +1531,19 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Botão Zerar Dados de Vendas para o Administrador espacocarreiro@gmail.com */}
+              {user?.email?.toLowerCase().trim() === 'espacocarreiro@gmail.com' && (
+                <button
+                  onClick={handlePurgeAllSalesData}
+                  disabled={isPurgingSales}
+                  className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full transition duration-150 shadow-md border border-red-400/40 disabled:opacity-50"
+                  title="Apaga a coleção brendi_orders, zera sales_data e faturamentos automáticos gerados"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {isPurgingSales ? 'Limpando...' : 'Zerar Dados de Vendas'}
+                </button>
+              )}
+
               <div className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <Users className="h-3.5 w-3.5 text-slate-400" />
                 <label className="text-[10px] uppercase font-black tracking-wider text-slate-400">Painel Cliente:</label>

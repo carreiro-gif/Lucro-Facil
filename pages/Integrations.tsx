@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plug, 
   CheckCircle, 
@@ -13,13 +13,32 @@ import {
   X,
   ArrowRight,
   Sparkles,
-  Info
+  Info,
+  Percent,
+  RotateCcw,
+  Store
 } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { BrendiLogo } from '../components/PlatformLogos';
-import { UserIntegrationBrendi } from '../types';
+import { useApp } from '../context/AppContext';
+import { BrendiLogo, IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
+import { 
+  UserIntegrationBrendi, 
+  BrendiChannelFees, 
+  BrendiDetailedFees, 
+  BrendiSmartCampaign, 
+  BrendiMonthlySubscription 
+} from '../types';
+import { 
+  DEFAULT_BRENDI_CHANNEL_FEES, 
+  DEFAULT_BRENDI_DETAILED_FEES,
+  getSuggestedChannelFees, 
+  getSuggestedDetailedFees,
+  calculateChannelTotalPercent,
+  getSavedChannelFees, 
+  saveChannelFeesToStorage 
+} from '../utils/brendiProfit';
 
 const OFFICIAL_WEBHOOK_URL = 'https://app-cardapioblindado.vercel.app/api/brendi-webhook';
 
@@ -32,15 +51,37 @@ interface IntegrationsProps {
 
 export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
   const { user, emulatedUser } = useAuth();
+  const { platformConfig, products, syncIfoodSubscriptionAndCampaign } = useApp();
   const activeUserId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
   const activeEmail = emulatedUser ? emulatedUser.email : (user ? user.email : '');
   const isAdminUser = activeEmail?.toLowerCase().trim() === 'espacocarreiro@gmail.com';
+
+  const suggestedFees = useMemo(() => {
+    return getSuggestedChannelFees(platformConfig, products);
+  }, [platformConfig, products]);
+
+  const suggestedDetailed = useMemo(() => {
+    return getSuggestedDetailedFees(platformConfig);
+  }, [platformConfig]);
 
   const [brendiConfig, setBrendiConfig] = useState<UserIntegrationBrendi | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [storeUuidInput, setStoreUuidInput] = useState('');
   const [webhookSecretInput, setWebhookSecretInput] = useState('');
+  const [channelFees, setChannelFees] = useState<BrendiChannelFees>(DEFAULT_BRENDI_CHANNEL_FEES);
+
+  // Detailed fees per channel
+  const [detailedFees, setDetailedFees] = useState<BrendiDetailedFees>(DEFAULT_BRENDI_DETAILED_FEES);
+  // Campanha Inteligente do iFood
+  const [smartCampaign, setSmartCampaign] = useState<BrendiSmartCampaign>({ active: false, dailyInvestment: 0 });
+  // Mensalidade iFood
+  const [monthlySubscription, setMonthlySubscription] = useState<BrendiMonthlySubscription>({
+    plan: 'basic',
+    feeAmount: 110,
+    billingThreshold: 1800
+  });
+
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -73,7 +114,8 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
               storeUuid: ADMIN_DEFAULT_STORE_UUID,
               webhookSecret: ADMIN_DEFAULT_WEBHOOK_SECRET,
               active: true,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date().toISOString(),
+              channelFees: brendi?.channelFees || suggestedFees
             };
             try {
               await setDoc(userDocRef, {
@@ -88,6 +130,28 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
           }
 
           if (isMounted) {
+            const initialDetailed: BrendiDetailedFees = brendi?.detailedFees || suggestedDetailed;
+            setDetailedFees(initialDetailed);
+
+            const calculatedTotals: BrendiChannelFees = {
+              ifood: calculateChannelTotalPercent(initialDetailed.ifood),
+              food99: calculateChannelTotalPercent(initialDetailed.food99),
+              keeta: calculateChannelTotalPercent(initialDetailed.keeta),
+              brendiDelivery: calculateChannelTotalPercent(initialDetailed.brendiDelivery),
+              brendiBalcao: calculateChannelTotalPercent(initialDetailed.brendiBalcao)
+            };
+
+            const initialFees = brendi?.channelFees || calculatedTotals;
+            setChannelFees(initialFees);
+            saveChannelFeesToStorage(initialFees, activeUserId);
+
+            if (brendi?.smartCampaign) {
+              setSmartCampaign(brendi.smartCampaign);
+            }
+            if (brendi?.monthlySubscription) {
+              setMonthlySubscription(brendi.monthlySubscription);
+            }
+
             if (brendi && brendi.storeUuid) {
               setBrendiConfig(brendi);
               setStoreUuidInput(brendi.storeUuid);
@@ -100,11 +164,22 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
           }
         } else if (isAdminUser) {
           // If doc doesn't exist yet for admin, create with default credentials
+          const calculatedTotals: BrendiChannelFees = {
+            ifood: calculateChannelTotalPercent(suggestedDetailed.ifood),
+            food99: calculateChannelTotalPercent(suggestedDetailed.food99),
+            keeta: calculateChannelTotalPercent(suggestedDetailed.keeta),
+            brendiDelivery: calculateChannelTotalPercent(suggestedDetailed.brendiDelivery),
+            brendiBalcao: calculateChannelTotalPercent(suggestedDetailed.brendiBalcao)
+          };
           const adminCreds: UserIntegrationBrendi = {
             storeUuid: ADMIN_DEFAULT_STORE_UUID,
             webhookSecret: ADMIN_DEFAULT_WEBHOOK_SECRET,
             active: true,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            channelFees: calculatedTotals,
+            detailedFees: suggestedDetailed,
+            smartCampaign: { active: false, dailyInvestment: 0 },
+            monthlySubscription: { plan: 'basic', feeAmount: 110, billingThreshold: 1800 }
           };
           try {
             await setDoc(userDocRef, {
@@ -123,6 +198,16 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
             setBrendiConfig(adminCreds);
             setStoreUuidInput(adminCreds.storeUuid);
             setWebhookSecretInput(adminCreds.webhookSecret);
+            setDetailedFees(suggestedDetailed);
+            setChannelFees(calculatedTotals);
+            saveChannelFeesToStorage(calculatedTotals, activeUserId);
+          }
+        } else {
+          // Normal user without brendi config yet
+          if (isMounted) {
+            const saved = getSavedChannelFees(activeUserId) || suggestedFees;
+            setChannelFees(saved);
+            setDetailedFees(suggestedDetailed);
           }
         }
       } catch (err) {
@@ -137,7 +222,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
     return () => {
       isMounted = false;
     };
-  }, [activeUserId, isAdminUser, activeEmail]);
+  }, [activeUserId, isAdminUser, activeEmail, suggestedFees, suggestedDetailed]);
 
   const handleOpenModal = () => {
     // If admin and empty, pre-fill
@@ -148,6 +233,33 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
       setStoreUuidInput(brendiConfig.storeUuid || '');
       setWebhookSecretInput(brendiConfig.webhookSecret || '');
     }
+
+    if (brendiConfig?.detailedFees) {
+      setDetailedFees(brendiConfig.detailedFees);
+    } else {
+      setDetailedFees(suggestedDetailed);
+    }
+
+    if (brendiConfig?.smartCampaign) {
+      setSmartCampaign(brendiConfig.smartCampaign);
+    } else {
+      setSmartCampaign({ active: false, dailyInvestment: 0 });
+    }
+
+    if (brendiConfig?.monthlySubscription) {
+      setMonthlySubscription(brendiConfig.monthlySubscription);
+    } else {
+      setMonthlySubscription({ plan: 'basic', feeAmount: 110, billingThreshold: 1800 });
+    }
+
+    // Set channel fees (existing from config or saved in storage or suggested)
+    if (brendiConfig?.channelFees) {
+      setChannelFees(brendiConfig.channelFees);
+    } else {
+      const saved = getSavedChannelFees(activeUserId);
+      setChannelFees(saved || suggestedFees);
+    }
+
     setTestResult(null);
     setSaveSuccess(false);
     setIsModalOpen(true);
@@ -164,11 +276,23 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
     setSaveSuccess(false);
 
     try {
+      const calculatedTotals: BrendiChannelFees = {
+        ifood: calculateChannelTotalPercent(detailedFees.ifood),
+        food99: calculateChannelTotalPercent(detailedFees.food99),
+        keeta: calculateChannelTotalPercent(detailedFees.keeta),
+        brendiDelivery: calculateChannelTotalPercent(detailedFees.brendiDelivery),
+        brendiBalcao: calculateChannelTotalPercent(detailedFees.brendiBalcao)
+      };
+
       const updatedCreds: UserIntegrationBrendi = {
         storeUuid: storeUuidInput.trim(),
         webhookSecret: webhookSecretInput.trim(),
         active: true,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        channelFees: calculatedTotals,
+        detailedFees: detailedFees,
+        smartCampaign: smartCampaign,
+        monthlySubscription: monthlySubscription
       };
 
       const userDocRef = doc(db, 'users', activeUserId);
@@ -178,7 +302,10 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
         }
       }, { merge: true });
 
+      saveChannelFeesToStorage(calculatedTotals, activeUserId);
       setBrendiConfig(updatedCreds);
+      setChannelFees(calculatedTotals);
+      syncIfoodSubscriptionAndCampaign(updatedCreds);
       setSaveSuccess(true);
       setTimeout(() => {
         setSaveSuccess(false);
@@ -356,7 +483,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
 
             {/* Extra details when connected */}
             {isConnected && brendiConfig && (
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-[#1a2333]/50 rounded-xl border border-gray-100 dark:border-gray-800 text-[11px] space-y-1">
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-[#1a2333]/50 rounded-xl border border-gray-100 dark:border-gray-800 text-[11px] space-y-2">
                 <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
                   <span>Store UUID:</span>
                   <span className="font-mono font-bold text-gray-800 dark:text-gray-200 truncate max-w-[160px]">
@@ -368,6 +495,31 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                     <Shield className="w-3 h-3" /> Webhook Criptografado
                   </span>
+                </div>
+
+                {/* Channel fees preview chips */}
+                <div className="pt-2 border-t border-gray-200/60 dark:border-gray-800/60">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1.5 flex items-center justify-between">
+                    <span>Taxas por Canal (Lucro Real):</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+                    <span className="bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 px-2 py-1 rounded border border-red-200/60 dark:border-red-900/40 flex items-center justify-between">
+                      <span className="font-sans font-bold">iFood:</span>
+                      <strong>{channelFees.ifood}%</strong>
+                    </span>
+                    <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-2 py-1 rounded border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between">
+                      <span className="font-sans font-bold">99Food:</span>
+                      <strong>{channelFees.food99}%</strong>
+                    </span>
+                    <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between">
+                      <span className="font-sans font-bold">Keeta:</span>
+                      <strong>{channelFees.keeta}%</strong>
+                    </span>
+                    <span className="bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 px-2 py-1 rounded border border-purple-200/60 dark:border-purple-900/40 flex items-center justify-between">
+                      <span className="font-sans font-bold">Balcão:</span>
+                      <strong>{channelFees.brendiBalcao}%</strong>
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -454,7 +606,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
       {/* Configuration Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white dark:bg-[#111827] rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5">
+          <div className="bg-white dark:bg-[#111827] rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-5 custom-scrollbar">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
               <div className="flex items-center gap-3">
@@ -466,7 +618,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
                     Configurar Integração Brendi
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Insira as credenciais do seu estabelecimento
+                    Insira as credenciais do seu estabelecimento e taxas por canal
                   </p>
                 </div>
               </div>
@@ -494,6 +646,31 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
                   </a>{' '}
                   e copie o Store UUID e a chave secreta do webhook.
                 </p>
+              </div>
+            </div>
+
+            {/* Aviso Informativo para Múltiplas Lojas */}
+            <div className="bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-xl p-3.5 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div className="space-y-1.5 flex-1">
+                <p className="font-bold text-blue-900 dark:text-blue-200">
+                  Aviso para donos com mais de uma loja no iFood
+                </p>
+                <p className="text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
+                  Donos com mais de uma loja no iFood devem lançar o faturamento de cada loja manualmente na aba de Faturamento, pois a integração automática não consegue separar os pedidos por loja quando há múltiplos merchantIds.
+                </p>
+                {setActiveTab && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setActiveTab('revenue');
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline uppercase tracking-wider transition"
+                  >
+                    Ir para a aba de Faturamento <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -554,6 +731,660 @@ export const Integrations: React.FC<IntegrationsProps> = ({ setActiveTab }) => {
                     {copiedUrl ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                     {copiedUrl ? 'Copiado!' : 'Copiar'}
                   </button>
+                </div>
+              </div>
+
+              {/* Taxas por Canal de Venda */}
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                      <Percent className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm uppercase text-gray-900 dark:text-white">
+                        Taxas por Canal de Venda
+                      </h4>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        Cálculo Inteligente de Lucro Real
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setDetailedFees(suggestedDetailed)}
+                    className="text-[10px] font-bold text-gray-500 hover:text-brand-red flex items-center gap-1 transition underline"
+                    title="Preencher com os valores configurados na tela de Preço de Venda"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Restaurar Sugestão
+                  </button>
+                </div>
+
+                <div className="bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                  <p>
+                    Configure abaixo as taxas detalhadas de cada canal de venda exatamente como na tela de Preço de Venda. O sistema calcula automaticamente o percentual total que é descontado dos seus pedidos para apurar o seu lucro real.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  {/* iFood */}
+                  <div className="p-4 bg-gray-50 dark:bg-[#1a2333] rounded-2xl border border-gray-200 dark:border-gray-700/80 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <IFoodLogo className="w-5 h-5" />
+                        iFood
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-red-100 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 px-2.5 py-1 rounded-lg">
+                        <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">Total Calculado:</span>
+                        <span className="text-xs font-black font-mono text-red-700 dark:text-red-300">
+                          {calculateChannelTotalPercent(detailedFees.ifood).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Comissão básica do iFood
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.ifood.feePercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              ifood: { ...prev.ifood, feePercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa de pagamento online
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.ifood.onlinePaymentPercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              ifood: { ...prev.ifood, onlinePaymentPercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa de antecipação de recebíveis
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.ifood.anticipationPercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              ifood: { ...prev.ifood, anticipationPercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor que você banca por pedido de entrega
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.ifood.deliveryReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              ifood: { ...prev.ifood, deliveryReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-red-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor médio de cupom que você banca
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.ifood.couponReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              ifood: { ...prev.ifood, couponReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-red-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Campanha Inteligente do iFood */}
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/80 bg-red-50/50 dark:bg-red-950/20 p-3 rounded-xl space-y-2.5 border border-red-200/50 dark:border-red-900/30">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <span className="text-xs font-black uppercase text-red-900 dark:text-red-200">
+                            Campanha Inteligente do iFood
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                            Participante da Campanha Inteligente
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSmartCampaign(prev => ({ ...prev, active: !prev.active }))}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                              smartCampaign.active ? 'bg-red-600' : 'bg-gray-300 dark:bg-gray-700'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                smartCampaign.active ? 'translate-x-4' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1">
+                          Investimento diário em reais
+                        </label>
+                        <div className="relative w-full sm:w-48">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={smartCampaign.dailyInvestment}
+                            onChange={(e) => setSmartCampaign(prev => ({
+                              ...prev,
+                              dailyInvestment: parseFloat(e.target.value) || 0
+                            }))}
+                            disabled={!smartCampaign.active}
+                            className={`w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 font-mono text-xs font-bold text-right focus:ring-2 focus:ring-red-500 focus:outline-none ${
+                              smartCampaign.active ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white' : 'bg-gray-100 dark:bg-gray-800/60 text-gray-400 cursor-not-allowed'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="bg-white/80 dark:bg-gray-900/80 p-2.5 rounded-lg border border-red-100 dark:border-red-900/30 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between font-bold text-gray-800 dark:text-gray-200">
+                          <span>Custo mensal estimado:</span>
+                          <span className="font-mono text-red-600 dark:text-red-400 font-black">
+                            R$ {(Number(smartCampaign.dailyInvestment || 0) * 30).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (30 dias)
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                          Esse custo mensal estimado entrará automaticamente nas despesas fixas do mês como uma despesa fixa chamada &quot;Campanha Inteligente iFood&quot; quando ativo e pode ser editado na tela de despesas fixas se o valor real for diferente.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Mensalidade iFood */}
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/80 bg-gray-100/60 dark:bg-gray-900/60 p-3 rounded-xl space-y-2.5 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-1.5">
+                        <Store className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        <span className="text-xs font-black uppercase text-gray-900 dark:text-white">
+                          Mensalidade iFood
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                          Plano iFood
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <label className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs transition ${
+                            monthlySubscription.plan === 'basic' 
+                              ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 font-bold' 
+                              : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}>
+                            <input
+                              type="radio"
+                              name="ifood_plan"
+                              checked={monthlySubscription.plan === 'basic'}
+                              onChange={() => setMonthlySubscription(prev => ({ ...prev, plan: 'basic', feeAmount: 110 }))}
+                              className="text-red-600 focus:ring-red-500"
+                            />
+                            <span>Plano Básico (entrega própria) — R$ 110,00</span>
+                          </label>
+
+                          <label className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs transition ${
+                            monthlySubscription.plan === 'delivery' 
+                              ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 font-bold' 
+                              : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}>
+                            <input
+                              type="radio"
+                              name="ifood_plan"
+                              checked={monthlySubscription.plan === 'delivery'}
+                              onChange={() => setMonthlySubscription(prev => ({ ...prev, plan: 'delivery', feeAmount: 150 }))}
+                              className="text-red-600 focus:ring-red-500"
+                            />
+                            <span>Plano Entrega (iFood faz a entrega) — R$ 150,00</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1">
+                            Valor da mensalidade em reais
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={monthlySubscription.feeAmount}
+                              onChange={(e) => setMonthlySubscription(prev => ({
+                                ...prev,
+                                feeAmount: parseFloat(e.target.value) || 0
+                              }))}
+                              className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-red-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1">
+                            Limite de faturamento para cobrança da mensalidade em reais
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                            <input
+                              type="number"
+                              step="50"
+                              min="0"
+                              value={monthlySubscription.billingThreshold}
+                              onChange={(e) => setMonthlySubscription(prev => ({
+                                ...prev,
+                                billingThreshold: parseFloat(e.target.value) || 0
+                              }))}
+                              className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-red-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                        Funcionalidade inteligente: O sistema monitora o faturamento do iFood no mês. Ultrapassando o limite (padrão R$ 1.800,00), a mensalidade é adicionada automaticamente como despesa fixa (&quot;Mensalidade iFood&quot;) e um alerta de confirmação aparece no Dashboard. Se não ultrapassar, a mensalidade não é cobrada nem adicionada às despesas fixas.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 99Food */}
+                  <div className="p-4 bg-gray-50 dark:bg-[#1a2333] rounded-2xl border border-gray-200 dark:border-gray-700/80 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <Food99Logo className="w-5 h-5" />
+                        99Food
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-lg">
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Total Calculado:</span>
+                        <span className="text-xs font-black font-mono text-amber-700 dark:text-amber-300">
+                          {calculateChannelTotalPercent(detailedFees.food99).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Comissão básica do 99Food
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.food99.feePercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              food99: { ...prev.food99, feePercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa de pagamento online
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.food99.onlinePaymentPercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              food99: { ...prev.food99, onlinePaymentPercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa de antecipação de recebíveis
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.food99.anticipationPercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              food99: { ...prev.food99, anticipationPercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor que você banca por pedido de entrega
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.food99.deliveryReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              food99: { ...prev.food99, deliveryReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor médio de cupom que você banca
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.food99.couponReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              food99: { ...prev.food99, couponReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Keeta */}
+                  <div className="p-4 bg-gray-50 dark:bg-[#1a2333] rounded-2xl border border-gray-200 dark:border-gray-700/80 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <KeetaLogo className="w-5 h-5" />
+                        Keeta
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/60 px-2.5 py-1 rounded-lg">
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Total Calculado:</span>
+                        <span className="text-xs font-black font-mono text-emerald-700 dark:text-emerald-300">
+                          {calculateChannelTotalPercent(detailedFees.keeta).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Comissão básica da Keeta
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.keeta.feePercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              keeta: { ...prev.keeta, feePercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa de pagamento online
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.keeta.onlinePaymentPercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              keeta: { ...prev.keeta, onlinePaymentPercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa de antecipação de recebíveis
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.keeta.anticipationPercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              keeta: { ...prev.keeta, anticipationPercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor que você banca por pedido de entrega
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.keeta.deliveryReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              keeta: { ...prev.keeta, deliveryReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor médio de cupom que você banca
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.keeta.couponReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              keeta: { ...prev.keeta, couponReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Brendi Delivery Próprio */}
+                  <div className="p-4 bg-gray-50 dark:bg-[#1a2333] rounded-2xl border border-gray-200 dark:border-gray-700/80 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <BrendiLogo className="w-5 h-5" />
+                        Brendi Delivery Próprio
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/60 px-2.5 py-1 rounded-lg">
+                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase">Total Calculado:</span>
+                        <span className="text-xs font-black font-mono text-purple-700 dark:text-purple-300">
+                          {calculateChannelTotalPercent(detailedFees.brendiDelivery).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Taxa percentual
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={detailedFees.brendiDelivery.feePercent}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              brendiDelivery: { ...prev.brendiDelivery, feePercent: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Valor que você banca por pedido de entrega
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-gray-400 font-bold">R$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={detailedFees.brendiDelivery.deliveryReais}
+                            onChange={(e) => setDetailedFees(prev => ({
+                              ...prev,
+                              brendiDelivery: { ...prev.brendiDelivery, deliveryReais: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full pl-8 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Brendi Balcão */}
+                  <div className="p-4 bg-gray-50 dark:bg-[#1a2333] rounded-2xl border border-gray-200 dark:border-gray-700/80 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <Store className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        Brendi Balcão
+                      </label>
+                      <div className="flex items-center gap-1.5 bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/60 px-2.5 py-1 rounded-lg">
+                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase">Total Calculado:</span>
+                        <span className="text-xs font-black font-mono text-purple-700 dark:text-purple-300">
+                          {calculateChannelTotalPercent(detailedFees.brendiBalcao).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                        Taxa percentual <span className="text-[10px] text-gray-400 font-normal">(geralmente zero)</span>
+                      </label>
+                      <div className="relative sm:w-1/2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={detailedFees.brendiBalcao.feePercent}
+                          onChange={(e) => setDetailedFees(prev => ({
+                            ...prev,
+                            brendiBalcao: { ...prev.brendiBalcao, feePercent: parseFloat(e.target.value) || 0 }
+                          }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold text-right pr-6 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                        <span className="absolute right-2 top-1.5 text-xs text-gray-400 font-bold">%</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

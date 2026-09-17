@@ -1,9 +1,9 @@
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics } from '../types';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, CollaboratorMeal, PaymentMethod, PaymentFrequency, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics, UserIntegrationBrendi } from '../types';
 import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
 import { useAuth } from './AuthContext';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface AppContextType extends GlobalState {
@@ -56,16 +56,36 @@ interface AppContextType extends GlobalState {
   addSalesTransactionsBatch: (transList: SalesTransaction[]) => void;
   deleteSalesTransaction: (id: string) => void;
   clearSalesTransactions: () => void;
+  clearSalesTransactionsByMonth: (month: string) => void;
+  updateMonthlyRevenueFromIntegration: (month: string, revenue: number) => void;
+  syncIfoodSubscriptionAndCampaign: (brendiConfig?: UserIntegrationBrendi) => void;
 
   // Collaborators
   addCollaborator: (collab: Collaborator) => void;
   updateCollaborator: (id: string, collab: Partial<Collaborator>) => void;
   deleteCollaborator: (id: string) => void;
   addCustomCollaboratorRole: (roleName: string) => void;
-  addCollaboratorPayment: (payment: CollaboratorPayment) => void;
-  addCollaboratorPaymentsBatch: (payments: CollaboratorPayment[]) => void;
-  updateCollaboratorPaymentStatus: (id: string, status: 'pago' | 'pendente') => void;
+  addCollaboratorPayment: (payment: CollaboratorPayment, options?: { skipExpenseSync?: boolean }) => void;
+  addCollaboratorPaymentsBatch: (payments: CollaboratorPayment[], options?: { consolidateToExpenses?: boolean; consolidatedTitle?: string; expenseCategory?: string }) => void;
+  updateCollaboratorPaymentStatus: (id: string, status: 'pago' | 'pendente' | 'parcial', updateData?: { amountPaid?: number; paymentMethod?: PaymentMethod; paymentDate?: string }) => void;
   deleteCollaboratorPayment: (id: string) => void;
+  closeCollaboratorPayments: (params: {
+    paymentIds: string[];
+    amountToPay?: number;
+    paymentMethod: PaymentMethod;
+    paymentDate: string;
+    consolidateToExpenses?: boolean;
+    consolidatedTitle?: string;
+    expenseCategory?: string;
+    notes?: string;
+  }) => void;
+  consolidateLegacyCollaboratorExpenses: () => { consolidatedCount: number };
+
+  // Meals & Benefits
+  addCollaboratorMeal: (meal: CollaboratorMeal) => void;
+  updateCollaboratorMeal: (id: string, meal: Partial<CollaboratorMeal>) => void;
+  deleteCollaboratorMeal: (id: string) => void;
+  addCollaboratorMealsBatch: (meals: CollaboratorMeal[]) => void;
 
   // Accounts Receivable
   addAccountReceivable: (item: AccountReceivable) => void;
@@ -132,6 +152,7 @@ export const AppProvider: React.FC<{
             ingredientCategories: initialData.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES,
             collaborators: initialData.collaborators || [],
             collaboratorPayments: initialData.collaboratorPayments || [],
+            collaboratorMeals: initialData.collaboratorMeals || [],
             customCollaboratorRoles: initialData.customCollaboratorRoles || [],
             accountsReceivable: initialData.accountsReceivable || [],
             customReceivableOrigins: initialData.customReceivableOrigins || [],
@@ -185,7 +206,7 @@ export const AppProvider: React.FC<{
       }
     } catch (e) {}
 
-    // Synchronize state.monthlyRevenue if Brendi revenue is present
+    // Synchronize state.monthlyRevenue if Brendi revenue is present AND month is not locked manually
     setState(prev => {
       let stateChanged = false;
       const revList = [...(prev.monthlyRevenue || [])];
@@ -193,12 +214,13 @@ export const AppProvider: React.FC<{
       Object.entries(monthlyMap).forEach(([m, data]) => {
         const idx = revList.findIndex(r => r.month === m);
         if (idx >= 0) {
-          if (revList[idx].revenue < data.revenue) {
-            revList[idx] = { ...revList[idx], revenue: data.revenue };
+          // If the user manually edited this month in Billing, DO NOT overwrite it!
+          if (!revList[idx].isManual && revList[idx].revenue < data.revenue) {
+            revList[idx] = { ...revList[idx], revenue: data.revenue, source: 'integration' };
             stateChanged = true;
           }
         } else if (data.revenue > 0) {
-          revList.push({ month: m, revenue: data.revenue });
+          revList.push({ month: m, revenue: data.revenue, isManual: false, source: 'integration' });
           stateChanged = true;
         }
       });
@@ -286,6 +308,111 @@ export const AppProvider: React.FC<{
 
     return () => unsubscribe();
   }, [activeUserId]);
+
+  const [userIntegrationBrendi, setUserIntegrationBrendi] = useState<UserIntegrationBrendi | null>(null);
+
+  // Listen to user integrations config
+  useEffect(() => {
+    if (!activeUserId) {
+      setUserIntegrationBrendi(null);
+      return;
+    }
+    const userDocRef = doc(db, 'users', activeUserId);
+    const unsub = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data() || {};
+        setUserIntegrationBrendi(d.integrations?.brendi || null);
+      }
+    }, (err) => {
+      console.warn('[AppContext] User integrations listener warning:', err);
+    });
+    return () => unsub();
+  }, [activeUserId]);
+
+  const syncIfoodSubscriptionAndCampaign = useCallback((brendiOverride?: UserIntegrationBrendi) => {
+    const brendi = brendiOverride || userIntegrationBrendi;
+    if (!brendi) return;
+
+    setState(prev => {
+      let expensesChanged = false;
+      let newExpenses = [...(prev.expenses || [])];
+      const currentMonth = new Date().toISOString().slice(0, 7);
+
+      // 1. Campanha Inteligente iFood
+      if (brendi.smartCampaign?.active && Number(brendi.smartCampaign.dailyInvestment) > 0) {
+        const monthlyCost = Math.round(Number(brendi.smartCampaign.dailyInvestment) * 30 * 100) / 100;
+        const existingIdx = newExpenses.findIndex(e => e.month === currentMonth && e.description === 'Campanha Inteligente iFood');
+        if (existingIdx === -1) {
+          newExpenses.push({
+            id: `exp_ci_ifood_${currentMonth}`,
+            month: currentMonth,
+            description: 'Campanha Inteligente iFood',
+            value: monthlyCost,
+            category: 'Marketing e Divulgação',
+            dueDate: `${currentMonth}-10`,
+            paid: false,
+          });
+          expensesChanged = true;
+        }
+      }
+
+      // 2. Mensalidade iFood
+      if (brendi.monthlySubscription) {
+        const threshold = Number(brendi.monthlySubscription.billingThreshold) || 1800;
+        const feeValue = Number(brendi.monthlySubscription.feeAmount) || (brendi.monthlySubscription.plan === 'delivery' ? 150 : 110);
+
+        const monthsSet = new Set<string>([currentMonth]);
+        (prev.salesTransactions || []).forEach(t => {
+          if (t.date) monthsSet.add(t.date.slice(0, 7));
+        });
+        (brendiOrders || []).forEach(o => {
+          if (o.createdAt) monthsSet.add(o.createdAt.slice(0, 7));
+        });
+
+        monthsSet.forEach(m => {
+          const txIfoodRev = (prev.salesTransactions || [])
+            .filter(t => (t.date || '').slice(0, 7) === m && (t.channel || '').toLowerCase().includes('ifood'))
+            .reduce((sum, t) => sum + (Number(t.totalAmount) || (Number(t.pricePaidByCustomer) || 0) * (Number(t.qty) || 1)), 0);
+
+          const ordersIfoodRev = (brendiOrders || [])
+            .filter(o => (o.createdAt || '').slice(0, 7) === m && ((o.channel || '').toLowerCase().includes('ifood') || (o.merchantId || '').toLowerCase().includes('ifood')))
+            .reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+          const totalIfoodMonthRev = Math.max(txIfoodRev, ordersIfoodRev, txIfoodRev + ordersIfoodRev);
+
+          if (totalIfoodMonthRev >= threshold) {
+            const hasSub = newExpenses.some(e => e.month === m && (e.description === 'Mensalidade iFood' || e.id === `exp_ifood_sub_${m}`));
+            if (!hasSub) {
+              newExpenses.push({
+                id: `exp_ifood_sub_${m}`,
+                month: m,
+                description: 'Mensalidade iFood',
+                value: feeValue,
+                category: 'Taxas e Serviços',
+                dueDate: `${m}-15`,
+                paid: false,
+              });
+              expensesChanged = true;
+            }
+          }
+        });
+      }
+
+      if (expensesChanged) {
+        return {
+          ...prev,
+          expenses: newExpenses
+        };
+      }
+      return prev;
+    });
+  }, [userIntegrationBrendi, brendiOrders]);
+
+  useEffect(() => {
+    if (userIntegrationBrendi) {
+      syncIfoodSubscriptionAndCampaign(userIntegrationBrendi);
+    }
+  }, [userIntegrationBrendi, syncIfoodSubscriptionAndCampaign]);
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -566,6 +693,42 @@ export const AppProvider: React.FC<{
   const addSalesTransactionsBatch = (transList: SalesTransaction[]) => setState(s => ({ ...s, salesTransactions: [...(s.salesTransactions || []), ...transList] }));
   const deleteSalesTransaction = (id: string) => setState(s => ({ ...s, salesTransactions: (s.salesTransactions || []).filter(t => t.id !== id) }));
   const clearSalesTransactions = () => setState(s => ({ ...s, salesTransactions: [] }));
+  const clearSalesTransactionsByMonth = (month: string) => setState(s => ({
+    ...s,
+    salesTransactions: (s.salesTransactions || []).filter(t => (t.date || '').slice(0, 7) !== month)
+  }));
+
+  const updateMonthlyRevenueFromIntegration = (month: string, revenue: number) => {
+    setState(prev => {
+      const revList = [...(prev.monthlyRevenue || [])];
+      const idx = revList.findIndex(r => r.month === month);
+
+      // If already manually edited by the user in Billing, KEEP MANUAL VALUE
+      if (idx >= 0) {
+        if (revList[idx].isManual === true) {
+          console.log(`[AppContext] Faturamento de ${month} mantido como manual (R$ ${revList[idx].revenue}). Não sobrescrito.`);
+          return prev;
+        }
+        revList[idx] = { 
+          ...revList[idx], 
+          revenue, 
+          isManual: false, 
+          source: 'integration', 
+          updatedAt: new Date().toISOString() 
+        };
+      } else {
+        revList.push({ 
+          month, 
+          revenue, 
+          isManual: false, 
+          source: 'integration', 
+          updatedAt: new Date().toISOString() 
+        });
+      }
+
+      return { ...prev, monthlyRevenue: revList };
+    });
+  };
   
   const addSupplierMapping = (mapping: SupplierMapping) => setState(s => {
     const filtered = s.supplierMappings.filter(m => !(m.cnpj === mapping.cnpj && m.xmlItemName === mapping.xmlItemName));
@@ -671,29 +834,101 @@ export const AppProvider: React.FC<{
     return { updatedExpenses, linkedExpId: expId };
   };
 
-  const addCollaboratorPayment = (payment: CollaboratorPayment) => {
+  const addCollaboratorPayment = (payment: CollaboratorPayment, options?: { skipExpenseSync?: boolean }) => {
     setState(s => {
-      const currentExpenses = s.expenses || [];
-      const { updatedExpenses, linkedExpId } = helperSyncPaymentToExpenses(payment, currentExpenses);
-      const paymentWithLink = { ...payment, linkedExpenseId: linkedExpId };
+      let currentExpenses = s.expenses || [];
+      let linkedExpId = payment.linkedExpenseId;
+
+      if (!options?.skipExpenseSync) {
+        const syncRes = helperSyncPaymentToExpenses(payment, currentExpenses);
+        currentExpenses = syncRes.updatedExpenses;
+        linkedExpId = syncRes.linkedExpId;
+      }
+
+      const totalPaid = payment.totalPaid ?? (payment.baseAmount + payment.deliveryFeeAmount);
+      const amountPaid = payment.amountPaid !== undefined ? payment.amountPaid : (payment.status === 'pago' ? totalPaid : 0);
+      const pendingBalance = payment.pendingBalance !== undefined ? payment.pendingBalance : (payment.status === 'pago' ? 0 : Math.max(0, totalPaid - amountPaid));
+
+      const paymentWithLink: CollaboratorPayment = {
+        ...payment,
+        totalPaid,
+        amountPaid,
+        pendingBalance,
+        linkedExpenseId: linkedExpId
+      };
+
       return {
         ...s,
-        expenses: updatedExpenses,
+        expenses: currentExpenses,
         collaboratorPayments: [...(s.collaboratorPayments || []), paymentWithLink]
       };
     });
   };
 
-  const addCollaboratorPaymentsBatch = (payments: CollaboratorPayment[]) => {
+  const addCollaboratorPaymentsBatch = (
+    payments: CollaboratorPayment[],
+    options?: { consolidateToExpenses?: boolean; consolidatedTitle?: string; expenseCategory?: string }
+  ) => {
     setState(s => {
-      let currentExpenses = s.expenses || [];
+      let currentExpenses = [...(s.expenses || [])];
       const finalPayments: CollaboratorPayment[] = [];
 
-      payments.forEach(p => {
-        const { updatedExpenses, linkedExpId } = helperSyncPaymentToExpenses(p, currentExpenses);
-        currentExpenses = updatedExpenses;
-        finalPayments.push({ ...p, linkedExpenseId: linkedExpId });
-      });
+      if (options?.consolidateToExpenses) {
+        // Calculate total fixed labor (baseAmount) - ONLY base amounts enter expenses, delivery fees DO NOT!
+        const totalBaseAmount = payments.reduce((acc, p) => acc + (Number(p.baseAmount) || 0), 0);
+        const refDate = payments[0]?.date || new Date().toISOString().slice(0, 10);
+        const monthStr = refDate.slice(0, 7);
+
+        let consolidatedExpId: string | undefined = undefined;
+        if (totalBaseAmount > 0) {
+          consolidatedExpId = `exp_collab_batch_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+          const allPaid = payments.every(p => p.status === 'pago');
+          const title = options.consolidatedTitle || `👥 Fechamento Mão de Obra — ${refDate.split('-').reverse().join('/')} (${payments.length} colab.)`;
+
+          const consExpense: Expense = {
+            id: consolidatedExpId,
+            month: monthStr,
+            description: title,
+            value: totalBaseAmount,
+            category: options.expenseCategory || 'Mão de obra Não Contratada (Extras)',
+            dueDate: refDate,
+            paid: allPaid
+          };
+          currentExpenses.push(consExpense);
+        }
+
+        payments.forEach(p => {
+          const tot = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+          const amtPaid = p.amountPaid !== undefined ? p.amountPaid : (p.status === 'pago' ? tot : 0);
+          const pndBal = p.pendingBalance !== undefined ? p.pendingBalance : (p.status === 'pago' ? 0 : Math.max(0, tot - amtPaid));
+
+          finalPayments.push({
+            ...p,
+            totalPaid: tot,
+            amountPaid: amtPaid,
+            pendingBalance: pndBal,
+            consolidatedExpenseId: consolidatedExpId,
+            linkedExpenseId: undefined
+          });
+        });
+      } else {
+        // Individual linking (legacy / standard)
+        payments.forEach(p => {
+          const { updatedExpenses, linkedExpId } = helperSyncPaymentToExpenses(p, currentExpenses);
+          currentExpenses = updatedExpenses;
+          const tot = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+          const amtPaid = p.amountPaid !== undefined ? p.amountPaid : (p.status === 'pago' ? tot : 0);
+          const pndBal = p.pendingBalance !== undefined ? p.pendingBalance : (p.status === 'pago' ? 0 : Math.max(0, tot - amtPaid));
+
+          finalPayments.push({
+            ...p,
+            totalPaid: tot,
+            amountPaid: amtPaid,
+            pendingBalance: pndBal,
+            linkedExpenseId: linkedExpId
+          });
+        });
+      }
 
       return {
         ...s,
@@ -703,25 +938,51 @@ export const AppProvider: React.FC<{
     });
   };
 
-  const updateCollaboratorPaymentStatus = (id: string, status: 'pago' | 'pendente') => {
+  const updateCollaboratorPaymentStatus = (
+    id: string,
+    status: 'pago' | 'pendente' | 'parcial',
+    updateData?: { amountPaid?: number; paymentMethod?: PaymentMethod; paymentDate?: string }
+  ) => {
     setState(s => {
       const target = (s.collaboratorPayments || []).find(p => p.id === id);
       if (!target) return s;
 
+      const newPaymentDate = status === 'pago' || status === 'parcial'
+        ? (updateData?.paymentDate || new Date().toISOString().slice(0, 10))
+        : undefined;
+
       const updatedPayments = (s.collaboratorPayments || []).map(p => {
         if (p.id === id) {
+          const totalPaid = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+          let amountPaid = updateData?.amountPaid !== undefined ? updateData.amountPaid : p.amountPaid;
+          if (status === 'pago') amountPaid = totalPaid;
+          if (status === 'pendente') amountPaid = 0;
+          const pendingBalance = Math.max(0, totalPaid - (amountPaid || 0));
+
           return {
             ...p,
             status,
-            paymentDate: status === 'pago' ? new Date().toISOString().slice(0, 10) : undefined
+            amountPaid,
+            pendingBalance,
+            paymentDate: newPaymentDate,
+            paymentMethod: updateData?.paymentMethod || p.paymentMethod
           };
         }
         return p;
       });
 
       let updatedExpenses = s.expenses || [];
+
+      // If individual linked expense
       if (target.linkedExpenseId) {
         updatedExpenses = updatedExpenses.map(e => e.id === target.linkedExpenseId ? { ...e, paid: status === 'pago' } : e);
+      }
+
+      // If part of consolidated batch
+      if (target.consolidatedExpenseId) {
+        const batchPayments = updatedPayments.filter(p => p.consolidatedExpenseId === target.consolidatedExpenseId);
+        const allBatchPaid = batchPayments.every(p => p.status === 'pago');
+        updatedExpenses = updatedExpenses.map(e => e.id === target.consolidatedExpenseId ? { ...e, paid: allBatchPaid } : e);
       }
 
       return {
@@ -738,8 +999,29 @@ export const AppProvider: React.FC<{
       const updatedPayments = (s.collaboratorPayments || []).filter(p => p.id !== id);
 
       let updatedExpenses = s.expenses || [];
-      if (target && target.linkedExpenseId) {
-        updatedExpenses = updatedExpenses.filter(e => e.id !== target.linkedExpenseId);
+      if (target) {
+        if (target.linkedExpenseId) {
+          updatedExpenses = updatedExpenses.filter(e => e.id !== target.linkedExpenseId);
+        } else if (target.consolidatedExpenseId) {
+          // Adjust consolidated expense value
+          const otherInBatch = updatedPayments.filter(p => p.consolidatedExpenseId === target.consolidatedExpenseId);
+          if (otherInBatch.length === 0) {
+            updatedExpenses = updatedExpenses.filter(e => e.id !== target.consolidatedExpenseId);
+          } else {
+            const newTotalBase = otherInBatch.reduce((sum, p) => sum + (Number(p.baseAmount) || 0), 0);
+            if (newTotalBase <= 0) {
+              updatedExpenses = updatedExpenses.filter(e => e.id !== target.consolidatedExpenseId);
+            } else {
+              const allBatchPaid = otherInBatch.every(p => p.status === 'pago');
+              updatedExpenses = updatedExpenses.map(e => e.id === target.consolidatedExpenseId ? {
+                ...e,
+                value: newTotalBase,
+                paid: allBatchPaid,
+                description: e.description.replace(/\(\d+ colab\.\)/, `(${otherInBatch.length} colab.)`)
+              } : e);
+            }
+          }
+        }
       }
 
       return {
@@ -748,6 +1030,174 @@ export const AppProvider: React.FC<{
         collaboratorPayments: updatedPayments
       };
     });
+  };
+
+  const closeCollaboratorPayments = (params: {
+    paymentIds: string[];
+    amountToPay?: number;
+    paymentMethod: PaymentMethod;
+    paymentDate: string;
+    consolidateToExpenses?: boolean;
+    consolidatedTitle?: string;
+    expenseCategory?: string;
+    notes?: string;
+  }) => {
+    setState(s => {
+      const targetIds = new Set(params.paymentIds);
+      const targetPayments = (s.collaboratorPayments || []).filter(p => targetIds.has(p.id));
+      if (targetPayments.length === 0) return s;
+
+      let currentExpenses = [...(s.expenses || [])];
+      let consExpId: string | undefined = undefined;
+
+      const totalBase = targetPayments.reduce((acc, p) => acc + (Number(p.baseAmount) || 0), 0);
+
+      if (params.consolidateToExpenses && totalBase > 0) {
+        consExpId = `exp_collab_batch_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+        const refMonth = params.paymentDate.slice(0, 7);
+        const consTitle = params.consolidatedTitle || `👥 Pagamento Mão de Obra — ${params.paymentDate.split('-').reverse().join('/')} (${targetPayments.length} colab.)`;
+
+        const newConsExpense: Expense = {
+          id: consExpId,
+          month: refMonth,
+          description: consTitle,
+          value: totalBase,
+          category: params.expenseCategory || 'Mão de obra Não Contratada (Extras)',
+          dueDate: params.paymentDate,
+          paid: true
+        };
+        currentExpenses.push(newConsExpense);
+
+        // Clean up individual linked expenses if any existed to avoid duplication
+        const oldIndividualIds = new Set(targetPayments.map(p => p.linkedExpenseId).filter(Boolean));
+        if (oldIndividualIds.size > 0) {
+          currentExpenses = currentExpenses.filter(e => !oldIndividualIds.has(e.id));
+        }
+      }
+
+      const updatedPayments = (s.collaboratorPayments || []).map(p => {
+        if (!targetIds.has(p.id)) return p;
+        const total = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+        return {
+          ...p,
+          status: 'pago' as const,
+          amountPaid: total,
+          pendingBalance: 0,
+          paymentDate: params.paymentDate,
+          paymentMethod: params.paymentMethod,
+          notes: params.notes ? (p.notes ? `${p.notes} | ${params.notes}` : params.notes) : p.notes,
+          consolidatedExpenseId: consExpId || p.consolidatedExpenseId,
+          linkedExpenseId: consExpId ? undefined : p.linkedExpenseId
+        };
+      });
+
+      // If not consolidated into a new batch expense, update individual linked expenses
+      if (!consExpId) {
+        targetPayments.forEach(tp => {
+          if (tp.linkedExpenseId) {
+            currentExpenses = currentExpenses.map(e => e.id === tp.linkedExpenseId ? { ...e, paid: true } : e);
+          }
+        });
+      }
+
+      return {
+        ...s,
+        expenses: currentExpenses,
+        collaboratorPayments: updatedPayments
+      };
+    });
+  };
+
+  const consolidateLegacyCollaboratorExpenses = (): { consolidatedCount: number } => {
+    let count = 0;
+    setState(s => {
+      const expenses = s.expenses || [];
+      const legacyCollabExps = expenses.filter(e => e.id.startsWith('exp_collab_') && !e.id.startsWith('exp_collab_batch_'));
+      if (legacyCollabExps.length <= 1) return s;
+
+      // Group by month
+      const byMonth: Record<string, Expense[]> = {};
+      legacyCollabExps.forEach(e => {
+        const m = e.month || 'sem_mes';
+        if (!byMonth[m]) byMonth[m] = [];
+        byMonth[m].push(e);
+      });
+
+      let updatedExpenses = [...expenses];
+      let updatedPayments = [...(s.collaboratorPayments || [])];
+
+      Object.entries(byMonth).forEach(([month, exps]) => {
+        if (exps.length <= 1) return;
+        const totalVal = exps.reduce((sum, e) => sum + Number(e.value || 0), 0);
+        const allPaid = exps.every(e => e.paid);
+        const newBatchId = `exp_collab_batch_${month}_${Date.now().toString(36)}`;
+        const legacyIds = new Set(exps.map(e => e.id));
+
+        const batchExp: Expense = {
+          id: newBatchId,
+          month,
+          description: `👥 Mão de Obra Consolidada — ${month} (${exps.length} lançamentos)`,
+          value: totalVal,
+          category: 'Mão de obra Não Contratada (Extras)',
+          dueDate: `${month}-28`,
+          paid: allPaid
+        };
+
+        // Replace individual expenses with single consolidated expense
+        updatedExpenses = updatedExpenses.filter(e => !legacyIds.has(e.id));
+        updatedExpenses.push(batchExp);
+
+        // Update linked payments
+        updatedPayments = updatedPayments.map(p => {
+          if (p.linkedExpenseId && legacyIds.has(p.linkedExpenseId)) {
+            return {
+              ...p,
+              linkedExpenseId: undefined,
+              consolidatedExpenseId: newBatchId
+            };
+          }
+          return p;
+        });
+
+        count += exps.length;
+      });
+
+      return {
+        ...s,
+        expenses: updatedExpenses,
+        collaboratorPayments: updatedPayments
+      };
+    });
+    return { consolidatedCount: count };
+  };
+
+  // --- COLLABORATOR MEALS & BENEFITS ACTIONS ---
+  const addCollaboratorMeal = (meal: CollaboratorMeal) => {
+    setState(s => ({
+      ...s,
+      collaboratorMeals: [...(s.collaboratorMeals || []), meal]
+    }));
+  };
+
+  const updateCollaboratorMeal = (id: string, mealData: Partial<CollaboratorMeal>) => {
+    setState(s => ({
+      ...s,
+      collaboratorMeals: (s.collaboratorMeals || []).map(m => m.id === id ? { ...m, ...mealData } : m)
+    }));
+  };
+
+  const deleteCollaboratorMeal = (id: string) => {
+    setState(s => ({
+      ...s,
+      collaboratorMeals: (s.collaboratorMeals || []).filter(m => m.id !== id)
+    }));
+  };
+
+  const addCollaboratorMealsBatch = (meals: CollaboratorMeal[]) => {
+    setState(s => ({
+      ...s,
+      collaboratorMeals: [...(s.collaboratorMeals || []), ...meals]
+    }));
   };
 
   // --- CALCULATIONS ---
@@ -1490,8 +1940,12 @@ export const AppProvider: React.FC<{
       updateCfi, updatePlatformConfig, updateMonthlyRevenue, updateStoreInfo,
       addPurchaseEntry, deletePurchaseEntry, addSupplierMapping, updateIngredientPriceFromXML,
       addSalesTransaction, addSalesTransactionsBatch, deleteSalesTransaction, clearSalesTransactions,
+      clearSalesTransactionsByMonth, updateMonthlyRevenueFromIntegration,
+      syncIfoodSubscriptionAndCampaign,
       addCollaborator, updateCollaborator, deleteCollaborator, addCustomCollaboratorRole,
       addCollaboratorPayment, addCollaboratorPaymentsBatch, updateCollaboratorPaymentStatus, deleteCollaboratorPayment,
+      closeCollaboratorPayments, consolidateLegacyCollaboratorExpenses,
+      addCollaboratorMeal, updateCollaboratorMeal, deleteCollaboratorMeal, addCollaboratorMealsBatch,
       addAccountReceivable, updateAccountReceivable, markAccountReceivableAsReceived, deleteAccountReceivable,
       addReceivablePayment, deleteReceivablePayment,
       addCustomReceivableOrigin, updateCustomReceivableOrigin, toggleCustomReceivableOriginStatus, deleteCustomReceivableOrigin,
