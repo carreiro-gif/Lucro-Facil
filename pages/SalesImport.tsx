@@ -25,7 +25,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  X
+  X,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import * as XLSX from 'xlsx';
@@ -36,11 +38,21 @@ import { ExportReportButton } from '../components/ExportReportButton';
 import { exportSalesImportReport } from '../utils/pdfExport';
 import { BrendiRealtimeTab } from '../components/BrendiRealtimeTab';
 import { CategorySalesRanking } from '../components/CategorySalesRanking';
+import { BrendiConsolidatedCard } from '../components/BrendiConsolidatedCard';
+import { 
+  isBrendiConsolidatedReport, 
+  parseBrendiConsolidatedReport, 
+  isCorruptedBrendiImportTransaction,
+  BrendiConsolidatedReport 
+} from '../utils/brendiReportParser';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { 
   saveSalesDataRecord, 
   saveSalesDataBatch, 
   deleteSalesDataByMonth, 
-  clearAllSalesData 
+  clearAllSalesData,
+  deleteCorruptedImportRecords 
 } from '../services/salesDataService';
 
 const parseBrOrUsMoney = (val: string): number => {
@@ -86,6 +98,11 @@ const SalesImport: React.FC = () => {
     clearSalesTransactions,
     clearSalesTransactionsByMonth,
     updateMonthlyRevenueFromIntegration,
+    brendiOrders = [],
+    brendiConsolidatedReports = [],
+    addBrendiConsolidatedReport,
+    removeBrendiConsolidatedReport,
+    sanitizeCorruptedBrendiSales,
     storeInfo
   } = useApp();
 
@@ -96,6 +113,32 @@ const SalesImport: React.FC = () => {
   }, []);
   const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonthKey);
   const [showClearModal, setShowClearModal] = useState<boolean>(false);
+  const [isSanitizing, setIsSanitizing] = useState<boolean>(false);
+
+  // Detecção de anomalias/registros corrompidos originados de relatórios consolidados importados erroneamente
+  const corruptedTransactions = useMemo(() => {
+    return (salesTransactions || []).filter(t => isCorruptedBrendiImportTransaction(t));
+  }, [salesTransactions]);
+
+  const handleSanitizeCorrupted = async () => {
+    setIsSanitizing(true);
+    try {
+      const result = sanitizeCorruptedBrendiSales();
+      if (activeUserId) {
+        await deleteCorruptedImportRecords(activeUserId, selectedMonth);
+        await deleteCorruptedImportRecords(activeUserId, '2026-09');
+      }
+      setImportLog({
+        success: true,
+        message: `Limpeza concluída! ${result.removedCount} registros espúrios foram removidos cirurgicamente e o faturamento do período foi recalculado com exatidão.`
+      });
+      addXandeBotMessage(`Pronto! Removi cirurgicamente os registros espúrios gerados pela importação anterior. O faturamento real foi restaurado e suas vendas estão 100% protegidas.`);
+    } catch (err) {
+      console.error('Erro ao sanitizar registros corrompidos:', err);
+    } finally {
+      setIsSanitizing(false);
+    }
+  };
 
   const totalCfiPercent = calculateTotalCfiPercent();
 
@@ -294,13 +337,79 @@ const SalesImport: React.FC = () => {
     addXandeBotMessage(`Excelente! Registrei a venda de ${qty}x **${resolvedName}** no canal **${manualChannel.toUpperCase()}**. O CMV teórico dos insumos deste item é **R$ ${(itemCmv * qty).toFixed(2)}**.`);
   };
 
-  // Advanced pasted text auto-mapper (recognizes iFood, Saipos tables, TSV, or comma-separated CSV)
-  const processImportText = (textContent: string) => {
+  // Advanced pasted text auto-mapper (recognizes iFood, Saipos tables, TSV, or comma-separated CSV, or Brendi Consolidated Report)
+  const processImportText = async (textContent: string, uploadedFileName?: string) => {
     if (!textContent.trim()) {
       setImportLog({ success: false, message: 'Nenhum dado encontrado para processar.' });
       return;
     }
 
+    // =========================================================================
+    // COMPORTAMENTO TIPO A: Relatório Consolidado Brendi
+    // Identificado estruturalmente pelo conteúdo (Métricas Gerais, Vendas Totais,
+    // Vendas Diárias, Semanais, Mensais, Distribuição por Plataforma, Cupons).
+    // O sistema NÃO cria transações individuais artificiais e NÃO soma sub-seções!
+    // =========================================================================
+    if (isBrendiConsolidatedReport(textContent)) {
+      try {
+        const report = parseBrendiConsolidatedReport(textContent, uploadedFileName);
+
+        // 1. Armazenar o relatório consolidado na memória do sistema
+        addBrendiConsolidatedReport(report);
+
+        // 2. Persistir no Firestore se usuário estiver conectado
+        if (activeUserId) {
+          try {
+            const reportRef = doc(db, 'users', activeUserId, 'brendi_reports', report.id);
+            await setDoc(reportRef, {
+              ...report,
+              userId: activeUserId,
+              savedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (e) {
+            console.warn('Erro ao salvar relatório consolidado no Firestore:', e);
+          }
+        }
+
+        // 3. Atualização inteligente do Faturamento sem duplicidade ou distorção
+        const targetMonth = report.period.monthKey;
+        const brendiRealtimeThisMonth = (brendiOrders || []).filter(o => {
+          const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+          return !isCancelled && (o.createdAt || '').slice(0, 7) === targetMonth;
+        });
+        const realtimeRevenue = brendiRealtimeThisMonth.reduce((acc, o) => acc + Number(o.total || 0), 0);
+
+        let successMsg = '';
+        if (realtimeRevenue > 0) {
+          successMsg = `Relatório Consolidado da Brendi processado com sucesso!\n• Período: ${report.period.formattedPeriod}\n• Vendas Totais do Arquivo: ${formatMoney(report.metrics.totalSales)}\n• Total de Pedidos: ${report.metrics.totalOrders}\n• Ticket Médio: ${formatMoney(report.metrics.averageTicket)}\n\n💡 Proteção contra duplicidade: Sua loja já possui a integração Brendi em tempo real ativa neste mês (${brendiRealtimeThisMonth.length} pedidos totalizando ${formatMoney(realtimeRevenue)}). O faturamento oficial do mês foi mantido pela integração em tempo real e o relatório consolidado foi arquivado para auditoria e conferência detalhada.`;
+        } else {
+          updateMonthlyRevenueFromIntegration(targetMonth, report.metrics.totalSales);
+          successMsg = `Relatório Consolidado da Brendi processado com sucesso!\n• Período: ${report.period.formattedPeriod}\n• Vendas Totais: ${formatMoney(report.metrics.totalSales)}\n• Total de Pedidos: ${report.metrics.totalOrders}\n• Ticket Médio: ${formatMoney(report.metrics.averageTicket)}\n\nO faturamento do mês ${targetMonth} foi atualizado para exatamente ${formatMoney(report.metrics.totalSales)} sem distorção!`;
+        }
+
+        setImportLog({
+          success: true,
+          message: successMsg
+        });
+        setPasteContent('');
+        setSelectedMonth(targetMonth);
+
+        addXandeBotMessage(`Sensacional! Identifiquei o **Relatório Consolidado da Brendi** (${report.period.formattedPeriod}).\n\nRegistrei **${report.metrics.totalOrders} pedidos** somando **${formatMoney(report.metrics.totalSales)}** com ticket médio de **${formatMoney(report.metrics.averageTicket)}**.\n\nFique 100% tranquilo: nenhuma subseção (vendas diárias, semanais ou plataformas) foi somada em duplicidade. Os dados estão perfeitamente blindados!`);
+        return;
+      } catch (err: any) {
+        console.error('Erro ao processar relatório consolidado Brendi:', err);
+        setImportLog({
+          success: false,
+          message: `Erro ao interpretar o Relatório Consolidado da Brendi: ${err?.message || 'Arquivo inválido'}`
+        });
+        return;
+      }
+    }
+
+    // =========================================================================
+    // COMPORTAMENTO TIPO B: Relatório Transacional (Produto | Qtd | Preço | Canal)
+    // Linha a linha com transações de vendas reais
+    // =========================================================================
     const lines = textContent.split('\n').map(l => l.trim()).filter(Boolean);
     if (lines.length === 0) {
       setImportLog({ success: false, message: 'Nenhuma linha de texto válida encontrada.' });
@@ -600,17 +709,23 @@ const SalesImport: React.FC = () => {
     if (!file) return;
 
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
+      const isCsv = file.name.toLowerCase().endsWith('.csv');
+      let textContent = '';
       
-      // Convert sheet to tab-separated values
-      const tsvContent = XLSX.utils.sheet_to_csv(worksheet, { FS: '\t' });
+      if (isCsv) {
+        textContent = await file.text();
+      } else {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        textContent = XLSX.utils.sheet_to_csv(worksheet, { FS: '\t' });
+      }
       
-      processImportText(tsvContent);
-    } catch (err) {
-      setImportLog({ success: false, message: 'Erro ao processar arquivo. Verifique se é uma planilha válida.' });
+      await processImportText(textContent, file.name);
+    } catch (err: any) {
+      console.error('Erro ao processar arquivo:', err);
+      setImportLog({ success: false, message: 'Erro ao processar arquivo. Verifique se é uma planilha ou CSV válido.' });
     }
     
     // Clear input
@@ -1109,6 +1224,64 @@ const SalesImport: React.FC = () => {
       )}
 
       {/* Anomalies, auditing & auto-resolutions alerts */}
+      {/* Alerta de Auditoria: Registros Corrompidos da Importação Anterior */}
+      {corruptedTransactions.length > 0 && (
+        <div className="bg-gradient-to-r from-red-950/60 via-amber-950/40 to-red-950/60 border-2 border-red-500/80 rounded-2xl p-5 text-white shadow-xl animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-black text-white">Correção Urgente: Registros Distorcidos de Importação Brendi</h4>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-500/30 text-red-300 border border-red-500/50 uppercase tracking-wider">
+                  {corruptedTransactions.length} Linhas Espúrias
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed max-w-2xl">
+                Foram identificados registros espúrios gerados pela interpretação inadequada do relatório consolidado da Brendi (que somou seções e elevou o faturamento bruto para R$ 741.556,00). 
+                Clique no botão ao lado para executar a limpeza cirúrgica. Suas vendas reais em tempo real e manuais serão 100% preservadas.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSanitizeCorrupted}
+            disabled={isSanitizing}
+            className="shrink-0 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition flex items-center gap-2 disabled:opacity-50"
+          >
+            <CheckCircle2 size={16} />
+            {isSanitizing ? 'Sanitizando...' : 'Restaurar Faturamento Real'}
+          </button>
+        </div>
+      )}
+
+      {/* Relatórios Consolidados Brendi Processados no Mês Selecionado */}
+      {brendiConsolidatedReports && brendiConsolidatedReports.filter(r => r.period.monthKey === selectedMonth).length > 0 && (
+        <div className="space-y-4">
+          {brendiConsolidatedReports
+            .filter(r => r.period.monthKey === selectedMonth)
+            .map(report => {
+              const brendiRealtimeThisMonth = (brendiOrders || []).filter(o => {
+                const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+                return !isCancelled && (o.createdAt || '').slice(0, 7) === report.period.monthKey;
+              });
+              const realtimeRevenue = brendiRealtimeThisMonth.reduce((acc, o) => acc + Number(o.total || 0), 0);
+
+              return (
+                <BrendiConsolidatedCard
+                  key={report.id}
+                  report={report}
+                  onDelete={removeBrendiConsolidatedReport}
+                  hasRealtimeOverlap={realtimeRevenue > 0}
+                  realtimeRevenue={realtimeRevenue}
+                />
+              );
+            })
+          }
+        </div>
+      )}
+
       {salesTransactions.length > 0 && (
         <div className="space-y-3">
           {duplicateAnomalies.length > 0 && showDeduplicateAlert && (
@@ -1364,8 +1537,11 @@ Guaraná Lata	1	6.00	Loja Física	pedido-5555`}
               <div className="bg-gray-50 dark:bg-[#1a2333]/40 p-8 rounded-xl border border-gray-100 dark:border-gray-800 text-xs text-center flex flex-col items-center justify-center">
                 <FileText className="h-12 w-12 text-gray-400 mb-3" />
                 <span className="font-bold text-gray-700 dark:text-white block mb-1 uppercase tracking-wider text-sm">Importar Planilha</span>
-                <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
-                  Arraste e solte ou selecione seu relatório de vendas. O sistema detecta automaticamente o formato (<span className="font-semibold text-gray-600 dark:text-gray-300">.xlsx, .xls, .csv</span>).
+                <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
+                  Arraste e solte ou selecione seu relatório de vendas (<span className="font-semibold text-gray-600 dark:text-gray-300">.xlsx, .xls, .csv</span>). 
+                  <span className="block mt-1 font-semibold text-purple-600 dark:text-purple-400">
+                    ✨ Compatível com Relatórios Consolidados Brendi (sem inflar faturamento) e Planilhas Transacionais de Pedidos.
+                  </span>
                 </p>
                 <div className="relative">
                   <input 

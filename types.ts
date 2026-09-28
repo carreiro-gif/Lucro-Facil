@@ -1,4 +1,8 @@
 
+import { BrendiConsolidatedReport } from './utils/brendiReportParser';
+
+export { type BrendiConsolidatedReport };
+
 export enum MeasureUnit {
   KG = 'KG',
   UN = 'UN',
@@ -285,6 +289,50 @@ export interface GlobalState {
   customCollaboratorRoles?: string[];
   accountsReceivable?: AccountReceivable[];
   customReceivableOrigins?: CustomReceivableOrigin[];
+  brendiConsolidatedReports?: BrendiConsolidatedReport[];
+  variableCosts?: VariableCost[];
+}
+
+export type VariableCostCategory = 
+  | 'CMV'
+  | 'EMBALAGEM'
+  | 'FRETE'
+  | 'CARTAO'
+  | 'ROYALTIES'
+  | 'TAXA_DE_ENTREGA'
+  | 'VOUCHER'
+  | 'MARKETING_PERCENT'
+  | 'IMPOSTO'
+  | 'OUTROS';
+
+export type VariableCostSource = 
+  | 'Manual'
+  | 'Colaboradores'
+  | 'Brendi'
+  | 'Entrada de Compras'
+  | 'Vendas'
+  | 'Outro';
+
+export type VariableCostMode = 'Manual' | 'Automático';
+
+export type VariableCostStatus = 'Ativo' | 'Inativo';
+
+export interface VariableCost {
+  id: string;
+  date: string;
+  category: VariableCostCategory;
+  description: string;
+  value: number;
+  origin: VariableCostSource;
+  mode: VariableCostMode;
+  period: string; // e.g., '2026-09' ou 'Setembro/2026'
+  status: VariableCostStatus;
+  sourceType?: 'collaborator_payment' | 'brendi_order' | 'purchase_entry' | 'manual' | string;
+  sourceId?: string;
+  storeId?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CustomReceivableOrigin {
@@ -419,7 +467,8 @@ export interface CollaboratorPayment {
   baseAmount: number; // Mão de obra fixa (Salário, Diária, Pró-Labore) -> Vai para DESPESAS FIXAS / CFI
   deliveryFeeAmount: number; // Taxas de entrega variáveis -> NÃO entra no CFI / Despesas Fixas
   deliveryCount?: number;
-  totalPaid: number; // baseAmount + deliveryFeeAmount (valor total acordado)
+  mealDeduction?: number; // Dedução de refeição/alimentação consumida pelo colaborador
+  totalPaid: number; // (baseAmount + deliveryFeeAmount) - mealDeduction (valor líquido a pagar)
   amountPaid?: number; // Valor já pago efetivamente
   pendingBalance?: number; // Saldo pendente caso pagamento seja parcial
   status: 'pago' | 'pendente' | 'parcial';
@@ -525,6 +574,26 @@ export interface UserIntegrations {
   brendi?: UserIntegrationBrendi;
 }
 
+export interface PaymentDetail {
+  amount?: number;
+  method?: string;
+  type?: string;
+  transactionId?: string;
+  provider?: string;
+  paidAt?: string;
+  rawMethod?: string;
+  brand?: string;
+  changeFor?: number;
+}
+
+export interface FeeDetail {
+  type: string;
+  amount: number;
+  percentage?: number;
+  sourceType: 'real';
+  description?: string;
+}
+
 export interface BrendiOrderItem {
   id?: string;
   name: string;
@@ -537,17 +606,29 @@ export interface BrendiOrderItem {
 export interface BrendiOrder {
   id: string;
   orderId?: string;
+  displayId?: string;
   createdAt: string;
   channel: 'Brendi Balcão' | 'Brendi Delivery' | 'iFood' | '99Food' | string;
   merchantId?: string;
   items: BrendiOrderItem[];
   total: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
   status: 'CREATED' | 'CONFIRMED' | 'PREPARING' | 'DISPATCHED' | 'READY_FOR_PICKUP' | 'PICKUP_AREA_ASSIGNED' | 'PICKED_UP' | 'DELIVERED' | 'CONCLUDED' | 'CANCELLED' | 'CANCELLATION_REQUESTED' | string;
   customerName?: string;
   customerPhone?: string;
   deliveryType?: string;
   userId?: string;
   processed?: boolean;
+  hasCoupon?: boolean;
+  couponAmount?: number;
+  discountAmount?: number;
+  payments?: PaymentDetail[];
+  fees?: FeeDetail[];
+  rawPaymentData?: any;
+  receivedAt?: string;
+  updatedAt?: string;
 }
 
 export interface CategoryRankingItem {
@@ -591,5 +672,139 @@ export interface RealtimeMonthMetrics {
   brendiOrdersCount: number;
   isRealtimeActive: boolean;
   lastOrderAt?: string;
+}
+
+// ============================================================================
+// ETAPA 1.5B — MODELO FINANCEIRO NORMALIZADO (CANONICAL SALE)
+// ============================================================================
+
+export type CanonicalSaleSource = 
+  | 'brendi' 
+  | 'manual' 
+  | 'spreadsheet' 
+  | 'saipos' 
+  | 'suitable' 
+  | 'ifood' 
+  | '99food' 
+  | 'keeta' 
+  | string;
+
+export type CanonicalSaleSourceType = 
+  | 'integration' 
+  | 'manual' 
+  | 'import' 
+  | 'api' 
+  | 'webhook' 
+  | string;
+
+export interface CanonicalSaleItem {
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  sourceItemId?: string;
+  notes?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface CanonicalSaleCustomer {
+  name?: string;
+  phone?: string;
+}
+
+export interface CanonicalSale {
+  id: string;
+  originId: string;
+  source: CanonicalSaleSource;
+  sourceType: CanonicalSaleSourceType;
+
+  orderDate: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  status?: string;
+  channel?: string;
+
+  items: CanonicalSaleItem[];
+
+  grossAmount: number;
+
+  discountAmount?: number;
+  couponAmount?: number;
+
+  deliveryFee?: number;
+  serviceFee?: number;
+
+  totalAmount: number;
+
+  payments?: PaymentDetail[];
+
+  fees?: FeeDetail[];
+
+  customer?: CanonicalSaleCustomer;
+
+  deliveryType?: string;
+  merchantId?: string;
+  storeId?: string;
+  userId?: string;
+
+  metadata?: Record<string, any>;
+}
+
+// ============================================================================
+// ETAPA 2 — MOTOR DE CMV REAL POR VENDA (CANONICAL CMV)
+// ============================================================================
+
+export type CanonicalSaleCmvItemStatus = 'complete' | 'pending' | 'unmatched';
+
+export interface CanonicalSaleCmvItemResult {
+  sourceItemName: string;
+  productId?: string;
+  productName?: string;
+  comboId?: string;
+  comboName?: string;
+  quantity: number;
+  unitPrice: number;
+  saleTotal: number;
+  unitCmv?: number;
+  totalCmv?: number;
+  status: CanonicalSaleCmvItemStatus;
+  reason?: string;
+}
+
+export type CanonicalSaleCmvStatus = 'COMPLETE' | 'PARTIAL' | 'PENDING';
+
+export interface CanonicalSaleCmvResult {
+  saleId: string;
+  originId: string;
+  source: string;
+  orderDate: string;
+  grossAmount: number;
+  totalAmount: number;
+  totalCmv: number;
+  matchedAmount: number;
+  pendingAmount: number;
+  status: CanonicalSaleCmvStatus;
+  items: CanonicalSaleCmvItemResult[];
+}
+
+export interface PeriodCmvResult {
+  period?: string;
+  totalRevenue: number;
+  matchedRevenue: number;
+  pendingRevenue: number;
+  coveragePercent: number;
+  totalCmv: number;
+  cmvPercent: number;
+  cmvPercentOverall: number;
+  salesCount: number;
+  completeSalesCount: number;
+  partialSalesCount: number;
+  pendingSalesCount: number;
+  completeItemsCount: number;
+  pendingFichaItemsCount: number;
+  unmatchedItemsCount: number;
+  sales: CanonicalSaleCmvResult[];
 }
 

@@ -496,7 +496,9 @@ export const INITIAL_STATE: GlobalState = {
   collaboratorMeals: [],
   customCollaboratorRoles: [],
   accountsReceivable: [],
-  customReceivableOrigins: []
+  customReceivableOrigins: [],
+  brendiConsolidatedReports: [],
+  variableCosts: []
 };
 
 export const EMPTY_STATE: GlobalState = {
@@ -530,5 +532,7 @@ export const EMPTY_STATE: GlobalState = {
   collaboratorMeals: [],
   customCollaboratorRoles: [],
   accountsReceivable: [],
-  customReceivableOrigins: []
+  customReceivableOrigins: [],
+  brendiConsolidatedReports: [],
+  variableCosts: []
 };

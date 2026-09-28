@@ -467,7 +467,8 @@ export const Collaborators: React.FC = () => {
 
       const baseVal = Number(closing.baseAmount) || 0;
       const feeVal = Number(closing.deliveryFeeAmount) || 0;
-      const totalPaid = baseVal + feeVal;
+      const mealDeductionVal = Number(closing.mealDeduction) || 0;
+      const totalPaid = Math.max(0, baseVal + feeVal - mealDeductionVal);
       const isPaid = closing.status === 'pago';
 
       batchPayments.push({
@@ -480,6 +481,7 @@ export const Collaborators: React.FC = () => {
         baseAmount: baseVal,
         deliveryFeeAmount: feeVal,
         deliveryCount: closing.deliveryCount !== '' ? Number(closing.deliveryCount) : undefined,
+        mealDeduction: mealDeductionVal > 0 ? mealDeductionVal : undefined,
         totalPaid,
         amountPaid: isPaid ? totalPaid : 0,
         pendingBalance: isPaid ? 0 : totalPaid,
@@ -1166,7 +1168,7 @@ export const Collaborators: React.FC = () => {
                                              vals.remunerationType === 'diaria_mais_taxas' || 
                                              vals.remunerationType === 'por_entrega';
 
-                        const totalIndividual = (Number(vals.baseAmount) || 0) + (Number(vals.deliveryFeeAmount) || 0);
+                        const totalIndividual = Math.max(0, (Number(vals.baseAmount) || 0) + (Number(vals.deliveryFeeAmount) || 0) - (Number(vals.mealDeduction) || 0));
 
                         // Refeições deste colaborador na data do fechamento
                         const collabMealsToday = collaboratorMeals.filter(m => 
@@ -1247,6 +1249,35 @@ export const Collaborators: React.FC = () => {
                                   </div>
                                 </>
                               )}
+
+                              <div>
+                                <label className="block text-slate-400 font-bold mb-1">Deduzir Consumo (R$)</label>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={vals.mealDeduction !== undefined ? vals.mealDeduction : ''}
+                                    onChange={(e) => handleClosingValueChange(c.id, 'mealDeduction', e.target.value !== '' ? Number(e.target.value) : 0)}
+                                    className="w-full bg-slate-800 text-rose-300 px-3 py-2 rounded-xl border border-white/10 font-bold focus:border-rose-500 focus:outline-none"
+                                    placeholder="0.00"
+                                  />
+                                  {collabMealsCostToday > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleClosingValueChange(c.id, 'mealDeduction', collabMealsCostToday)}
+                                      className="px-2 py-2 bg-rose-950/60 hover:bg-rose-900 text-rose-300 text-[10px] font-black rounded-xl border border-rose-500/30 whitespace-nowrap transition"
+                                      title="Descontar consumo total do dia"
+                                    >
+                                      Deduzir {formatMoney(collabMealsCostToday)}
+                                    </button>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1 block">
+                                  {vals.mealDeduction && vals.mealDeduction > 0 
+                                    ? `Abate ${formatMoney(vals.mealDeduction)} do valor a pagar` 
+                                    : 'Deixe 0 se a refeição for benefício gratuito'}
+                                </span>
+                              </div>
 
                               <div>
                                 <label className="block text-slate-400 font-bold mb-1">Status de Liquidação</label>
@@ -1396,7 +1427,8 @@ export const Collaborators: React.FC = () => {
                       const selectedIdsSet = new Set(selectedList.map(item => item.id));
                       const totalBase = selectedList.reduce((acc, c) => acc + (Number(closingValues[c.id]?.baseAmount) || 0), 0);
                       const totalFees = selectedList.reduce((acc, c) => acc + (Number(closingValues[c.id]?.deliveryFeeAmount) || 0), 0);
-                      const totalNight = totalBase + totalFees;
+                      const totalDeductions = selectedList.reduce((acc, c) => acc + (Number(closingValues[c.id]?.mealDeduction) || 0), 0);
+                      const totalNight = Math.max(0, totalBase + totalFees - totalDeductions);
 
                       // Refeições dos colaboradores selecionados na data de fechamento
                       const nightMeals = collaboratorMeals.filter(m => 
@@ -1423,6 +1455,12 @@ export const Collaborators: React.FC = () => {
                               <span className="text-slate-400 block">Taxas Entrega (Variável):</span>
                               <span className="text-sm font-black text-orange-400">{formatMoney(totalFees)}</span>
                             </div>
+                            {totalDeductions > 0 && (
+                              <div>
+                                <span className="text-slate-400 block">Deduções Alimentação:</span>
+                                <span className="text-sm font-black text-rose-400">-{formatMoney(totalDeductions)}</span>
+                              </div>
+                            )}
                             <div>
                               <span className="text-slate-400 block">Alimentação Equipe (CMV):</span>
                               <span className="text-sm font-black text-purple-300">
@@ -1539,6 +1577,7 @@ export const Collaborators: React.FC = () => {
                         <th className="py-3 px-3">Colaborador</th>
                         <th className="py-3 px-3">Mão de Obra (Fixa)</th>
                         <th className="py-3 px-3">Taxas Entrega (Var.)</th>
+                        <th className="py-3 px-3">Dedução Alim.</th>
                         <th className="py-3 px-3">Total</th>
                         <th className="py-3 px-3">Status</th>
                         <th className="py-3 px-3">Forma</th>
@@ -1567,6 +1606,9 @@ export const Collaborators: React.FC = () => {
                               </td>
                               <td className="py-3 px-3 font-bold text-orange-400">
                                 {p.deliveryFeeAmount > 0 ? formatMoney(p.deliveryFeeAmount) : '-'}
+                              </td>
+                              <td className="py-3 px-3 font-bold text-rose-400">
+                                {p.mealDeduction && p.mealDeduction > 0 ? `-${formatMoney(p.mealDeduction)}` : '-'}
                               </td>
                               <td className="py-3 px-3 font-black text-white">
                                 {formatMoney(p.totalPaid)}

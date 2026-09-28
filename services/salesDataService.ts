@@ -246,3 +246,55 @@ export const purgeAllSalesDataAndBrendiOrders = async (userId: string): Promise<
 export const clearAllSalesData = async (userId: string): Promise<void> => {
   await purgeAllSalesDataAndBrendiOrders(userId);
 };
+
+/**
+ * Remove cirurgicamente apenas os registros corrompidos da importação incorreta do Brendi
+ * NUNCA remove pedidos reais da Brendi ou registros manuais legítimos.
+ */
+export const deleteCorruptedImportRecords = async (userId: string, targetMonth = '2026-09'): Promise<number> => {
+  let count = 0;
+  if (!userId) return count;
+
+  const isCorruptedTitleOrItem = (data: any): boolean => {
+    const rawStr = JSON.stringify(data).toLowerCase();
+    return (
+      rawStr.includes('metricas gerais') ||
+      rawStr.includes('total de pedidos') ||
+      rawStr.includes('vendas totais') ||
+      rawStr.includes('investimento em cupons') ||
+      rawStr.includes('investimento patrocinado') ||
+      rawStr.includes('ticket medio') ||
+      rawStr.includes('vendas diarias') ||
+      rawStr.includes('vendas semanais') ||
+      rawStr.includes('distribuicao por plataforma') ||
+      rawStr.includes('cupons utilizados') ||
+      (data.id && data.id.startsWith('planilha_') && (data.totalAmount > 20000 || data.totalAmount === 741556))
+    );
+  };
+
+  try {
+    const userColRef = collection(db, 'users', userId, 'sales_data');
+    const q = query(userColRef, where('month', '==', targetMonth));
+    const snap = await getDocs(q);
+
+    const batch = writeBatch(db);
+    snap.forEach(d => {
+      const data = d.data();
+      if (isCorruptedTitleOrItem(data)) {
+        batch.delete(d.ref);
+        const rootRef = doc(db, 'sales_data', d.id);
+        batch.delete(rootRef);
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      await batch.commit();
+    }
+  } catch (err) {
+    console.error('[salesDataService] Error deleting corrupted sales records:', err);
+  }
+
+  return count;
+};
+

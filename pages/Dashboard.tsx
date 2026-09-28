@@ -5,6 +5,8 @@ import { DollarSign, Target, Dna, UtensilsCrossed, Settings, Receipt, Beef, Aler
 import { formatPercent } from '../constants';
 import { TrialBlindagemWidget } from '../components/TrialBlindagemWidget';
 import { BrendiLogo, IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
+import { isCorruptedBrendiImportTransaction } from '../utils/brendiReportParser';
+import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -16,6 +18,7 @@ const Dashboard: React.FC = () => {
     products, 
     getProductCMV, 
     ingredients, 
+    combos = [],
     calculateTotalCfiPercent,
     storeInfo,
     getCmvAvgPercent,
@@ -105,7 +108,7 @@ const Dashboard: React.FC = () => {
 
   // Consolidated Sales and Revenue for the selected month (Single Source of Truth)
   const monthSales = useMemo(() => {
-    return salesTransactions.filter(t => (t.date || '').slice(0, 7) === selectedMonth);
+    return salesTransactions.filter(t => (t.date || '').slice(0, 7) === selectedMonth && !isCorruptedBrendiImportTransaction(t));
   }, [salesTransactions, selectedMonth]);
 
   const salesRevenueTotal = useMemo(() => {
@@ -116,59 +119,38 @@ const Dashboard: React.FC = () => {
     return monthlyRevenue.find(r => r.month === selectedMonth);
   }, [monthlyRevenue, selectedMonth]);
 
-  // Exact consolidated revenue matching Faturamento tab, Lucro Real and Brendi real-time
+  // Catálogo estruturado memoizado para o motor de CMV Real
+  const catalog = useMemo(() => ({
+    products: products || [],
+    ingredients: ingredients || [],
+    combos: combos || []
+  }), [products, ingredients, combos]);
+
+  // CMV Real e Vendas Reais do Período Selecionado via serviço canônico único
+  const realSalesCmvOutput = useMemo(() => {
+    return calculateRealSalesPeriodCmv({
+      brendiOrders: brendiOrders || [],
+      salesTransactions: salesTransactions || [],
+      catalog,
+      period: selectedMonth
+    });
+  }, [brendiOrders, salesTransactions, catalog, selectedMonth]);
+
+  const realCmvResult = realSalesCmvOutput.cmvResult;
+
+  // Receita Real consolidada baseada em vendas transacionais reais
   const monthRevenue = useMemo(() => {
+    if (realCmvResult.salesCount > 0) {
+      return realCmvResult.totalRevenue;
+    }
     if (revEntry && typeof revEntry.revenue === 'number' && revEntry.revenue > 0) {
-      return Math.max(revEntry.revenue, brendiRevenueTotal);
+      return revEntry.revenue;
     }
     if (salesRevenueTotal > 0 || brendiRevenueTotal > 0) {
       return Math.max(salesRevenueTotal, brendiRevenueTotal);
     }
     return revEntry?.revenue || 0;
-  }, [revEntry, salesRevenueTotal, brendiRevenueTotal]);
-
-  // Real CMV for selected month based on items sold or avg CMV
-  const monthSalesCmv = useMemo(() => {
-    if (monthSales.length === 0) return 0;
-    return monthSales.reduce((sum, t) => {
-      let unitCmv = 0;
-      if (t.productId && t.productId !== 'temp_unregistered') {
-        const prod = products.find(p => p.id === t.productId);
-        if (prod) {
-          unitCmv = getProductCMV(prod);
-        }
-      }
-      if (unitCmv <= 0) {
-        unitCmv = (Number(t.pricePaidByCustomer) || 0) * 0.32;
-      }
-      return sum + (unitCmv * (Number(t.qty) || 1));
-    }, 0);
-  }, [monthSales, products, getProductCMV]);
-
-  // Real CMV for Brendi items if not yet imported into salesTransactions
-  const monthBrendiCmv = useMemo(() => {
-    if (validBrendiOrders.length === 0) return 0;
-    const productMap = new Map<string, any>();
-    products.forEach(p => {
-      productMap.set(p.name.trim().toLowerCase(), p);
-      if (p.id) productMap.set(p.id, p);
-    });
-    let total = 0;
-    validBrendiOrders.forEach(o => {
-      (o.items || []).forEach(it => {
-        const name = (it.name || '').trim().toLowerCase();
-        const qty = Number(it.quantity) || 1;
-        const lineTotal = Number(it.totalPrice) || ((Number(it.unitPrice) || 0) * qty);
-        const prod = productMap.get(name);
-        if (prod) {
-          total += getProductCMV(prod) * qty;
-        } else {
-          total += lineTotal * 0.32;
-        }
-      });
-    });
-    return total;
-  }, [validBrendiOrders, products, getProductCMV]);
+  }, [realCmvResult.salesCount, realCmvResult.totalRevenue, revEntry, salesRevenueTotal, brendiRevenueTotal]);
 
   // Previous month logic for trend relative to selected month
   const prevMonthKey = useMemo(() => {
@@ -265,12 +247,13 @@ const Dashboard: React.FC = () => {
 
   const avgCmvPercent = avgCmvPercentResult.hasData ? avgCmvPercentResult.value : 35;
 
-  // Real or Estimated CMV
+  // Custo Real de Insumos (CMV Real do Período sem estimativas de 32% ou 35%)
   const totalCmvValue = useMemo(() => {
-    const totalItemCmv = monthSalesCmv + (monthSales.length === 0 ? monthBrendiCmv : 0);
-    if (totalItemCmv > 0) return totalItemCmv;
-    return monthRevenue * (avgCmvPercent / 100);
-  }, [monthSalesCmv, monthBrendiCmv, monthSales.length, monthRevenue, avgCmvPercent]);
+    if (realCmvResult.salesCount > 0) {
+      return realCmvResult.totalCmv;
+    }
+    return 0;
+  }, [realCmvResult.salesCount, realCmvResult.totalCmv]);
 
   const realProfit = monthRevenue - totalCmvValue - monthFixedCosts;
   const profitMargin = monthRevenue > 0 ? (realProfit / monthRevenue) * 100 : 0;
@@ -282,6 +265,9 @@ const Dashboard: React.FC = () => {
 
   // 4. Ticket Médio for selected month (combining sales, Brendi orders, and saved counts)
   const orderCount = useMemo(() => {
+    if (realCmvResult.salesCount > 0) {
+      return realCmvResult.salesCount;
+    }
     const fromSales = monthSales.length > 0 ? new Set(monthSales.map(t => t.orderId || t.id)).size : 0;
     const fromBrendi = validBrendiOrders.length;
     let fromSaved = 0;
@@ -290,7 +276,7 @@ const Dashboard: React.FC = () => {
       if (ordersMap[selectedMonth]) fromSaved = Number(ordersMap[selectedMonth]);
     } catch(e) {}
     return Math.max(fromSales, fromBrendi, fromSaved);
-  }, [monthSales, validBrendiOrders, selectedMonth]);
+  }, [realCmvResult.salesCount, monthSales, validBrendiOrders, selectedMonth]);
 
   const estimatedTicket = orderCount > 0 ? monthRevenue / orderCount : 0;
 
@@ -493,7 +479,7 @@ const Dashboard: React.FC = () => {
             </div>
          )}
 
-         {avgCmvPercent > 35 && (
+         {(realCmvResult.salesCount > 0 ? realCmvResult.cmvPercent > 35 : avgCmvPercent > 35) && (
            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in-95">
              <div className="flex items-center gap-3">
                <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-full text-amber-600 dark:text-amber-400">
@@ -544,7 +530,7 @@ const Dashboard: React.FC = () => {
            </div>
          )}
 
-         {avgCmvPercent <= 35 && !isRevenueDroppingSignificantly && gapToBe === 0 && monthRevenue > 0 && (
+         {(realCmvResult.salesCount > 0 ? realCmvResult.cmvPercent <= 35 : avgCmvPercent <= 35) && !isRevenueDroppingSignificantly && gapToBe === 0 && monthRevenue > 0 && (
            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 p-4 rounded-xl flex items-center gap-3 shadow-sm animate-in zoom-in-95">
              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-full text-emerald-600 dark:text-emerald-400">
                <CheckCircle size={20} />
@@ -610,70 +596,93 @@ const Dashboard: React.FC = () => {
             <h3 className={`text-3xl font-black ${realProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{formatMoney(realProfit)}</h3>
         </div>
 
-        {/* CMV Médio Atual */}
+        {/* CMV Real do Período */}
         <div className={`p-6 rounded-2xl border bg-white dark:bg-gray-900 shadow-sm transition-transform hover:scale-105 duration-300 ${
-            !avgCmvPercentResult.hasData ? 'border-gray-200 dark:border-gray-800' :
-            avgCmvPercent <= 35 ? 'border-emerald-400 dark:border-emerald-500/50' : 
-            avgCmvPercent <= 38 ? 'border-amber-400 dark:border-amber-500/50' : 'border-red-400 dark:border-red-500/50'
+            realCmvResult.salesCount === 0 ? 'border-gray-200 dark:border-gray-800' :
+            realCmvResult.cmvPercent <= 35 ? 'border-emerald-400 dark:border-emerald-500/50' : 
+            realCmvResult.cmvPercent <= 38 ? 'border-amber-400 dark:border-amber-500/50' : 'border-red-400 dark:border-red-500/50'
         }`}>
             <div className="flex justify-between items-start mb-4">
               <div className={`p-3 rounded-xl border shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] ${
-                !avgCmvPercentResult.hasData ? 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' :
-                avgCmvPercent <= 35 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
-                avgCmvPercent <= 38 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800' : 
-                                     'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
+                realCmvResult.salesCount === 0 ? 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' :
+                realCmvResult.cmvPercent <= 35 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
+                realCmvResult.cmvPercent <= 38 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800' : 
+                                                 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
               }`}>
                 <UtensilsCrossed size={24} />
               </div>
+              {realCmvResult.salesCount > 0 && (
+                <span className={`text-[10px] font-black px-2 py-1 rounded-full uppercase flex items-center gap-1 ${
+                  realCmvResult.coveragePercent === 100 
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' 
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                }`}>
+                  {realCmvResult.coveragePercent === 100 
+                    ? '100% Cobertura' 
+                    : `Cobertura ${realCmvResult.coveragePercent.toFixed(1)}%`}
+                </span>
+              )}
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">CMV Médio (Fichas Técnicas)</p>
-            {avgCmvPercentResult.hasData ? (
+
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">
+              CMV Real ({selectedMonth})
+            </p>
+
+            {realCmvResult.salesCount > 0 ? (
               <>
-                {/* Categorized CMV */}
-                <div className="flex flex-col gap-2 mt-2">
-                  {avgCmvPercentResult.burgerValue !== null ? (
-                    <div className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
-                      <span className="text-gray-500 dark:text-gray-400 font-bold">🍔 Hambúrgueres:</span>
-                      <span className={`font-black text-xl ${avgCmvPercentResult.burgerValue <= 35 ? 'text-emerald-600 dark:text-emerald-400' : avgCmvPercentResult.burgerValue <= 38 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {avgCmvPercentResult.burgerValue.toFixed(1)}%
-                      </span>
-                    </div>
-                  ) : null}
-                  {avgCmvPercentResult.drinksSidesValue !== null ? (
-                    <div className="flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
-                      <span className="text-gray-500 dark:text-gray-400 font-bold">🥤 Bebidas/Acomp:</span>
-                      <span className={`font-black text-xl ${avgCmvPercentResult.drinksSidesValue <= 35 ? 'text-emerald-600 dark:text-emerald-400' : avgCmvPercentResult.drinksSidesValue <= 38 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {avgCmvPercentResult.drinksSidesValue.toFixed(1)}%
-                      </span>
-                    </div>
-                  ) : null}
+                <div className="flex items-baseline justify-between">
+                  <h3 className={`text-3xl font-black ${
+                    realCmvResult.cmvPercent <= 35 ? 'text-emerald-600 dark:text-emerald-400' :
+                    realCmvResult.cmvPercent <= 38 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {realCmvResult.cmvPercent.toFixed(2)}%
+                  </h3>
+                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                    {formatMoney(realCmvResult.totalCmv)}
+                  </span>
                 </div>
 
                 <p className="text-[10px] uppercase font-bold mt-2 text-gray-400 dark:text-gray-500 pb-2 border-b border-gray-100 dark:border-gray-800">
-                    {avgCmvPercent < 35 ? 'Nível Muito Saudável' : avgCmvPercent <= 38 ? 'Em Alerta de Risco' : 'NÍVEL DE PERIGO / PREJUÍZO'}
+                  {realCmvResult.coveragePercent === 100 
+                    ? `Baseado em ${realCmvResult.salesCount} vendas reais`
+                    : `CMV Real • Cobertura: ${realCmvResult.coveragePercent.toFixed(1)}%`}
                 </p>
 
-                {avgCmvPercentResult.highCmvProducts.length > 0 && (
-                  <details className="mt-2 group">
-                    <summary className="text-[10px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 cursor-pointer uppercase py-1 list-none flex items-center justify-between">
-                      <span>Top 5 Maiores CMV</span>
-                      <span className="transition-transform group-open:rotate-180">▼</span>
-                    </summary>
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      {avgCmvPercentResult.highCmvProducts.map((p, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[10px] bg-red-50 dark:bg-red-900/10 p-1.5 rounded">
-                          <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px]" title={p.name}>{p.name}</span>
-                          <span className="font-bold text-red-600 dark:text-red-400">{p.cmv.toFixed(1)}%</span>
-                        </div>
-                      ))}
+                {/* Detalhamento auditável discreto */}
+                <details className="mt-2 group">
+                  <summary className="text-[10px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 cursor-pointer uppercase py-1 list-none flex items-center justify-between">
+                    <span>Detalhamento Real</span>
+                    <span className="transition-transform group-open:rotate-180">▼</span>
+                  </summary>
+                  <div className="flex flex-col gap-1 mt-2 text-[10px] bg-gray-50 dark:bg-gray-800/60 p-2 rounded-lg">
+                    <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                      <span>Custo Total de Insumos:</span>
+                      <strong className="text-gray-900 dark:text-white">{formatMoney(realCmvResult.totalCmv)}</strong>
                     </div>
-                  </details>
-                )}
+                    <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                      <span>Receita com CMV:</span>
+                      <strong className="text-gray-900 dark:text-white">{formatMoney(realCmvResult.matchedRevenue)}</strong>
+                    </div>
+                    {realCmvResult.pendingRevenue > 0 && (
+                      <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                        <span>Receita Pendente:</span>
+                        <strong>{formatMoney(realCmvResult.pendingRevenue)}</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                      <span>Vendas Analisadas:</span>
+                      <strong className="text-gray-900 dark:text-white">{realCmvResult.salesCount} ({realCmvResult.completeSalesCount} completos)</strong>
+                    </div>
+                  </div>
+                </details>
               </>
             ) : (
-              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mt-2 leading-tight">
-                Cadastre preços na tela de Preço de Venda para ver seu CMV médio
-              </p>
+              <div className="mt-2">
+                <h3 className="text-3xl font-black text-gray-400 dark:text-gray-600">—</h3>
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mt-2 leading-tight">
+                  Sem dados reais de vendas para este período
+                </p>
+              </div>
             )}
         </div>
       </div>
@@ -1003,7 +1012,8 @@ const Dashboard: React.FC = () => {
                         if (active && payload && payload.length) {
                              const data = payload[0].payload;
                              const isProfit = data.revenue >= breakEvenR$;
-                             const estProfitRaw = data.revenue - (data.revenue * (avgCmvPercent/100)) - monthFixedCosts;
+                             const cmvPctToUse = (data.month === selectedMonth && realCmvResult.salesCount > 0) ? (realCmvResult.cmvPercent / 100) : (avgCmvPercent / 100);
+                             const estProfitRaw = data.revenue - (data.revenue * cmvPctToUse) - monthFixedCosts;
                              return (
                                  <div className="bg-gray-900 border border-gray-700 p-4 rounded-xl shadow-xl min-w-[200px]">
                                      <p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-widest">{data.month}</p>

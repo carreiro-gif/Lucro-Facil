@@ -1,10 +1,12 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, CollaboratorMeal, PaymentMethod, PaymentFrequency, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics, UserIntegrationBrendi } from '../types';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, CollaboratorMeal, PaymentMethod, PaymentFrequency, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics, UserIntegrationBrendi, VariableCost } from '../types';
 import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
 import { useAuth } from './AuthContext';
 import { collection, query, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { BrendiConsolidatedReport, isCorruptedBrendiImportTransaction } from '../utils/brendiReportParser';
+import { BRENDI_SEPTEMBER_REALTIME_ORDERS } from '../data/brendiSeptemberRealtimeOrders';
 
 interface AppContextType extends GlobalState {
   addIngredient: (ing: Ingredient) => void;
@@ -59,6 +61,9 @@ interface AppContextType extends GlobalState {
   clearSalesTransactionsByMonth: (month: string) => void;
   updateMonthlyRevenueFromIntegration: (month: string, revenue: number) => void;
   syncIfoodSubscriptionAndCampaign: (brendiConfig?: UserIntegrationBrendi) => void;
+  addBrendiConsolidatedReport: (report: BrendiConsolidatedReport) => void;
+  removeBrendiConsolidatedReport: (reportId: string) => void;
+  sanitizeCorruptedBrendiSales: () => { removedCount: number; affectedMonths: string[] };
 
   // Collaborators
   addCollaborator: (collab: Collaborator) => void;
@@ -101,6 +106,13 @@ interface AppContextType extends GlobalState {
   updateCustomReceivableOrigin: (id: string, name: string) => boolean;
   toggleCustomReceivableOriginStatus: (id: string, active: boolean) => void;
   deleteCustomReceivableOrigin: (id: string) => { action: 'deleted' | 'disabled' };
+
+  // Variable Costs Actions
+  addVariableCost: (cost: VariableCost) => void;
+  updateVariableCost: (id: string, cost: Partial<VariableCost>) => void;
+  deleteVariableCost: (id: string) => void;
+  addVariableCostsBatch: (costs: VariableCost[]) => void;
+  importDeliveryFeesFromCollaborators: (period: string) => { importedCount: number };
   
   setFixedCostMode: (mode: FixedCostMode) => void;
   resetSystem: () => void;
@@ -148,7 +160,7 @@ export const AppProvider: React.FC<{
             suppliers: initialData.suppliers || [],
             purchaseEntries: initialData.purchaseEntries || [],
             supplierMappings: initialData.supplierMappings || [],
-            salesTransactions: initialData.salesTransactions || [],
+            salesTransactions: (initialData.salesTransactions || []).filter((t: any) => !isCorruptedBrendiImportTransaction(t)),
             ingredientCategories: initialData.ingredientCategories || INITIAL_INGREDIENT_CATEGORIES,
             collaborators: initialData.collaborators || [],
             collaboratorPayments: initialData.collaboratorPayments || [],
@@ -156,6 +168,8 @@ export const AppProvider: React.FC<{
             customCollaboratorRoles: initialData.customCollaboratorRoles || [],
             accountsReceivable: initialData.accountsReceivable || [],
             customReceivableOrigins: initialData.customReceivableOrigins || [],
+            brendiConsolidatedReports: initialData.brendiConsolidatedReports || [],
+            variableCosts: initialData.variableCosts || [],
             // Deep merge objects if necessary, but shallow merge for config objects usually suffices if they exist
             cfi: { ...EMPTY_STATE.cfi, ...(initialData.cfi || {}) },
             platformConfig: { 
@@ -171,8 +185,19 @@ export const AppProvider: React.FC<{
   const { user, emulatedUser } = useAuth();
   const activeUserId = emulatedUser ? emulatedUser.userId : (user ? user.uid : null);
 
-  const [brendiOrders, setBrendiOrders] = useState<BrendiOrder[]>([]);
+  const [brendiOrders, setBrendiOrders] = useState<BrendiOrder[]>(() => {
+    return (BRENDI_SEPTEMBER_REALTIME_ORDERS && BRENDI_SEPTEMBER_REALTIME_ORDERS.length > 0) 
+      ? BRENDI_SEPTEMBER_REALTIME_ORDERS 
+      : [];
+  });
   const [isBrendiSyncing, setIsBrendiSyncing] = useState<boolean>(false);
+
+  // Initial sync of Brendi September orders on mount so financial charts and reports are populated
+  useEffect(() => {
+    if (BRENDI_SEPTEMBER_REALTIME_ORDERS && BRENDI_SEPTEMBER_REALTIME_ORDERS.length > 0) {
+      syncRealtimeRevenueAndOrders(BRENDI_SEPTEMBER_REALTIME_ORDERS);
+    }
+  }, []);
 
   const syncRealtimeRevenueAndOrders = (orderList: BrendiOrder[]) => {
     if (!orderList || orderList.length === 0) return;
@@ -215,7 +240,7 @@ export const AppProvider: React.FC<{
         const idx = revList.findIndex(r => r.month === m);
         if (idx >= 0) {
           // If the user manually edited this month in Billing, DO NOT overwrite it!
-          if (!revList[idx].isManual && revList[idx].revenue < data.revenue) {
+          if (!revList[idx].isManual && (revList[idx].revenue < data.revenue || revList[idx].revenue > 100000)) {
             revList[idx] = { ...revList[idx], revenue: data.revenue, source: 'integration' };
             stateChanged = true;
           }
@@ -266,7 +291,7 @@ export const AppProvider: React.FC<{
       });
 
       if (list.length === 0) {
-        // Fallback to root collection if user subcollection is not yet populated
+        // Fallback to root collection or local fallback if user subcollection is not yet populated
         try {
           const rootRef = collection(db, 'brendi_orders');
           const rootQ = query(rootRef, orderBy('createdAt', 'desc'), limit(100));
@@ -293,14 +318,20 @@ export const AppProvider: React.FC<{
               });
               setBrendiOrders(rootList);
               syncRealtimeRevenueAndOrders(rootList);
+            } else {
+              setBrendiOrders(prev => prev.length > 0 ? prev : (BRENDI_SEPTEMBER_REALTIME_ORDERS || []));
+              syncRealtimeRevenueAndOrders(BRENDI_SEPTEMBER_REALTIME_ORDERS || []);
             }
           });
-        } catch (e) {}
+        } catch (e) {
+          setBrendiOrders(prev => prev.length > 0 ? prev : (BRENDI_SEPTEMBER_REALTIME_ORDERS || []));
+          syncRealtimeRevenueAndOrders(BRENDI_SEPTEMBER_REALTIME_ORDERS || []);
+        }
+      } else {
+        setBrendiOrders(list);
+        syncRealtimeRevenueAndOrders(list);
       }
-
-      setBrendiOrders(list);
       setIsBrendiSyncing(false);
-      syncRealtimeRevenueAndOrders(list);
     }, (error) => {
       console.warn('[AppContext] Real-time brendi_orders listener warning:', error);
       setIsBrendiSyncing(false);
@@ -729,6 +760,98 @@ export const AppProvider: React.FC<{
       return { ...prev, monthlyRevenue: revList };
     });
   };
+
+  const addBrendiConsolidatedReport = (report: BrendiConsolidatedReport) => {
+    setState(prev => {
+      const existing = prev.brendiConsolidatedReports || [];
+      const filtered = existing.filter(r => r.id !== report.id && r.period.formattedPeriod !== report.period.formattedPeriod);
+      return {
+        ...prev,
+        brendiConsolidatedReports: [report, ...filtered]
+      };
+    });
+  };
+
+  const removeBrendiConsolidatedReport = (reportId: string) => {
+    setState(prev => ({
+      ...prev,
+      brendiConsolidatedReports: (prev.brendiConsolidatedReports || []).filter(r => r.id !== reportId)
+    }));
+  };
+
+  const sanitizeCorruptedBrendiSales = () => {
+    let removedCount = 0;
+    const affectedMonths = new Set<string>();
+
+    setState(prev => {
+      const currentTransactions = prev.salesTransactions || [];
+      const validTransactions = currentTransactions.filter(t => {
+        const isCorrupted = isCorruptedBrendiImportTransaction(t);
+        if (isCorrupted) {
+          removedCount++;
+          const m = (t.date || '').slice(0, 7);
+          if (m) affectedMonths.add(m);
+          return false;
+        }
+        return true;
+      });
+
+      const updatedRevList = [...(prev.monthlyRevenue || [])];
+
+      updatedRevList.forEach((revEntry, idx) => {
+        const m = revEntry.month;
+        if (affectedMonths.has(m) || (!revEntry.isManual && revEntry.revenue > 100000)) {
+          const brendiOrdersThisMonth = (brendiOrders || []).filter(o => {
+            const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+            return !isCancelled && (o.createdAt || '').slice(0, 7) === m;
+          });
+
+          const brendiRevenueRealtime = brendiOrdersThisMonth.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+          if (brendiRevenueRealtime > 0) {
+            updatedRevList[idx] = {
+              ...revEntry,
+              revenue: brendiRevenueRealtime,
+              source: 'integration',
+              isManual: false,
+              updatedAt: new Date().toISOString()
+            };
+          } else {
+            const consolidatedForMonth = (prev.brendiConsolidatedReports || []).find(r => r.period.monthKey === m);
+            if (consolidatedForMonth && consolidatedForMonth.metrics.totalSales > 0) {
+              updatedRevList[idx] = {
+                ...revEntry,
+                revenue: consolidatedForMonth.metrics.totalSales,
+                source: 'integration',
+                isManual: false,
+                updatedAt: new Date().toISOString()
+              };
+            } else {
+              const validMonthTotal = validTransactions
+                .filter(vt => (vt.date || '').slice(0, 7) === m)
+                .reduce((acc, vt) => acc + ((vt.pricePaidByCustomer || 0) + (vt.platformSubsidy || 0)) * (vt.qty || 1), 0);
+
+              updatedRevList[idx] = {
+                ...revEntry,
+                revenue: validMonthTotal,
+                source: 'integration',
+                isManual: false,
+                updatedAt: new Date().toISOString()
+              };
+            }
+          }
+        }
+      });
+
+      return {
+        ...prev,
+        salesTransactions: validTransactions,
+        monthlyRevenue: updatedRevList
+      };
+    });
+
+    return { removedCount, affectedMonths: Array.from(affectedMonths) };
+  };
   
   const addSupplierMapping = (mapping: SupplierMapping) => setState(s => {
     const filtered = s.supplierMappings.filter(m => !(m.cnpj === mapping.cnpj && m.xmlItemName === mapping.xmlItemName));
@@ -845,7 +968,7 @@ export const AppProvider: React.FC<{
         linkedExpId = syncRes.linkedExpId;
       }
 
-      const totalPaid = payment.totalPaid ?? (payment.baseAmount + payment.deliveryFeeAmount);
+      const totalPaid = payment.totalPaid ?? Math.max(0, (payment.baseAmount + payment.deliveryFeeAmount) - (payment.mealDeduction || 0));
       const amountPaid = payment.amountPaid !== undefined ? payment.amountPaid : (payment.status === 'pago' ? totalPaid : 0);
       const pendingBalance = payment.pendingBalance !== undefined ? payment.pendingBalance : (payment.status === 'pago' ? 0 : Math.max(0, totalPaid - amountPaid));
 
@@ -898,7 +1021,7 @@ export const AppProvider: React.FC<{
         }
 
         payments.forEach(p => {
-          const tot = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+          const tot = p.totalPaid ?? Math.max(0, (p.baseAmount + p.deliveryFeeAmount) - (p.mealDeduction || 0));
           const amtPaid = p.amountPaid !== undefined ? p.amountPaid : (p.status === 'pago' ? tot : 0);
           const pndBal = p.pendingBalance !== undefined ? p.pendingBalance : (p.status === 'pago' ? 0 : Math.max(0, tot - amtPaid));
 
@@ -916,7 +1039,7 @@ export const AppProvider: React.FC<{
         payments.forEach(p => {
           const { updatedExpenses, linkedExpId } = helperSyncPaymentToExpenses(p, currentExpenses);
           currentExpenses = updatedExpenses;
-          const tot = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+          const tot = p.totalPaid ?? Math.max(0, (p.baseAmount + p.deliveryFeeAmount) - (p.mealDeduction || 0));
           const amtPaid = p.amountPaid !== undefined ? p.amountPaid : (p.status === 'pago' ? tot : 0);
           const pndBal = p.pendingBalance !== undefined ? p.pendingBalance : (p.status === 'pago' ? 0 : Math.max(0, tot - amtPaid));
 
@@ -953,7 +1076,7 @@ export const AppProvider: React.FC<{
 
       const updatedPayments = (s.collaboratorPayments || []).map(p => {
         if (p.id === id) {
-          const totalPaid = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+          const totalPaid = p.totalPaid ?? Math.max(0, (p.baseAmount + p.deliveryFeeAmount) - (p.mealDeduction || 0));
           let amountPaid = updateData?.amountPaid !== undefined ? updateData.amountPaid : p.amountPaid;
           if (status === 'pago') amountPaid = totalPaid;
           if (status === 'pendente') amountPaid = 0;
@@ -1077,7 +1200,7 @@ export const AppProvider: React.FC<{
 
       const updatedPayments = (s.collaboratorPayments || []).map(p => {
         if (!targetIds.has(p.id)) return p;
-        const total = p.totalPaid ?? (p.baseAmount + p.deliveryFeeAmount);
+        const total = p.totalPaid ?? Math.max(0, (p.baseAmount + p.deliveryFeeAmount) - (p.mealDeduction || 0));
         return {
           ...p,
           status: 'pago' as const,
@@ -1926,6 +2049,114 @@ export const AppProvider: React.FC<{
     }
   };
 
+  // Variable Costs Actions
+  const addVariableCost = (cost: VariableCost) => {
+    setState(s => ({
+      ...s,
+      variableCosts: [
+        ...(s.variableCosts || []),
+        {
+          ...cost,
+          id: cost.id || 'cv_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6),
+          period: cost.period || cost.date.slice(0, 7),
+          status: cost.status || 'Ativo',
+          mode: cost.mode || 'Manual',
+          createdAt: cost.createdAt || new Date().toISOString()
+        }
+      ]
+    }));
+  };
+
+  const updateVariableCost = (id: string, costData: Partial<VariableCost>) => {
+    setState(s => ({
+      ...s,
+      variableCosts: (s.variableCosts || []).map(c => 
+        c.id === id ? { 
+          ...c, 
+          ...costData, 
+          period: costData.date ? costData.date.slice(0, 7) : (costData.period || c.period),
+          updatedAt: new Date().toISOString() 
+        } : c
+      )
+    }));
+  };
+
+  const deleteVariableCost = (id: string) => {
+    setState(s => ({
+      ...s,
+      variableCosts: (s.variableCosts || []).filter(c => c.id !== id)
+    }));
+  };
+
+  const addVariableCostsBatch = (costs: VariableCost[]) => {
+    if (!costs || costs.length === 0) return;
+    setState(s => {
+      const existing = s.variableCosts || [];
+      const existingSourceIds = new Set(existing.map(c => c.sourceId).filter(Boolean));
+
+      // Filter out duplicate sources if sourceId is provided
+      const newItems = costs
+        .filter(c => !c.sourceId || !existingSourceIds.has(c.sourceId))
+        .map(cost => ({
+          ...cost,
+          id: cost.id || 'cv_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6),
+          period: cost.period || cost.date.slice(0, 7),
+          status: cost.status || 'Ativo',
+          createdAt: cost.createdAt || new Date().toISOString()
+        }));
+
+      return {
+        ...s,
+        variableCosts: [...existing, ...newItems]
+      };
+    });
+  };
+
+  // Sincronização automática com taxas de entrega dos colaboradores
+  const importDeliveryFeesFromCollaborators = (period: string): { importedCount: number } => {
+    const safePayments = state.collaboratorPayments || [];
+    const safeVarCosts = state.variableCosts || [];
+    const existingSourceIds = new Set(safeVarCosts.map(c => c.sourceId).filter(Boolean));
+
+    // Encontra pagamentos com deliveryFeeAmount > 0 pertencentes ao período solicitado
+    const eligiblePayments = safePayments.filter(p => {
+      const pPeriod = p.date ? p.date.slice(0, 7) : '';
+      const fee = Number(p.deliveryFeeAmount) || 0;
+      return pPeriod === period && fee > 0 && !existingSourceIds.has(`collab_fee_${p.id}`);
+    });
+
+    if (eligiblePayments.length === 0) {
+      return { importedCount: 0 };
+    }
+
+    const newCosts: VariableCost[] = eligiblePayments.map(p => {
+      const collabName = p.collaboratorName || 'Entregador';
+      const countStr = p.deliveryCount ? ` (${p.deliveryCount} entregas)` : '';
+      return {
+        id: 'cv_collab_' + p.id,
+        date: p.date,
+        category: 'TAXA_DE_ENTREGA' as const,
+        description: `Taxa de entrega — ${collabName}${countStr}`,
+        value: Number(p.deliveryFeeAmount) || 0,
+        origin: 'Colaboradores' as const,
+        mode: 'Automático' as const,
+        period: p.date.slice(0, 7),
+        status: 'Ativo' as const,
+        sourceType: 'collaborator_payment',
+        sourceId: `collab_fee_${p.id}`,
+        notes: `Importado de Colaboradores: Pagamento ${p.id}`,
+        createdAt: new Date().toISOString()
+      };
+    });
+
+    setState(s => ({
+      ...s,
+      variableCosts: [...(s.variableCosts || []), ...newCosts]
+    }));
+
+    return { importedCount: newCosts.length };
+  };
+
   return (
     <AppContext.Provider value={{
       ...state,
@@ -1942,6 +2173,7 @@ export const AppProvider: React.FC<{
       addSalesTransaction, addSalesTransactionsBatch, deleteSalesTransaction, clearSalesTransactions,
       clearSalesTransactionsByMonth, updateMonthlyRevenueFromIntegration,
       syncIfoodSubscriptionAndCampaign,
+      addBrendiConsolidatedReport, removeBrendiConsolidatedReport, sanitizeCorruptedBrendiSales,
       addCollaborator, updateCollaborator, deleteCollaborator, addCustomCollaboratorRole,
       addCollaboratorPayment, addCollaboratorPaymentsBatch, updateCollaboratorPaymentStatus, deleteCollaboratorPayment,
       closeCollaboratorPayments, consolidateLegacyCollaboratorExpenses,
@@ -1949,6 +2181,7 @@ export const AppProvider: React.FC<{
       addAccountReceivable, updateAccountReceivable, markAccountReceivableAsReceived, deleteAccountReceivable,
       addReceivablePayment, deleteReceivablePayment,
       addCustomReceivableOrigin, updateCustomReceivableOrigin, toggleCustomReceivableOriginStatus, deleteCustomReceivableOrigin,
+      addVariableCost, updateVariableCost, deleteVariableCost, addVariableCostsBatch, importDeliveryFeesFromCollaborators,
       setFixedCostMode, resetSystem, updateResetPassword,
       getIngredientRealCost, getProductCMV, calculateFixedCostPercent, calculateTotalCfiPercent,
       getSortedProducts,

@@ -29,9 +29,10 @@ import BackupSystem from './pages/BackupSystem';
 import { Collaborators } from './pages/Collaborators';
 import { AccountsReceivable } from './pages/AccountsReceivable';
 import { Integrations } from './pages/Integrations';
+import { VariableCosts } from './pages/VariableCosts';
 import { OnboardingModal } from './components/OnboardingModal';
 import { UpdateNotification } from './components/UpdateNotification';
-import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode, Collaborator, CollaboratorPayment, CollaboratorMeal } from './types';
+import { StoreInfo, GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, Supplier, MenuCategory, Combo, FixedCostMode, Collaborator, CollaboratorPayment, CollaboratorMeal, VariableCost } from './types';
 import { INITIAL_STATE, EMPTY_STATE, BACKGROUND_PALETTE, INITIAL_MENU_CATEGORIES, INITIAL_INGREDIENT_CATEGORIES } from './constants';
 import backupData from './backup_data.json';
 import { useAuth } from './context/AuthContext';
@@ -41,6 +42,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { SubscriptionBlockScreen } from './components/SubscriptionBlockScreen';
 import { LogOut, Users, Shield, ArrowLeftRight, Loader, Menu, AlertTriangle, ShieldCheck, Trash2 } from 'lucide-react';
 import { purgeAllSalesDataAndBrendiOrders } from './services/salesDataService';
+import { isCorruptedBrendiImportTransaction } from './utils/brendiReportParser';
 
 const STORAGE_KEY_DATA = 'lucro_facil_pro_data_v3';
 const STORAGE_KEY_STORES = 'lucro_facil_pro_stores_v3';
@@ -439,6 +441,28 @@ const sanitizeGlobalState = (data: any): GlobalState => {
         .filter((r: string) => r.length > 0)
     : [];
 
+  const variableCosts: VariableCost[] = Array.isArray(safeData.variableCosts)
+    ? safeData.variableCosts
+        .filter((vc: any) => vc && typeof vc === 'object')
+        .map((vc: any) => ({
+          id: String(vc.id || 'cv_' + Math.random().toString(36).substr(2, 9)),
+          date: String(vc.date || new Date().toISOString().slice(0, 10)),
+          category: vc.category || 'OUTROS',
+          description: String(vc.description || 'Custo Variável'),
+          value: fixMoney(vc.value),
+          origin: vc.origin || 'Manual',
+          mode: vc.mode || 'Manual',
+          period: String(vc.period || (vc.date ? vc.date.slice(0, 7) : new Date().toISOString().slice(0, 7))),
+          status: vc.status || 'Ativo',
+          sourceType: vc.sourceType || undefined,
+          sourceId: vc.sourceId || undefined,
+          storeId: vc.storeId || undefined,
+          notes: vc.notes || undefined,
+          createdAt: vc.createdAt || new Date().toISOString(),
+          updatedAt: vc.updatedAt || undefined
+        }))
+    : [];
+
   return {
       storeInfo,
       ingredients,
@@ -454,7 +478,9 @@ const sanitizeGlobalState = (data: any): GlobalState => {
       fixedCostMode,
       purchaseEntries: Array.isArray(safeData.purchaseEntries) ? safeData.purchaseEntries : [],
       supplierMappings: Array.isArray(safeData.supplierMappings) ? safeData.supplierMappings : [],
-      salesTransactions: Array.isArray(safeData.salesTransactions) ? safeData.salesTransactions : [],
+      salesTransactions: Array.isArray(safeData.salesTransactions)
+        ? safeData.salesTransactions.filter((t: any) => !isCorruptedBrendiImportTransaction(t))
+        : [],
       resetPassword: safeData.resetPassword || '1234',
       ingredientCategories,
       collaborators,
@@ -462,7 +488,8 @@ const sanitizeGlobalState = (data: any): GlobalState => {
       collaboratorMeals,
       customCollaboratorRoles,
       accountsReceivable,
-      customReceivableOrigins
+      customReceivableOrigins,
+      variableCosts
   };
 };
 
@@ -570,6 +597,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       case 'dashboard': return <Dashboard />;
       case 'collaborators': return <Collaborators />;
       case 'expenses': return <Expenses />;
+      case 'variable-costs': return <VariableCosts />;
       case 'accounts-receivable': return <AccountsReceivable />;
       case 'categories': return <FinancialCategories />;
       case 'billing': return <Billing />;
@@ -602,6 +630,7 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout, bgColor, onBgColorCha
       dashboard: 'Dashboard',
       collaborators: 'Colaboradores',
       expenses: 'Despesas Fixas',
+      'variable-costs': 'Custos Variáveis',
       'accounts-receivable': 'Contas a Receber',
       categories: 'Categorias',
       billing: 'Faturamento',
