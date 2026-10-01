@@ -44,6 +44,8 @@ import {
 import { formatPercent } from '../constants';
 import { ExportReportButton } from '../components/ExportReportButton';
 import { exportBreakEvenReport } from '../utils/pdfExport';
+import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
+import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
 
 interface VarCostEntry {
     id: string;
@@ -83,20 +85,31 @@ const BreakEven: React.FC = () => {
         expenses, 
         cfi, 
         products,
+        ingredients,
+        combos,
         getProductCMV,
         platformConfig,
         salesTransactions,
+        brendiOrders,
+        variableCosts,
         getCmvAvgPercent,
         calculateBreakEven,
         storeInfo
     } = useApp();
 
     const availableMonths = useMemo(() => {
-        if (!monthlyRevenue || monthlyRevenue.length === 0) return [];
-        return [...monthlyRevenue]
-            .filter(r => r.month)
-            .sort((a, b) => b.month.localeCompare(a.month));
-    }, [monthlyRevenue]);
+        const monthSet = new Set<string>();
+        (monthlyRevenue || []).forEach(r => { if (r.month) monthSet.add(r.month); });
+        (brendiOrders || []).forEach(o => { const m = (o.createdAt || '').slice(0, 7); if (m) monthSet.add(m); });
+        (salesTransactions || []).forEach(t => { const m = (t.date || '').slice(0, 7); if (m) monthSet.add(m); });
+        (expenses || []).forEach(e => { const m = getExpenseEffectiveMonth(e); if (m) monthSet.add(m); });
+        (variableCosts || []).forEach(c => { const m = c.period || (c.date ? c.date.slice(0, 7) : ''); if (m) monthSet.add(m); });
+        monthSet.add(new Date().toISOString().slice(0, 7));
+
+        return Array.from(monthSet)
+            .sort((a, b) => b.localeCompare(a))
+            .map(month => ({ month }));
+    }, [monthlyRevenue, brendiOrders, salesTransactions, expenses, variableCosts]);
 
     const [selectedMonth, setSelectedMonth] = useState<string>(() => {
         if (monthlyRevenue && monthlyRevenue.length > 0) {
@@ -104,17 +117,20 @@ const BreakEven: React.FC = () => {
                 .filter(r => r.month)
                 .sort((a, b) => b.month.localeCompare(a.month));
             const withData = sorted.find(m => Number(m.revenue) > 0);
-            return withData ? withData.month : sorted[0].month;
+            if (withData) return withData.month;
         }
-        return new Date().toISOString().slice(0, 7);
+        return '2026-09';
     });
 
     useEffect(() => {
         if (availableMonths.length > 0) {
             const exists = availableMonths.some(m => m.month === selectedMonth);
             if (!selectedMonth || !exists) {
-                const withData = availableMonths.find(m => Number(m.revenue) > 0);
-                setSelectedMonth(withData ? withData.month : availableMonths[0].month);
+                if (availableMonths.some(m => m.month === '2026-09')) {
+                    setSelectedMonth('2026-09');
+                } else {
+                    setSelectedMonth(availableMonths[0].month);
+                }
             }
         }
     }, [availableMonths, selectedMonth]);
@@ -173,21 +189,62 @@ const BreakEven: React.FC = () => {
         localStorage.setItem('lucro_facil_be_monthly_ticket_v1', JSON.stringify(monthlyTicketMedio));
     }, [monthlyTicketMedio]);
 
-    // Derived states
-    const revenue = useMemo(() => {
-        const rx = monthlyRevenue.find(r => r.month === selectedMonth);
-        return rx ? Number(rx.revenue) : 0;
-    }, [monthlyRevenue, selectedMonth]);
+    // Catálogo estruturado memoizado para o motor canônico de CMV Real
+    const catalog = useMemo(() => ({
+        products: products || [],
+        ingredients: ingredients || [],
+        combos: combos || []
+    }), [products, ingredients, combos]);
 
-    const orderCount = useMemo(() => monthlyOrders[selectedMonth] || '', [monthlyOrders, selectedMonth]);
+    // Cálculo canônico de vendas reais e CMV real transacional
+    const realSalesOutput = useMemo(() => {
+        return calculateRealSalesPeriodCmv({
+            brendiOrders: brendiOrders || [],
+            salesTransactions: salesTransactions || [],
+            catalog,
+            period: selectedMonth
+        });
+    }, [brendiOrders, salesTransactions, catalog, selectedMonth]);
+
+    const realSales = realSalesOutput.cmvResult;
+
+    // Receita Real consolidada (canônica)
+    const revenue = useMemo(() => {
+        if (realSales.salesCount > 0 || realSales.totalRevenue > 0) {
+            return realSales.totalRevenue;
+        }
+        const rx = (monthlyRevenue || []).find(r => r.month === selectedMonth);
+        return rx && typeof rx.revenue === 'number' ? rx.revenue : 0;
+    }, [realSales.salesCount, realSales.totalRevenue, monthlyRevenue, selectedMonth]);
+
+    // Pedidos reais automáticos caso existam no período
+    const autoOrdersCount = useMemo(() => {
+        return realSales.salesCount > 0 ? realSales.salesCount : 0;
+    }, [realSales.salesCount]);
+
+    const orderCount = useMemo(() => {
+        if (monthlyOrders[selectedMonth] !== undefined && monthlyOrders[selectedMonth] !== '') {
+            return monthlyOrders[selectedMonth];
+        }
+        if (autoOrdersCount > 0) {
+            return autoOrdersCount.toString();
+        }
+        return '';
+    }, [monthlyOrders, selectedMonth, autoOrdersCount]);
+
+    const effectiveOrdersNum = useMemo(() => {
+        const parsed = parseFloat(orderCount);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+        if (autoOrdersCount > 0) return autoOrdersCount;
+        return 0;
+    }, [orderCount, autoOrdersCount]);
 
     const suggestedTicketMedio = useMemo(() => {
-        const oCount = parseFloat(orderCount) || 0;
-        if (revenue > 0 && oCount > 0) {
-            return revenue / oCount;
+        if (revenue > 0 && effectiveOrdersNum > 0) {
+            return revenue / effectiveOrdersNum;
         }
         return null;
-    }, [revenue, orderCount]);
+    }, [revenue, effectiveOrdersNum]);
 
     const ticketMedio = useMemo(() => {
         if (monthlyTicketMedio[selectedMonth] !== undefined) {
@@ -242,8 +299,9 @@ const BreakEven: React.FC = () => {
         localStorage.setItem('lucro_facil_channel_qtys_monthly_v1', JSON.stringify(monthlyChannelQtys));
     }, [monthlyChannelQtys]);
 
-    const currentChannelQtys = useMemo(() => {
-        return monthlyChannelQtys[selectedMonth] || {
+    // Detecção automática de canais reais do período
+    const realChannelCounts = useMemo(() => {
+        const counts: Record<string, number> = {
             ifood: 0,
             food99: 0,
             keeta: 0,
@@ -252,7 +310,44 @@ const BreakEven: React.FC = () => {
             app_proprio: 0,
             outros: 0
         };
-    }, [monthlyChannelQtys, selectedMonth]);
+        (brendiOrders || []).forEach(o => {
+            const m = (o.createdAt || '').slice(0, 7);
+            const isCancelled = o.status === 'CANCELLED' || o.status === 'CANCELLATION_REQUESTED';
+            if (m === selectedMonth && !isCancelled) {
+                const ch = (o.channel || '').toLowerCase();
+                if (ch.includes('ifood')) counts.ifood++;
+                else if (ch.includes('99')) counts.food99++;
+                else if (ch.includes('keeta')) counts.keeta++;
+                else if (ch.includes('balc') || ch.includes('físic') || ch.includes('presencial')) counts.physical++;
+                else if (ch.includes('deliv') || ch.includes('whats') || ch.includes('zap')) counts.whatsapp++;
+                else if (ch.includes('app')) counts.app_proprio++;
+                else counts.outros++;
+            }
+        });
+        return counts;
+    }, [brendiOrders, selectedMonth]);
+
+    const hasRealChannelData = useMemo(() => {
+        return (Object.values(realChannelCounts) as number[]).some(v => v > 0);
+    }, [realChannelCounts]);
+
+    const currentChannelQtys = useMemo(() => {
+        if (monthlyChannelQtys[selectedMonth]) {
+            return monthlyChannelQtys[selectedMonth];
+        }
+        if (hasRealChannelData) {
+            return realChannelCounts;
+        }
+        return {
+            ifood: 0,
+            food99: 0,
+            keeta: 0,
+            whatsapp: 0,
+            physical: 0,
+            app_proprio: 0,
+            outros: 0
+        };
+    }, [monthlyChannelQtys, selectedMonth, hasRealChannelData, realChannelCounts]);
 
     const totalChannelQty = useMemo(() => {
         return (Object.values(currentChannelQtys) as number[]).reduce((sum: number, v: number) => sum + (v || 0), 0) as number;
@@ -467,66 +562,86 @@ const BreakEven: React.FC = () => {
     const [chartHelp, setChartHelp] = useState<string | null>(null);
 
     // --- LOGIC ---
-    const fixedCosts = useMemo(() => expenses.filter(e => e.month === selectedMonth).reduce((s, e) => s + e.value, 0), [expenses, selectedMonth]);
-    const avgCardRate = useMemo(() => (cfi.debitTax + cfi.creditTax) / 2, [cfi]);
+    // 1. CMV Real Canônico e Custos Variáveis Reais Registrados
+    const realCmv = useMemo(() => {
+        return realSales.totalCmv;
+    }, [realSales.totalCmv]);
 
-    const avgCmvPercent = useMemo(() => {
-        return getCmvAvgPercent() / 100;
-    }, [getCmvAvgPercent]);
+    // Custos Variáveis Reais Registrados (state.variableCosts, excluindo 'CMV' para evitar dupla contagem)
+    const realOtherVarCosts = useMemo(() => {
+        const safeVarCosts = variableCosts || [];
+        return safeVarCosts
+            .filter(c => {
+                const costPeriod = c.period || (c.date ? c.date.slice(0, 7) : '');
+                const isPeriodMatch = costPeriod === selectedMonth;
+                const isActive = c.status === 'Ativo';
+                const isNotCmv = c.category !== 'CMV';
+                return isPeriodMatch && isActive && isNotCmv;
+            })
+            .reduce((sum, c) => sum + (Number(c.value) || 0), 0);
+    }, [variableCosts, selectedMonth]);
 
-    const defaultCmvValue = useMemo(() => {
-        return revenue * avgCmvPercent;
-    }, [revenue, avgCmvPercent]);
-    
-    const autoImposto = useMemo(() => revenue * (cfi.tax / 100), [revenue, cfi]);
-    const autoCartao = useMemo(() => revenue * (avgCardRate / 100), [revenue, avgCardRate]);
-    const autoVoucher = useMemo(() => revenue * (cfi.voucherTax / 100), [revenue, cfi]);
+    // Custo Variável Total Real Canônico
+    const totalVarCosts = useMemo(() => {
+        return realCmv + realOtherVarCosts;
+    }, [realCmv, realOtherVarCosts]);
 
-    const dynamicCmv = useMemo(() => localEntries.filter(e => e.category === 'Compras').reduce((s, e) => s + e.value, 0), [localEntries]);
-    const dynamicTx = useMemo(() => localEntries.filter(e => e.category === 'Tx Entrega').reduce((s, e) => s + e.value, 0), [localEntries]);
-    const dynamicExtras = useMemo(() => localEntries.filter(e => e.category !== 'Compras' && e.category !== 'Tx Entrega').reduce((s, e) => s + e.value, 0), [localEntries]);
-
-    const finalCmv = useMemo(() => {
-        const val = cmvOverride !== '' ? parseFloat(cmvOverride.toString()) || 0 : (dynamicCmv > 0 ? dynamicCmv : defaultCmvValue);
-        return parseFloat(val.toFixed(2));
-    }, [cmvOverride, dynamicCmv, defaultCmvValue]);
-
-    const finalTx = txEntregaOverride !== '' ? parseFloat(txEntregaOverride.toString()) || 0 : dynamicTx;
-
-    const autoPlataforma = useMemo(() => revenue * (weightedPlatformFeePercent / 100), [revenue, weightedPlatformFeePercent]);
-
-    const totalVarCosts = autoImposto + autoCartao + autoVoucher + finalCmv + finalTx + dynamicExtras + autoPlataforma;
-    
+    // Percentual de Custo Variável Real Canônico
     const varPct = useMemo(() => {
         if (revenue > 0) {
             return (totalVarCosts / revenue) * 100;
         }
-        const cmvPct = avgCmvPercent * 100;
-        return cmvPct + cfi.tax + avgCardRate + cfi.voucherTax + weightedPlatformFeePercent;
-    }, [revenue, totalVarCosts, avgCmvPercent, cfi, avgCardRate, weightedPlatformFeePercent]);
+        return 0;
+    }, [revenue, totalVarCosts]);
 
-    const mcPct = useMemo(() => 1 - (varPct / 100), [varPct]);
-    
+    // Margem de Contribuição Real Canônica
+    const mcPct = useMemo(() => {
+        return 1 - (varPct / 100);
+    }, [varPct]);
+
+    // Custos Fixos com Competência Estrita Canônica (getExpenseEffectiveMonth)
+    const fixedCosts = useMemo(() => {
+        const safeExpenses = expenses || [];
+        return safeExpenses
+            .filter(e => getExpenseEffectiveMonth(e) === selectedMonth)
+            .reduce((s, e) => s + (Number(e.value) || 0), 0);
+    }, [expenses, selectedMonth]);
+
+    // Fonte Canônica Única para o Ponto de Equilíbrio Monetário
     const breakEvenR$ = useMemo(() => {
         return calculateBreakEven(selectedMonth);
     }, [calculateBreakEven, selectedMonth]);
+
     const breakEvenUnits = (ticketMedio > 0 && mcPct > 0) ? breakEvenR$ / ticketMedio : 0;
     const gapToBe = Math.max(0, breakEvenR$ - revenue);
-    const progressPct = breakEvenR$ > 0 ? (revenue / breakEvenR$) * 100 : 0;
+    const progressPct = breakEvenR$ > 0 
+        ? (revenue / breakEvenR$) * 100 
+        : (revenue > 0 && fixedCosts === 0 ? 100 : 0);
 
-    // --- DYNAMIC XANDE SIMULATOR CALCULATIONS ---
+    // Lançamentos extras locais (para memória/simulação)
+    const dynamicExtras = useMemo(() => {
+        return localEntries.filter(e => e.category !== 'Compras' && e.category !== 'Tx Entrega').reduce((s, e) => s + e.value, 0);
+    }, [localEntries]);
+
+    // Overrides locais para simulações
+    const finalCmv = useMemo(() => {
+        const val = cmvOverride !== '' ? parseFloat(cmvOverride.toString()) || 0 : realCmv;
+        return parseFloat(val.toFixed(2));
+    }, [cmvOverride, realCmv]);
+
+    const finalTx = useMemo(() => {
+        return txEntregaOverride !== '' ? parseFloat(txEntregaOverride.toString()) || 0 : realOtherVarCosts;
+    }, [txEntregaOverride, realOtherVarCosts]);
+
+    // --- DYNAMIC XANDE SIMULATOR CALCULATIONS (EM MEMÓRIA) ---
     const simulatedFixedCosts = useMemo(() => {
         return Math.max(0, fixedCosts - simulatedFixedCostDecrease);
     }, [fixedCosts, simulatedFixedCostDecrease]);
 
     const simulatedVarPct = useMemo(() => {
-        const baseCmvPercentage = revenue > 0 ? (finalCmv / revenue) * 100 : (avgCmvPercent * 100);
-        const cmvDifference = Math.max(0, baseCmvPercentage - simulatedCmvDecrease);
-        const dynamicSimulatedCmv = revenue > 0 ? (cmvDifference / 100) * revenue : 0;
-        
-        const simulatedVarCost = autoImposto + autoCartao + autoVoucher + dynamicSimulatedCmv + finalTx + dynamicExtras + autoPlataforma;
-        return revenue > 0 ? (simulatedVarCost / revenue) * 100 : Math.max(10, varPct - simulatedCmvDecrease);
-    }, [finalCmv, revenue, simulatedCmvDecrease, autoImposto, autoCartao, autoVoucher, finalTx, dynamicExtras, varPct, avgCmvPercent, autoPlataforma]);
+        // Redução simulada de CMV reduz a taxa percentual de custos variáveis
+        return Math.max(0, varPct - simulatedCmvDecrease);
+    }, [varPct, simulatedCmvDecrease]);
 
     const simulatedMcPct = useMemo(() => {
         return 1 - (simulatedVarPct / 100);
@@ -638,29 +753,33 @@ const BreakEven: React.FC = () => {
     }, [newEntry.category, customCats, subCats]);
 
     // Chart Data Preparation
-    const barData = [
+    const barData = useMemo(() => [
         { name: 'Faturamento', valor: revenue, fill: '#3B82F6' },
         { name: 'Equilíbrio', valor: breakEvenR$, fill: '#D90429' },
         { name: 'Faltante', valor: gapToBe, fill: '#94A3B8' }
-    ];
+    ], [revenue, breakEvenR$, gapToBe]);
 
-    const pieData = [
-        { name: 'CMV (Insumos)', value: finalCmv, fill: '#EF4444' },
-        { name: 'Impostos', value: autoImposto, fill: '#F59E0B' },
-        { name: 'Cartão', value: autoCartao, fill: '#10B981' },
-        { name: 'Tx Entrega', value: finalTx, fill: '#3B82F6' },
-        { name: 'Vouchers', value: autoVoucher, fill: '#8B5CF6' },
-        { name: 'Extras', value: dynamicExtras, fill: '#EC4899' },
-    ].filter(d => d.value > 0);
+    const pieData = useMemo(() => {
+        const data = [
+            { name: 'CMV Real (Insumos)', value: realCmv, fill: '#EF4444' },
+            { name: 'Custos Variáveis Reais', value: realOtherVarCosts, fill: '#3B82F6' }
+        ];
+        if (dynamicExtras > 0) {
+            data.push({ name: 'Extras (Simulação)', value: dynamicExtras, fill: '#EC4899' });
+        }
+        return data.filter(d => d.value > 0);
+    }, [realCmv, realOtherVarCosts, dynamicExtras]);
 
-    const sensitivityData = [-10, -5, 0, 5, 10].map(diff => {
-        const simulatedVarPct = Math.max(0, varPct + diff);
-        const simulatedMcPct = 1 - (simulatedVarPct / 100);
-        return {
-            name: (diff > 0 ? '+' : '') + formatPercent(diff),
-            be: simulatedMcPct > 0 ? fixedCosts / simulatedMcPct : 0
-        };
-    });
+    const sensitivityData = useMemo(() => {
+        return [-10, -5, 0, 5, 10].map(diff => {
+            const simulatedVar = Math.max(0, Math.min(99, varPct + diff));
+            const simulatedMc = 1 - (simulatedVar / 100);
+            return {
+                name: (diff > 0 ? '+' : '') + formatPercent(diff),
+                be: simulatedMc > 0 ? fixedCosts / simulatedMc : 0
+            };
+        });
+    }, [varPct, fixedCosts]);
 
     return (
         <div className="space-y-6 pb-20 animate-fade-in printable-content text-slate-800 dark:text-slate-100">
@@ -688,7 +807,7 @@ const BreakEven: React.FC = () => {
                           selectedMonth,
                           monthlyRevenue: revenue,
                           totalExpenses: fixedCosts,
-                          cmvAvgPct: getCmvAvgPercent(),
+                          cmvAvgPct: revenue > 0 ? (realCmv / revenue) * 100 : 0,
                           cfiPct: varPct,
                           breakEvenValue: breakEvenR$,
                           tenDaysGoal: breakEvenR$ * (10 / 30),
@@ -901,17 +1020,26 @@ const BreakEven: React.FC = () => {
                     </div>
 
                     <div>
-                        <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Nº Pedidos no Mês</label>
+                        <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 flex items-center justify-between">
+                            <span>Nº Pedidos no Mês</span>
+                            {autoOrdersCount > 0 && (
+                                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold lowercase">
+                                    ({autoOrdersCount} reais)
+                                </span>
+                            )}
+                        </label>
                         <div className="relative">
                             <input 
                                 type="number" 
                                 placeholder="Quantidade de pedidos" 
                                 value={orderCount}
                                 onChange={e => setOrderCount(e.target.value)}
-                                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-brand-red outline-none"
+                                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-brand-red"
                             />
                         </div>
-                        <p className="text-[9px] text-gray-400 mt-1">Insira para calcular o Ticket Médio automaticamente.</p>
+                        <p className="text-[9px] text-gray-400 mt-1">
+                            {autoOrdersCount > 0 ? "Preenchido automaticamente a partir das vendas reais." : "Insira para calcular o Ticket Médio automaticamente."}
+                        </p>
                     </div>
 
                     <div>
@@ -1114,48 +1242,48 @@ const BreakEven: React.FC = () => {
 
                     <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                         <h3 className="text-xs font-black uppercase text-gray-400 mb-4 flex items-center gap-2">
-                            <Info size={14}/> Custos Consolidados (Auto)
+                            <Info size={14}/> Custos Consolidados Reais
                         </h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                                <span className="text-[9px] uppercase font-bold text-gray-500">Faturamento</span>
-                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {revenue.toLocaleString('pt-BR')}</p>
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Faturamento Real</span>
+                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {revenue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                             </div>
                             <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                                <span className="text-[9px] uppercase font-bold text-gray-500">Imposto ({formatPercent(cfi.tax)})</span>
-                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoImposto.toFixed(2)}</p>
+                                <span className="text-[9px] uppercase font-bold text-gray-500">CMV Real (Insumos)</span>
+                                <p className="text-sm font-black text-brand-red">R$ {realCmv.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                             </div>
                             <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                                <span className="text-[9px] uppercase font-bold text-gray-500">Cartão ({formatPercent(avgCardRate)})</span>
-                                <p className="text-sm font-black text-gray-900 dark:text-white">R$ {autoCartao.toFixed(2)}</p>
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Custos Variáveis Reais</span>
+                                <p className="text-sm font-black text-amber-500">R$ {realOtherVarCosts.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                             </div>
                             <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-xl">
-                                <span className="text-[9px] uppercase font-bold text-gray-500">Custo Fixo (R$)</span>
-                                <p className="text-sm font-black text-brand-red">R$ {fixedCosts.toLocaleString('pt-BR')}</p>
+                                <span className="text-[9px] uppercase font-bold text-gray-500">Custos Fixos do Mês</span>
+                                <p className="text-sm font-black text-brand-red">R$ {fixedCosts.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
                             <div className="flex items-center justify-between bg-emerald-50/30 dark:bg-emerald-500/5 p-2 rounded-lg group">
                                 <div className="flex items-center gap-1">
-                                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">CMV Total (R$)</span>
+                                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">CMV Real (R$)</span>
                                     {cmvOverride !== '' && <RotateCcw size={12} className="text-brand-red cursor-pointer" onClick={() => setCmvOverride('')}/>}
                                 </div>
                                 <input 
                                     type="number" 
-                                    value={cmvOverride === '' ? finalCmv : cmvOverride}
+                                    value={cmvOverride === '' ? realCmv : cmvOverride}
                                     onChange={e => setCmvOverride(e.target.value)}
                                     className={`bg-white dark:bg-gray-800 border rounded p-1 text-xs w-28 text-right outline-none focus:border-emerald-500 ${cmvOverride !== '' ? 'border-brand-red font-bold' : 'border-emerald-200 dark:border-emerald-800'}`}
                                 />
                             </div>
                             <div className="flex items-center justify-between bg-blue-50/30 dark:bg-blue-500/5 p-2 rounded-lg group">
                                 <div className="flex items-center gap-1">
-                                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Tx Entrega (R$)</span>
+                                    <span className="text-xs font-bold text-gray-600 dark:text-gray-300">Outros Custos Variáveis (R$)</span>
                                     {txEntregaOverride !== '' && <RotateCcw size={12} className="text-brand-red cursor-pointer" onClick={() => setTxEntregaOverride('')}/>}
                                 </div>
                                 <input 
                                     type="number" 
-                                    value={txEntregaOverride === '' ? finalTx : txEntregaOverride}
+                                    value={txEntregaOverride === '' ? realOtherVarCosts : txEntregaOverride}
                                     onChange={e => setTxEntregaOverride(e.target.value)}
                                     className={`bg-white dark:bg-gray-800 border rounded p-1 text-xs w-28 text-right outline-none focus:border-blue-500 ${txEntregaOverride !== '' ? 'border-brand-red font-bold' : 'border-blue-200 dark:border-blue-800'}`}
                                 />

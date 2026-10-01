@@ -25,12 +25,8 @@ const MONTHS = [
   { value: '12', label: 'Dezembro' },
 ];
 
-export const getExpenseEffectiveMonth = (e: Expense): string => {
-  if (e.dueDate && e.dueDate.length >= 7) {
-    return e.dueDate.substring(0, 7);
-  }
-  return e.month || '';
-};
+import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
+export { getExpenseEffectiveMonth };
 
 const Expenses: React.FC = () => {
   const { 

@@ -7,6 +7,8 @@ import { collection, query, orderBy, limit, onSnapshot, doc } from 'firebase/fir
 import { db } from '../firebase';
 import { BrendiConsolidatedReport, isCorruptedBrendiImportTransaction } from '../utils/brendiReportParser';
 import { BRENDI_SEPTEMBER_REALTIME_ORDERS } from '../data/brendiSeptemberRealtimeOrders';
+import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
+import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
 
 interface AppContextType extends GlobalState {
   addIngredient: (ing: Ingredient) => void;
@@ -1445,17 +1447,57 @@ export const AppProvider: React.FC<{
   };
 
   const calculateBreakEven = (month: string): number => {
+    // 1. Obter vendas reais e CMV real transacional através do serviço canônico
+    const realSalesOutput = calculateRealSalesPeriodCmv({
+      brendiOrders: brendiOrders || [],
+      salesTransactions: state.salesTransactions || [],
+      catalog: {
+        products: state.products || [],
+        ingredients: state.ingredients || [],
+        combos: state.combos || []
+      },
+      period: month
+    });
+
+    const realSales = realSalesOutput.cmvResult;
+    let revenue = realSales.totalRevenue;
+    const realCmv = realSales.totalCmv;
+
+    // Se não existirem vendas transacionais reais no período, permite usar monthlyRevenue se disponível
+    if (realSales.salesCount === 0 && revenue === 0) {
+      const manualEntry = (state.monthlyRevenue || []).find(r => r.month === month);
+      if (manualEntry && typeof manualEntry.revenue === 'number' && manualEntry.revenue > 0) {
+        revenue = manualEntry.revenue;
+      }
+    }
+
+    // 2. Custos Variáveis Reais Registrados (state.variableCosts)
+    // EXCLUINDO categoria 'CMV' para garantir que não haja dupla contagem com realCmv
+    const safeVarCosts = state.variableCosts || [];
+    const otherVariableCosts = safeVarCosts
+      .filter(c => {
+        const costPeriod = c.period || (c.date ? c.date.slice(0, 7) : '');
+        const isPeriodMatch = costPeriod === month;
+        const isActive = c.status === 'Ativo';
+        const isNotCmv = c.category !== 'CMV';
+        return isPeriodMatch && isActive && isNotCmv;
+      })
+      .reduce((sum, c) => sum + (Number(c.value) || 0), 0);
+
+    const totalVariableCosts = realCmv + otherVariableCosts;
+    const variableCostPercent = revenue > 0 ? totalVariableCosts / revenue : 0;
+    const contributionMargin = 1 - variableCostPercent;
+
+    // 3. Custos Fixos com competência estrita canônica (getExpenseEffectiveMonth)
     const safeExpenses = state.expenses || [];
     const fixedCosts = safeExpenses
-      .filter(e => e.month === month || !e.month)
-      .reduce((sum, e) => sum + Number(e.value), 0);
+      .filter(e => getExpenseEffectiveMonth(e) === month)
+      .reduce((sum, e) => sum + (Number(e.value) || 0), 0);
 
-    const avgCmvPercent = getCmvAvgPercent();
-    const avgCardRate = (state.cfi.debitTax + state.cfi.creditTax) / 2;
-    const totalVarCostsPct = avgCardRate + state.cfi.tax + state.cfi.royalties + state.cfi.marketing + state.cfi.voucherTax;
-
-    const mcPct = 1 - ((avgCmvPercent + totalVarCostsPct) / 100);
-    return mcPct > 0 ? fixedCosts / mcPct : 0;
+    // 4. Ponto de Equilíbrio = Custos Fixos / Margem de Contribuição
+    // Proteção: se Margem de Contribuição <= 0, retorna 0
+    const breakEven = contributionMargin > 0 ? fixedCosts / contributionMargin : 0;
+    return breakEven;
   };
 
   const getComboCMV = (combo: Combo): number => {
@@ -1589,7 +1631,7 @@ export const AppProvider: React.FC<{
 
     // 3. Fixed Costs / CFI
     const fixedCosts = (state.expenses || [])
-      .filter(e => e.month === targetMonth || !e.month)
+      .filter(e => getExpenseEffectiveMonth(e) === targetMonth)
       .reduce((sum, e) => sum + Number(e.value || 0), 0);
 
     const cfiPercent = calculateTotalCfiPercent();
@@ -1691,7 +1733,7 @@ export const AppProvider: React.FC<{
 
     const totalMonthRevenue = Array.from(itemMap.values()).reduce((sum, it) => sum + it.totalRevenue, 0);
     const monthFixedCosts = (state.expenses || [])
-      .filter(e => e.month === targetMonth || !e.month)
+      .filter(e => getExpenseEffectiveMonth(e) === targetMonth)
       .reduce((sum, e) => sum + Number(e.value || 0), 0);
 
     const avgCmvPercentFallback = getCmvAvgPercent();

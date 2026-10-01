@@ -880,7 +880,8 @@ export const exportBreakEvenReport = (params: {
   monthlyRevenue: number;
   totalExpenses: number;
   cmvAvgPct: number;
-  cfiPct: number;
+  cfiPct?: number;
+  variableCostPct?: number;
   breakEvenValue: number;
   tenDaysGoal: number;
   tenDaysCurrent: number;
@@ -892,10 +893,13 @@ export const exportBreakEvenReport = (params: {
     totalExpenses,
     cmvAvgPct,
     cfiPct,
+    variableCostPct,
     breakEvenValue,
     tenDaysGoal,
     tenDaysCurrent
   } = params;
+
+  const effectiveVarCostPct = variableCostPct ?? cfiPct ?? 0;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -907,10 +911,12 @@ export const exportBreakEvenReport = (params: {
   };
   const monthDisplay = `${monthNames[monthStr] || monthStr} de ${yearStr}`;
 
-  const isAchieved = monthlyRevenue >= breakEvenValue && breakEvenValue > 0;
+  const isAchieved = !isNaN(monthlyRevenue) && monthlyRevenue >= 0 && (breakEvenValue <= 0 || monthlyRevenue >= breakEvenValue);
   const percentAchieved = breakEvenValue > 0 ? (monthlyRevenue / breakEvenValue) * 100 : 0;
   const statusStr = isAchieved 
-    ? `ATINGIDO (${percentAchieved.toFixed(1)}% da meta de sobrevivência)` 
+    ? (breakEvenValue <= 0 
+        ? 'EQUILIBRADO / PONTO DE EQUILÍBRIO ATINGIDO' 
+        : `ATINGIDO (${percentAchieved.toFixed(1)}% da meta de sobrevivência)`) 
     : `EM ANDAMENTO (${percentAchieved.toFixed(1)}% do Ponto de Equilíbrio)`;
 
   const tenDaysPct = tenDaysGoal > 0 ? (tenDaysCurrent / tenDaysGoal) * 100 : 0;
@@ -928,13 +934,23 @@ export const exportBreakEvenReport = (params: {
     ]
   );
 
+  const financialStatusText = !isAchieved
+    ? 'ABAIXO DO PONTO DE EQUILÍBRIO (ATENÇÃO)'
+    : breakEvenValue <= 0
+    ? 'EQUILIBRADO / PONTO DE EQUILÍBRIO ATINGIDO'
+    : 'SUPEROU PONTO DE EQUILÍBRIO (LUCRO)';
+
+  const financialStatusDesc = isAchieved 
+    ? (breakEvenValue <= 0 ? 'Custos fixos zerados ou cobertos pela operação' : 'Operação em zona de lucro real')
+    : 'Ainda pagando estrutura de custos';
+
   const tableBody = [
     ['Faturamento Total do Mês (Bruto)', formatCurrency(monthlyRevenue), 'Volume total faturado no período'],
     ['Despesas Fixas Totais', formatCurrency(totalExpenses), 'Soma de todos os custos fixos cadastrados'],
     ['CMV Médio da Loja (%)', formatPct(cmvAvgPct), 'Custo médio de insumos por prato vendido'],
-    ['CFI Percentual da Empresa (%)', formatPct(cfiPct), 'Custos fixos e taxas integrados'],
+    ['Custo Variável Total (%)', formatPct(effectiveVarCostPct), 'CMV e outros custos variáveis reais'],
     ['Ponto de Equilíbrio Calculado (R$)', formatCurrency(breakEvenValue), 'Faturamento mínimo necessário para cobrir custos (Lucro Zero)'],
-    ['Status Financeiro do Mês', isAchieved ? 'SUPEROU PONTO DE EQUILÍBRIO (LUCRO)' : 'ABAIXO DO PONTO DE EQUILÍBRIO (ATENÇÃO)', isAchieved ? 'Operação em zona de lucro real' : 'Ainda pagando estrutura de custos'],
+    ['Status Financeiro do Mês', financialStatusText, financialStatusDesc],
     ['Termômetro dos 10 Primeiros Dias', formatCurrency(tenDaysCurrent), `Meta: ${formatCurrency(tenDaysGoal)} • ${tenDaysStatus}`]
   ];
 

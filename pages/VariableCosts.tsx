@@ -552,7 +552,7 @@ export const VariableCosts: React.FC = () => {
             <span>Distribuição dos Custos Variáveis por Categoria no Período</span>
           </div>
           <div className="flex flex-wrap gap-2.5">
-            {Object.entries(costByCategory).map(([catKey, data]) => {
+            {Object.entries(costByCategory).map(([catKey, data]: [string, { count: number; total: number }]) => {
               const catConfig = CATEGORY_LABELS[catKey as VariableCostCategory] || CATEGORY_LABELS.OUTROS;
               const pctOfTotal = totalVariableCosts > 0 ? (data.total / totalVariableCosts) * 100 : 0;
               return (

@@ -7,6 +7,7 @@ import { TrialBlindagemWidget } from '../components/TrialBlindagemWidget';
 import { BrendiLogo, IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
 import { isCorruptedBrendiImportTransaction } from '../utils/brendiReportParser';
 import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
+import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -26,7 +27,8 @@ const Dashboard: React.FC = () => {
     salesTransactions,
     accountsReceivable = [],
     brendiOrders = [],
-    isBrendiSyncing = false
+    isBrendiSyncing = false,
+    variableCosts = []
   } = useApp();
   
   const storeId = storeInfo?.id || '1';
@@ -38,6 +40,7 @@ const Dashboard: React.FC = () => {
   });
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [tempGoal, setTempGoal] = useState(monthlyGoal !== null ? monthlyGoal.toString() : '');
+  const [showProfitBreakdown, setShowProfitBreakdown] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(localStorageKey);
@@ -175,7 +178,9 @@ const Dashboard: React.FC = () => {
 
   // 2. Costs & Profit Math for selected month
   const monthFixedCosts = useMemo(() => {
-    return expenses.filter(e => e.month === selectedMonth || !e.month).reduce((s, e) => s + e.value, 0);
+    return expenses
+      .filter(e => getExpenseEffectiveMonth(e) === selectedMonth)
+      .reduce((s, e) => s + (Number(e.value) || 0), 0);
   }, [expenses, selectedMonth]);
 
   const avgCmvPercentResult = useMemo(() => {
@@ -255,7 +260,27 @@ const Dashboard: React.FC = () => {
     return 0;
   }, [realCmvResult.salesCount, realCmvResult.totalCmv]);
 
-  const realProfit = monthRevenue - totalCmvValue - monthFixedCosts;
+  // Custos Variáveis Reais Registrados do período selecionado
+  const monthVariableCosts = useMemo(() => {
+    const safeVarCosts = variableCosts || [];
+    return safeVarCosts
+      .filter(c => {
+        const costPeriod = c.period || (c.date ? c.date.slice(0, 7) : '');
+        const isPeriodMatch = costPeriod === selectedMonth;
+        const isActive = c.status === 'Ativo';
+        // REGRA DE PROTEÇÃO CONTRA DUPLA CONTAGEM (ETAPA 2.9):
+        // O CMV Real já é deduzido via totalCmvValue (calculado pelo cmvEngine).
+        // Portanto, lançamentos em variableCosts com categoria 'CMV' são desconsiderados aqui
+        // para garantir que o resultado tenha UM ÚNICO CMV.
+        const isNotCmv = c.category !== 'CMV';
+        return isPeriodMatch && isActive && isNotCmv;
+      })
+      .reduce((sum, c) => sum + (Number(c.value) || 0), 0);
+  }, [variableCosts, selectedMonth]);
+
+  // FÓRMULA OFICIAL DE RESULTADO / LUCRO DO PERÍODO
+  // realProfit = realRevenue - realCmv - realVariableCosts - realFixedCosts
+  const realProfit = monthRevenue - totalCmvValue - monthVariableCosts - monthFixedCosts;
   const profitMargin = monthRevenue > 0 ? (realProfit / monthRevenue) * 100 : 0;
 
   // 3. Break Even for selected month
@@ -582,18 +607,58 @@ const Dashboard: React.FC = () => {
             <h3 className="text-3xl font-black text-gray-900 dark:text-white relative z-10">{formatMoney(monthRevenue)}</h3>
         </div>
 
-        {/* Lucro Líquido Real */}
+        {/* Resultado / Lucro do Período */}
         <div className={`p-6 rounded-2xl border bg-white dark:bg-gray-900 ${realProfit >= 0 ? 'border-emerald-400 dark:border-emerald-500/50' : 'border-red-400 dark:border-red-500/50'} shadow-sm transition-transform hover:scale-105 duration-300 relative`}>
             <div className="flex justify-between items-start mb-4">
               <div className={`p-3 rounded-xl border ${realProfit >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'} shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]`}>
                 <TrendingUp size={24} />
               </div>
               <span className={`text-[10px] font-black px-2 py-1 rounded-full uppercase ${realProfit >= 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
-                   {profitMargin.toFixed(1)}% Margem
-               </span>
+                {profitMargin.toFixed(1)}% Margem
+              </span>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">Lucro Líquido Real (Mês)</p>
-            <h3 className={`text-3xl font-black ${realProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{formatMoney(realProfit)}</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-[10px] font-black tracking-widest uppercase mb-1">
+              Resultado do Período ({selectedMonth})
+            </p>
+            <h3 className={`text-3xl font-black ${realProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              {formatMoney(realProfit)}
+            </h3>
+
+            <button 
+              type="button" 
+              onClick={() => setShowProfitBreakdown(!showProfitBreakdown)} 
+              className="mt-3 text-[11px] font-bold text-brand-red dark:text-brand-orange hover:underline flex items-center gap-1"
+            >
+              <span>{showProfitBreakdown ? 'Ocultar Detalhamento' : 'Ver Detalhamento do Resultado'}</span>
+              <ChevronRight size={14} className={`transform transition-transform ${showProfitBreakdown ? 'rotate-90' : ''}`} />
+            </button>
+
+            {showProfitBreakdown && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-1.5 text-xs">
+                <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                  <span>RECEITA REAL:</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{formatMoney(monthRevenue)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                  <span>(-) CMV REAL:</span>
+                  <span className="font-bold text-red-500">-{formatMoney(totalCmvValue)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                  <span>(-) CUSTOS VARIÁVEIS REGISTRADOS:</span>
+                  <span className="font-bold text-amber-500">-{formatMoney(monthVariableCosts)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600 dark:text-gray-300">
+                  <span>(-) CUSTOS FIXOS REGISTRADOS:</span>
+                  <span className="font-bold text-amber-500">-{formatMoney(monthFixedCosts)}</span>
+                </div>
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between font-black text-sm">
+                  <span className="text-gray-900 dark:text-white">RESULTADO CALCULADO:</span>
+                  <span className={realProfit >= 0 ? "text-emerald-500" : "text-red-500"}>
+                    {formatMoney(realProfit)}
+                  </span>
+                </div>
+              </div>
+            )}
         </div>
 
         {/* CMV Real do Período */}
@@ -1013,7 +1078,7 @@ const Dashboard: React.FC = () => {
                              const data = payload[0].payload;
                              const isProfit = data.revenue >= breakEvenR$;
                              const cmvPctToUse = (data.month === selectedMonth && realCmvResult.salesCount > 0) ? (realCmvResult.cmvPercent / 100) : (avgCmvPercent / 100);
-                             const estProfitRaw = data.revenue - (data.revenue * cmvPctToUse) - monthFixedCosts;
+                             const estProfitRaw = data.month === selectedMonth ? realProfit : (data.revenue - (data.revenue * cmvPctToUse) - monthFixedCosts);
                              return (
                                  <div className="bg-gray-900 border border-gray-700 p-4 rounded-xl shadow-xl min-w-[200px]">
                                      <p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-widest">{data.month}</p>
