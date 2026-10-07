@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
-import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, CollaboratorMeal, PaymentMethod, PaymentFrequency, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics, UserIntegrationBrendi, VariableCost } from '../types';
+import { GlobalState, Ingredient, Product, Expense, MonthlyData, CfiConfig, PlatformConfig, Category, IngredientCategory, Supplier, FixedCostMode, Combo, StoreInfo, MenuCategory, PurchaseEntry, SupplierMapping, SalesTransaction, Collaborator, CollaboratorPayment, CollaboratorMeal, PaymentMethod, PaymentFrequency, AccountReceivable, CustomReceivableOrigin, AccountReceivablePayment, ReceivablePaymentMethod, ReceivableStatus, BrendiOrder, CategoryRankingItem, RealtimeMonthMetrics, UserIntegrationBrendi, VariableCost, OfficialFinancialMetrics } from '../types';
 import { INITIAL_STATE, EMPTY_STATE, INITIAL_INGREDIENT_CATEGORIES } from '../constants';
 import { useAuth } from './AuthContext';
 import { collection, query, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
@@ -127,6 +127,7 @@ interface AppContextType extends GlobalState {
   getSortedProducts: () => Product[];
   getCmvAvgPercent: () => number;
   calculateBreakEven: (month: string) => number;
+  getOfficialFinancialMetrics: (monthKey?: string) => OfficialFinancialMetrics;
   brendiOrders: BrendiOrder[];
   isBrendiSyncing: boolean;
   getComboCMV: (combo: Combo) => number;
@@ -1446,7 +1447,19 @@ export const AppProvider: React.FC<{
     return 35; // Default fallback to 35% if no valid complete data exists
   };
 
-  const calculateBreakEven = (month: string): number => {
+  const getOfficialFinancialMetrics = (monthKey?: string): OfficialFinancialMetrics => {
+    // Determina o mês alvo: se não fornecido, busca o mês mais recente com faturamento ou dados reais
+    let targetMonth = monthKey;
+    if (!targetMonth) {
+      const activeRevenueMonths = (state.monthlyRevenue || []).filter(m => (m.revenue || 0) > 0);
+      if (activeRevenueMonths.length > 0) {
+        targetMonth = activeRevenueMonths[activeRevenueMonths.length - 1].month;
+      } else {
+        const brendiMonths = (brendiOrders || []).map(o => (o.createdAt || '').slice(0, 7)).filter(Boolean);
+        targetMonth = brendiMonths.length > 0 ? brendiMonths[brendiMonths.length - 1] : new Date().toISOString().slice(0, 7);
+      }
+    }
+
     // 1. Obter vendas reais e CMV real transacional através do serviço canônico
     const realSalesOutput = calculateRealSalesPeriodCmv({
       brendiOrders: brendiOrders || [],
@@ -1456,7 +1469,7 @@ export const AppProvider: React.FC<{
         ingredients: state.ingredients || [],
         combos: state.combos || []
       },
-      period: month
+      period: targetMonth
     });
 
     const realSales = realSalesOutput.cmvResult;
@@ -1465,11 +1478,39 @@ export const AppProvider: React.FC<{
 
     // Se não existirem vendas transacionais reais no período, permite usar monthlyRevenue se disponível
     if (realSales.salesCount === 0 && revenue === 0) {
-      const manualEntry = (state.monthlyRevenue || []).find(r => r.month === month);
+      const manualEntry = (state.monthlyRevenue || []).find(r => r.month === targetMonth);
       if (manualEntry && typeof manualEntry.revenue === 'number' && manualEntry.revenue > 0) {
         revenue = manualEntry.revenue;
       }
     }
+
+    // Contagem de pedidos reais
+    let ordersCount = realSales.salesCount;
+    if (ordersCount === 0) {
+      try {
+        const saved = localStorage.getItem('lucro_facil_be_monthly_orders_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          ordersCount = Number(parsed[targetMonth]) || 0;
+        }
+      } catch (e) {}
+    }
+
+    // Ticket médio real
+    let ticketMedio = 0;
+    if (ordersCount > 0 && revenue > 0) {
+      ticketMedio = revenue / ordersCount;
+    } else {
+      try {
+        const savedTm = localStorage.getItem('lucro_facil_be_monthly_ticket_v1');
+        if (savedTm) {
+          const parsedTm = JSON.parse(savedTm);
+          ticketMedio = Number(parsedTm[targetMonth]) || 0;
+        }
+      } catch (e) {}
+    }
+
+    const cmvPercent = revenue > 0 ? (realCmv / revenue) * 100 : 0;
 
     // 2. Custos Variáveis Reais Registrados (state.variableCosts)
     // EXCLUINDO categoria 'CMV' para garantir que não haja dupla contagem com realCmv
@@ -1477,27 +1518,79 @@ export const AppProvider: React.FC<{
     const otherVariableCosts = safeVarCosts
       .filter(c => {
         const costPeriod = c.period || (c.date ? c.date.slice(0, 7) : '');
-        const isPeriodMatch = costPeriod === month;
+        const isPeriodMatch = costPeriod === targetMonth;
         const isActive = c.status === 'Ativo';
         const isNotCmv = c.category !== 'CMV';
         return isPeriodMatch && isActive && isNotCmv;
       })
       .reduce((sum, c) => sum + (Number(c.value) || 0), 0);
 
+    const otherVariableCostsPercent = revenue > 0 ? (otherVariableCosts / revenue) * 100 : 0;
     const totalVariableCosts = realCmv + otherVariableCosts;
-    const variableCostPercent = revenue > 0 ? totalVariableCosts / revenue : 0;
-    const contributionMargin = 1 - variableCostPercent;
+    const variableCostFraction = revenue > 0 ? totalVariableCosts / revenue : 0;
+    const contributionMargin = 1 - variableCostFraction;
+    const contributionMarginValue = revenue - totalVariableCosts;
+    const contributionMarginPercent = revenue > 0 ? (contributionMarginValue / revenue) * 100 : 0;
 
     // 3. Custos Fixos com competência estrita canônica (getExpenseEffectiveMonth)
     const safeExpenses = state.expenses || [];
     const fixedCosts = safeExpenses
-      .filter(e => getExpenseEffectiveMonth(e) === month)
+      .filter(e => getExpenseEffectiveMonth(e) === targetMonth)
       .reduce((sum, e) => sum + (Number(e.value) || 0), 0);
 
-    // 4. Ponto de Equilíbrio = Custos Fixos / Margem de Contribuição
-    // Proteção: se Margem de Contribuição <= 0, retorna 0
-    const breakEven = contributionMargin > 0 ? fixedCosts / contributionMargin : 0;
-    return breakEven;
+    // 4. Ponto de Equilíbrio Canônico
+    const breakEvenValue = contributionMargin > 0 ? fixedCosts / contributionMargin : 0;
+
+    let breakEvenStatus: OfficialFinancialMetrics['breakEvenStatus'] = 'sem_dados';
+    let breakEvenStatusText = 'Sem dados suficientes';
+    let progressPercent = 0;
+
+    if (breakEvenValue === 0) {
+      if (revenue > 0 && fixedCosts === 0) {
+        breakEvenStatus = 'sem_custos_fixos';
+        breakEvenStatusText = 'Superou Ponto de Equilíbrio (Lucro - Sem custos fixos no período)';
+        progressPercent = 100;
+      }
+    } else {
+      progressPercent = (revenue / breakEvenValue) * 100;
+      if (revenue >= breakEvenValue) {
+        breakEvenStatus = 'superado';
+        breakEvenStatusText = `Superou Ponto de Equilíbrio (${progressPercent.toFixed(1)}% atingido - Lucro Operacional)`;
+      } else {
+        breakEvenStatus = 'nao_atingido';
+        breakEvenStatusText = `Abaixo do Ponto de Equilíbrio (${progressPercent.toFixed(1)}% atingido - Faltam R$ ${(breakEvenValue - revenue).toFixed(2)})`;
+      }
+    }
+
+    // 5. Resultado Líquido / Lucro Operacional
+    const operatingProfit = revenue - totalVariableCosts - fixedCosts;
+    const profitMarginPercent = revenue > 0 ? (operatingProfit / revenue) * 100 : 0;
+
+    return {
+      period: targetMonth,
+      revenue,
+      ordersCount,
+      ticketMedio,
+      realCmv,
+      cmvPercent,
+      otherVariableCosts,
+      otherVariableCostsPercent,
+      totalVariableCosts,
+      variableCostPercent: variableCostFraction * 100,
+      contributionMarginValue,
+      contributionMarginPercent,
+      fixedCosts,
+      breakEvenValue,
+      breakEvenStatus,
+      breakEvenStatusText,
+      progressPercent,
+      operatingProfit,
+      profitMarginPercent
+    };
+  };
+
+  const calculateBreakEven = (month: string): number => {
+    return getOfficialFinancialMetrics(month).breakEvenValue;
   };
 
   const getComboCMV = (combo: Combo): number => {
@@ -2229,6 +2322,7 @@ export const AppProvider: React.FC<{
       getSortedProducts,
       getCmvAvgPercent,
       calculateBreakEven,
+      getOfficialFinancialMetrics,
       brendiOrders,
       isBrendiSyncing,
       getComboCMV,

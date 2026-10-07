@@ -808,3 +808,25 @@ export interface PeriodCmvResult {
   sales: CanonicalSaleCmvResult[];
 }
 
+export interface OfficialFinancialMetrics {
+  period: string;
+  revenue: number;
+  ordersCount: number;
+  ticketMedio: number;
+  realCmv: number;
+  cmvPercent: number;
+  otherVariableCosts: number;
+  otherVariableCostsPercent: number;
+  totalVariableCosts: number;
+  variableCostPercent: number;
+  contributionMarginValue: number;
+  contributionMarginPercent: number;
+  fixedCosts: number;
+  breakEvenValue: number;
+  breakEvenStatus: 'superado' | 'atingido' | 'nao_atingido' | 'sem_custos_fixos' | 'sem_dados';
+  breakEvenStatusText: string;
+  progressPercent: number;
+  operatingProfit: number;
+  profitMarginPercent: number;
+}
+

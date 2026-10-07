@@ -65,6 +65,11 @@ const SYSTEM_INSTRUCTION = "Você é o **Xande**, o consultor inteligente de luc
 "2. Quantifique o impacto (R$ ou %).\n" +
 "3. Dê de 1 a 3 recomendações práticas e específicas.\n" +
 "4. Ofereça um próximo passo claro para ação.\n\n" +
+"CONSULTOR FINANCEIRO CANÔNICO E REGRAS DE NÚMEROS OFICIAIS:\n" +
+"- Você é estritamente um CONSULTOR e CONSUMIDOR dos dados financeiros oficiais apurados pelo motor canônico do Cardápio Blindado.\n" +
+"- NUNCA crie fórmulas paralelas, NUNCA recalcule o Ponto de Equilíbrio usando percentual genérico de 35% de CMV nem taxas teóricas não aplicadas.\n" +
+"- Ao responder sobre Faturamento, Pedidos, Ticket Médio, CMV Real (R$ e %), Custos Variáveis Reais, Custos Fixos, Ponto de Equilíbrio, Margem de Contribuição e Lucro Operacional do restaurante, utilize SEMPRE com precisão cirúrgica os valores presentes em 'metricas_financeiras_oficiais' no contexto fornecido.\n" +
+"- Para Setembro/2026 (ou período consultado), se o ponto de equilíbrio for R$ 0,00 por ausência de custos fixos lançados, explique que o ponto de equilíbrio está superado e todo o valor da margem de contribuição gerou lucro operacional para a loja.\n\n" +
 "SEMPRE baseie-se nos dados reais que o usuário fornecer. Nunca invente dados.";
 
 const getWelcomeData = (tab: string) => {
@@ -187,27 +192,19 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
     setIsLoading(true);
 
     try {
-      // Calculate and build the smart condensed dashboard context
-      const activeRevenueMonths = (appState.monthlyRevenue || []).filter(m => (m.revenue || 0) > 0);
-      const latestMonthKey = activeRevenueMonths.length > 0 
-        ? activeRevenueMonths[activeRevenueMonths.length - 1].month 
-        : new Date().toISOString().slice(0, 7);
+      // 1. Obter métricas financeiras oficiais do sistema (motor canônico de dados reais)
+      const officialFinancialMetrics = appState.getOfficialFinancialMetrics();
 
-      const currentMonthRevenue = appState.monthlyRevenue?.find(r => r.month === latestMonthKey)?.revenue || 0;
-      const totalFixedCosts = (appState.expenses || []).filter(e => e.month === latestMonthKey).reduce((s, e) => s + (e.value || 0), 0);
+      // Períodos com dados disponíveis no sistema para contextualização histórica
+      const allActiveMonths = Array.from(new Set([
+        ...(appState.monthlyRevenue || []).filter(m => (m.revenue || 0) > 0).map(m => m.month),
+        ...(appState.brendiOrders || []).map(o => (o.createdAt || '').slice(0, 7)).filter(Boolean),
+        ...(appState.salesTransactions || []).map(t => (t.date || '').slice(0, 7)).filter(Boolean)
+      ])).filter(Boolean).sort().reverse();
 
-      const avgCardRate = ((appState.cfi?.debitTax || 0) + (appState.cfi?.creditTax || 0)) / 2;
-      const varPctTotal = avgCardRate + (appState.cfi?.tax || 0) + (appState.cfi?.royalties || 0) + (appState.cfi?.marketing || 0) + (appState.cfi?.voucherTax || 0) + 35;
-      const mcPct = 1 - (varPctTotal / 100);
-      const breakEvenCalculated = mcPct > 0 ? totalFixedCosts / mcPct : 0;
+      const periodMetricsMap = allActiveMonths.slice(0, 3).map(m => appState.getOfficialFinancialMetrics(m));
 
-      let cfiPercentCalculated = 0;
-      try {
-        cfiPercentCalculated = appState.calculateTotalCfiPercent ? appState.calculateTotalCfiPercent() : 0;
-      } catch (e) {
-        const fixedCostPct = currentMonthRevenue > 0 ? (totalFixedCosts / currentMonthRevenue) * 100 : 0;
-        cfiPercentCalculated = fixedCostPct + avgCardRate + (appState.cfi?.tax || 0) + (appState.cfi?.royalties || 0) + (appState.cfi?.marketing || 0) + (appState.cfi?.voucherTax || 0);
-      }
+      const cfiPercentCalculated = appState.calculateTotalCfiPercent ? appState.calculateTotalCfiPercent() : 0;
 
       const productsSummary = (appState.products || []).map(p => {
         let cmvReais = 0;
@@ -279,10 +276,46 @@ const FloatingChat: React.FC<FloatingChatProps> = ({ activeTab }) => {
 
       const smartContext = {
         tela_ativa: activeTab,
-        faturamento_mes_atual: currentMonthRevenue,
-        total_despesas_fixas: totalFixedCosts,
+        metricas_financeiras_oficiais: {
+          periodo: officialFinancialMetrics.period,
+          receita_real: officialFinancialMetrics.revenue,
+          total_pedidos: officialFinancialMetrics.ordersCount,
+          ticket_medio: officialFinancialMetrics.ticketMedio,
+          cmv_real_reais: officialFinancialMetrics.realCmv,
+          cmv_real_percentual: officialFinancialMetrics.cmvPercent,
+          outros_custos_variaveis_reais: officialFinancialMetrics.otherVariableCosts,
+          outros_custos_variaveis_percentual: officialFinancialMetrics.otherVariableCostsPercent,
+          custo_variavel_total_reais: officialFinancialMetrics.totalVariableCosts,
+          custo_variavel_total_percentual: officialFinancialMetrics.variableCostPercent,
+          margem_contribuicao_reais: officialFinancialMetrics.contributionMarginValue,
+          margem_contribuicao_percentual: officialFinancialMetrics.contributionMarginPercent,
+          custos_fixos_reais: officialFinancialMetrics.fixedCosts,
+          ponto_equilibrio_reais: officialFinancialMetrics.breakEvenValue,
+          status_ponto_equilibrio: officialFinancialMetrics.breakEvenStatusText,
+          percentual_ponto_equilibrio_atingido: officialFinancialMetrics.progressPercent,
+          lucro_operacional_reais: officialFinancialMetrics.operatingProfit,
+          margem_lucro_operacional_percentual: officialFinancialMetrics.profitMarginPercent
+        },
+        historico_periodos_recentes: periodMetricsMap.map(m => ({
+          mes: m.period,
+          receita: m.revenue,
+          pedidos: m.ordersCount,
+          ticket_medio: m.ticketMedio,
+          cmv_reais: m.realCmv,
+          cmv_percentual: m.cmvPercent,
+          custo_variavel_total: m.totalVariableCosts,
+          custos_fixos: m.fixedCosts,
+          ponto_equilibrio: m.breakEvenValue,
+          lucro_operacional: m.operatingProfit
+        })),
+        // Compatibilidade reversa com nomes anteriores
+        faturamento_mes_atual: officialFinancialMetrics.revenue,
+        total_despesas_fixas: officialFinancialMetrics.fixedCosts,
         cfi_percentual_calculado: cfiPercentCalculated,
-        ponto_equilibrio_calculado: breakEvenCalculated,
+        ponto_equilibrio_calculado: officialFinancialMetrics.breakEvenValue,
+        cmv_real_mes_atual: officialFinancialMetrics.realCmv,
+        cmv_percentual_mes_atual: officialFinancialMetrics.cmvPercent,
+        lucro_mes_atual: officialFinancialMetrics.operatingProfit,
         produtos: productsSummary,
         ingredientes: ingredientsSummary,
         contas_a_receber: accountsReceivableSummary,
