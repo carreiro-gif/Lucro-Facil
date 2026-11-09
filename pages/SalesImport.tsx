@@ -1092,15 +1092,15 @@ const SalesImport: React.FC = () => {
 
       {/* Modal Inteligente de Confirmação para Limpeza de Vendas */}
       {showClearModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl space-y-5 animate-fade-in">
-            <div className="flex items-center gap-3 text-red-400">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl max-w-md w-full p-6 text-gray-900 dark:text-white shadow-2xl space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3 text-red-500 dark:text-red-400">
               <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center shrink-0">
                 <AlertTriangle size={24} />
               </div>
               <div>
-                <h3 className="font-black text-lg text-white">Como deseja limpar as vendas?</h3>
-                <p className="text-xs text-slate-400">Escolha o escopo de limpeza de vendas:</p>
+                <h3 className="font-black text-lg text-gray-900 dark:text-white">Como deseja limpar as vendas?</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Escolha o escopo de limpeza de vendas:</p>
               </div>
             </div>
 
@@ -1116,12 +1116,12 @@ const SalesImport: React.FC = () => {
                   setShowClearModal(false);
                   addXandeBotMessage(`Prontinho! As vendas de **${selectedMonth}** foram limpas com sucesso.`);
                 }}
-                className="w-full text-left p-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 transition group"
+                className="w-full text-left p-4 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-amber-500/50 transition group"
               >
-                <div className="font-bold text-sm text-white group-hover:text-brand-yellow">
+                <div className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-brand-yellow">
                   1. Limpar apenas o mês selecionado ({selectedMonth})
                 </div>
-                <div className="text-xs text-slate-400 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                   Apaga somente os {filteredSalesTransactions.length} pedidos deste mês. Os outros meses continuam intactos.
                 </div>
               </button>
@@ -1136,12 +1136,12 @@ const SalesImport: React.FC = () => {
                   setShowClearModal(false);
                   addXandeBotMessage("Todas as vendas de todos os meses foram limpas com sucesso.");
                 }}
-                className="w-full text-left p-4 rounded-xl bg-red-950/30 hover:bg-red-950/50 border border-red-800/50 hover:border-red-600 transition group"
+                className="w-full text-left p-4 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-800/50 hover:border-red-400 dark:hover:border-red-600 transition group"
               >
-                <div className="font-bold text-sm text-red-300 group-hover:text-red-200">
+                <div className="font-bold text-sm text-red-600 dark:text-red-300 group-hover:text-red-700 dark:group-hover:text-red-200">
                   2. Limpar TODOS os meses ({salesTransactions.length} pedidos no total)
                 </div>
-                <div className="text-xs text-red-400/80 mt-0.5">
+                <div className="text-xs text-red-500/80 dark:text-red-400/80 mt-0.5">
                   Remove todo o histórico de vendas de todos os meses.
                 </div>
               </button>
@@ -1151,7 +1151,7 @@ const SalesImport: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowClearModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 rounded-xl text-xs font-bold transition"
               >
                 Cancelar
               </button>

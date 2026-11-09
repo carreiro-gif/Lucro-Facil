@@ -7,7 +7,7 @@ import { collection, query, orderBy, limit, onSnapshot, doc } from 'firebase/fir
 import { db } from '../firebase';
 import { BrendiConsolidatedReport, isCorruptedBrendiImportTransaction } from '../utils/brendiReportParser';
 import { BRENDI_SEPTEMBER_REALTIME_ORDERS } from '../data/brendiSeptemberRealtimeOrders';
-import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
+import { getExpenseEffectiveMonth, isJuridicaExpense } from '../utils/expenseUtils';
 import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
 
 interface AppContextType extends GlobalState {
@@ -377,7 +377,7 @@ export const AppProvider: React.FC<{
         const monthlyCost = Math.round(Number(brendi.smartCampaign.dailyInvestment) * 30 * 100) / 100;
         const existingIdx = newExpenses.findIndex(e => e.month === currentMonth && e.description === 'Campanha Inteligente iFood');
         if (existingIdx === -1) {
-          newExpenses.push({
+            newExpenses.push({
             id: `exp_ci_ifood_${currentMonth}`,
             month: currentMonth,
             description: 'Campanha Inteligente iFood',
@@ -385,6 +385,7 @@ export const AppProvider: React.FC<{
             category: 'Marketing e Divulgação',
             dueDate: `${currentMonth}-10`,
             paid: false,
+            tipo_patrimonio: 'Jurídica',
           });
           expensesChanged = true;
         }
@@ -425,6 +426,7 @@ export const AppProvider: React.FC<{
                 category: 'Taxas e Serviços',
                 dueDate: `${m}-15`,
                 paid: false,
+                tipo_patrimonio: 'Jurídica',
               });
               expensesChanged = true;
             }
@@ -641,10 +643,38 @@ export const AppProvider: React.FC<{
   };
   const deleteCombo = (id: string) => setState(s => ({ ...s, combos: s.combos.filter(c => c.id !== id) }));
 
-  const addExpense = (exp: Expense) => setState(s => ({ ...s, expenses: [...s.expenses, exp] }));
+  const addExpense = (exp: Expense) => setState(s => ({ 
+    ...s, 
+    expenses: [...s.expenses, { ...exp, tipo_patrimonio: exp.tipo_patrimonio || 'Jurídica' }] 
+  }));
+
   const updateExpense = (id: string, data: Partial<Expense>) => {
-    setState(s => ({ ...s, expenses: s.expenses.map(e => e.id === id ? { ...e, ...data } : e) }));
+    setState(s => {
+      const expenseToUpdate = s.expenses.find(e => e.id === id);
+      if (!expenseToUpdate) return s;
+
+      const groupId = expenseToUpdate.installment?.id;
+      const shouldSyncGroupPatrimonio = Boolean(
+        groupId &&
+        data.tipo_patrimonio !== undefined &&
+        data.tipo_patrimonio !== expenseToUpdate.tipo_patrimonio
+      );
+
+      return {
+        ...s,
+        expenses: s.expenses.map(e => {
+          if (e.id === id) {
+            return { ...e, ...data };
+          }
+          if (shouldSyncGroupPatrimonio && e.installment?.id === groupId) {
+            return { ...e, tipo_patrimonio: data.tipo_patrimonio };
+          }
+          return e;
+        })
+      };
+    });
   };
+
   const updateExpenseAndFutureInstallments = (id: string, data: Partial<Expense>) => {
     setState(s => {
       const expenseToUpdate = s.expenses.find(e => e.id === id);
@@ -654,6 +684,10 @@ export const AppProvider: React.FC<{
       
       const groupId = expenseToUpdate.installment.id;
       const currentInstallment = expenseToUpdate.installment.current;
+      const shouldSyncGroupPatrimonio = Boolean(
+        groupId &&
+        data.tipo_patrimonio !== undefined
+      );
       
       return {
         ...s,
@@ -661,13 +695,20 @@ export const AppProvider: React.FC<{
           if (e.id === id) {
             return { ...e, ...data };
           }
-          if (e.installment?.id === groupId && e.installment.current > currentInstallment) {
+          if (Boolean(groupId) && e.installment?.id === groupId && e.installment.current > currentInstallment) {
             return { 
               ...e, 
               value: data.value ?? e.value,
               description: data.description ?? e.description,
               category: data.category ?? e.category,
-              creditor: data.creditor !== undefined ? data.creditor : e.creditor
+              creditor: data.creditor !== undefined ? data.creditor : e.creditor,
+              tipo_patrimonio: data.tipo_patrimonio !== undefined ? data.tipo_patrimonio : e.tipo_patrimonio
+            };
+          }
+          if (shouldSyncGroupPatrimonio && e.installment?.id === groupId) {
+            return {
+              ...e,
+              tipo_patrimonio: data.tipo_patrimonio
             };
           }
           return e;
@@ -675,26 +716,39 @@ export const AppProvider: React.FC<{
       };
     });
   };
+
   const deleteExpense = (id: string) => setState(s => ({ ...s, expenses: s.expenses.filter(e => e.id !== id) }));
+
   const addExpenseWithInstallments = (baseExp: Omit<Expense, 'id' | 'installment'>, installments: number) => {
+    const finalTipo = baseExp.tipo_patrimonio || 'Jurídica';
+    const finalBaseExp = { ...baseExp, tipo_patrimonio: finalTipo };
+
     if (installments <= 1) {
-      addExpense({ ...baseExp, id: Math.random().toString(36).substr(2, 9) });
+      addExpense({ ...finalBaseExp, id: Math.random().toString(36).substr(2, 9) });
       return;
     }
     const newExpenses: Expense[] = [];
-    const groupId = Math.random().toString(36).substr(2, 9);
-    let [year, month] = baseExp.month.split('-').map(Number);
+    const groupId = `grp_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 7)}`;
+    let [year, month] = finalBaseExp.month.split('-').map(Number);
     for (let i = 1; i <= installments; i++) {
       const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
       let dueDateStr = undefined;
-      if (baseExp.dueDate) {
-        const [dYear, dMonth, dDay] = baseExp.dueDate.split('-').map(Number);
+      if (finalBaseExp.dueDate) {
+        const [dYear, dMonth, dDay] = finalBaseExp.dueDate.split('-').map(Number);
         let targetMonth = dMonth + (i - 1);
         let targetYear = dYear;
         while (targetMonth > 12) { targetMonth -= 12; targetYear++; }
-        dueDateStr = `${targetYear}-${targetMonth.toString().padStart(2, '0')}-${dDay.toString().padStart(2, '0')}`;
+        const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+        const safeDay = Math.min(dDay, maxDays);
+        dueDateStr = `${targetYear}-${targetMonth.toString().padStart(2, '0')}-${safeDay.toString().padStart(2, '0')}`;
       }
-      newExpenses.push({ ...baseExp, id: Math.random().toString(36).substr(2, 9), month: monthStr, dueDate: dueDateStr, installment: { current: i, total: installments, id: groupId } });
+      newExpenses.push({ 
+        ...finalBaseExp, 
+        id: Math.random().toString(36).substr(2, 9), 
+        month: monthStr, 
+        dueDate: dueDateStr, 
+        installment: { current: i, total: installments, id: groupId } 
+      });
       month++; if (month > 12) { month = 1; year++; }
     }
     setState(s => ({ ...s, expenses: [...s.expenses, ...newExpenses] }));
@@ -945,7 +999,8 @@ export const AppProvider: React.FC<{
       value: payment.baseAmount,
       category: expCategory,
       dueDate: payment.date,
-      paid: payment.status === 'pago'
+      paid: payment.status === 'pago',
+      tipo_patrimonio: 'Jurídica'
     };
 
     const existingIdx = currentExpenses.findIndex(e => e.id === expId);
@@ -1018,7 +1073,8 @@ export const AppProvider: React.FC<{
             value: totalBaseAmount,
             category: options.expenseCategory || 'Mão de obra Não Contratada (Extras)',
             dueDate: refDate,
-            paid: allPaid
+            paid: allPaid,
+            tipo_patrimonio: 'Jurídica'
           };
           currentExpenses.push(consExpense);
         }
@@ -1190,7 +1246,8 @@ export const AppProvider: React.FC<{
           value: totalBase,
           category: params.expenseCategory || 'Mão de obra Não Contratada (Extras)',
           dueDate: params.paymentDate,
-          paid: true
+          paid: true,
+          tipo_patrimonio: 'Jurídica'
         };
         currentExpenses.push(newConsExpense);
 
@@ -1266,7 +1323,8 @@ export const AppProvider: React.FC<{
           value: totalVal,
           category: 'Mão de obra Não Contratada (Extras)',
           dueDate: `${month}-28`,
-          paid: allPaid
+          paid: allPaid,
+          tipo_patrimonio: 'Jurídica'
         };
 
         // Replace individual expenses with single consolidated expense
@@ -1380,7 +1438,7 @@ export const AppProvider: React.FC<{
        // 3. Sum Cost and Revenue for these specific months
        last12.forEach(m => {
           const monthCost = safeExpenses
-            .filter(e => e.month === m.month)
+            .filter(e => e.month === m.month && isJuridicaExpense(e))
             .reduce((sum, e) => sum + Number(e.value), 0);
           
           totalFixedCost += monthCost;
@@ -1397,7 +1455,7 @@ export const AppProvider: React.FC<{
         const targetMonth = currentMonth || new Date().toISOString().slice(0, 7);
         
         const totalFixedCost = safeExpenses
-            .filter(e => e.month === targetMonth)
+            .filter(e => e.month === targetMonth && isJuridicaExpense(e))
             .reduce((sum, e) => sum + Number(e.value), 0);
             
         const revenueEntry = safeRevenue.find(r => r.month === targetMonth);
@@ -1535,7 +1593,7 @@ export const AppProvider: React.FC<{
     // 3. Custos Fixos com competência estrita canônica (getExpenseEffectiveMonth)
     const safeExpenses = state.expenses || [];
     const fixedCosts = safeExpenses
-      .filter(e => getExpenseEffectiveMonth(e) === targetMonth)
+      .filter(e => getExpenseEffectiveMonth(e) === targetMonth && isJuridicaExpense(e))
       .reduce((sum, e) => sum + (Number(e.value) || 0), 0);
 
     // 4. Ponto de Equilíbrio Canônico
@@ -1724,7 +1782,7 @@ export const AppProvider: React.FC<{
 
     // 3. Fixed Costs / CFI
     const fixedCosts = (state.expenses || [])
-      .filter(e => getExpenseEffectiveMonth(e) === targetMonth)
+      .filter(e => getExpenseEffectiveMonth(e) === targetMonth && isJuridicaExpense(e))
       .reduce((sum, e) => sum + Number(e.value || 0), 0);
 
     const cfiPercent = calculateTotalCfiPercent();
@@ -1826,7 +1884,7 @@ export const AppProvider: React.FC<{
 
     const totalMonthRevenue = Array.from(itemMap.values()).reduce((sum, it) => sum + it.totalRevenue, 0);
     const monthFixedCosts = (state.expenses || [])
-      .filter(e => getExpenseEffectiveMonth(e) === targetMonth)
+      .filter(e => getExpenseEffectiveMonth(e) === targetMonth && isJuridicaExpense(e))
       .reduce((sum, e) => sum + Number(e.value || 0), 0);
 
     const avgCmvPercentFallback = getCmvAvgPercent();

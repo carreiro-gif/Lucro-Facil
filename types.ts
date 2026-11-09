@@ -111,6 +111,7 @@ export interface Expense {
   dueDate?: string;
   paid?: boolean;
   creditor?: string;
+  tipo_patrimonio?: 'Física' | 'Jurídica';
   installment?: {
     current: number;
     total: number;

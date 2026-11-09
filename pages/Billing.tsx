@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { ChevronLeft, ChevronRight, DollarSign, TrendingUp, AlertCircle, HelpCircle, X, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { isJuridicaExpense } from '../utils/expenseUtils';
 
 const MONTHS = [
   { value: '01', label: 'Janeiro' },
@@ -212,7 +213,7 @@ const Billing: React.FC = () => {
                 <table className="w-full">
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                         {yearData.map((month) => {
-                            const monthExpenses = (expenses || []).filter(e => e.month === month.key).reduce((sum, e) => sum + Number(e.value), 0);
+                            const monthExpenses = (expenses || []).filter(e => e.month === month.key && isJuridicaExpense(e)).reduce((sum, e) => sum + Number(e.value), 0);
                             const fixedCostPercent = month.value > 0 ? (monthExpenses / month.value) * 100 : 0;
                             const totalCfiInstant = fixedCostPercent + totalVariableTax;
 

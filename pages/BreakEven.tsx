@@ -44,7 +44,7 @@ import {
 import { formatPercent } from '../constants';
 import { ExportReportButton } from '../components/ExportReportButton';
 import { exportBreakEvenReport } from '../utils/pdfExport';
-import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
+import { getExpenseEffectiveMonth, isJuridicaExpense } from '../utils/expenseUtils';
 import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
 
 interface VarCostEntry {
@@ -603,7 +603,7 @@ const BreakEven: React.FC = () => {
     const fixedCosts = useMemo(() => {
         const safeExpenses = expenses || [];
         return safeExpenses
-            .filter(e => getExpenseEffectiveMonth(e) === selectedMonth)
+            .filter(e => getExpenseEffectiveMonth(e) === selectedMonth && isJuridicaExpense(e))
             .reduce((s, e) => s + (Number(e.value) || 0), 0);
     }, [expenses, selectedMonth]);
 

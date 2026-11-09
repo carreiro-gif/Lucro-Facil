@@ -24,7 +24,7 @@
         "products": { "type": "array", "description": "Raw list of products and recipes" },
         "menuCategories": { "type": "array", "description": "Ordering and name list of menu categories" },
         "combos": { "type": "array", "description": "List of combo items and their pricing config" },
-        "expenses": { "type": "array", "description": "Expense records with category, status, value, month" },
+        "expenses": { "type": "array", "description": "Expense records with category, status, value, month, tipo_patrimonio (Física | Jurídica), and installment details" },
         "monthlyRevenue": { "type": "array", "description": "Revenue per month" },
         "cfi": { "type": "object", "description": "Global CFI configuration" },
         "platformConfig": { "type": "object", "description": "Platform delivery configs" },

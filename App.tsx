@@ -172,6 +172,8 @@ const sanitizeGlobalState = (data: any): GlobalState => {
         category: e.category || 'Outros',
         dueDate: e.dueDate,
         paid: !!e.paid,
+        creditor: e.creditor || undefined,
+        tipo_patrimonio: e.tipo_patrimonio === 'Física' ? 'Física' : 'Jurídica',
         installment: e.installment ? {
             current: Number(e.installment.current),
             total: Number(e.installment.total),

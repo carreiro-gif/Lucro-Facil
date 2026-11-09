@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable, { UserOptions } from 'jspdf-autotable';
 import { Product, Combo, Ingredient, Expense, MonthlyData, CfiConfig, PlatformConfig, MenuCategory, SalesTransaction, CategoryRankingItem, RealtimeMonthMetrics } from '../types';
+import { isJuridicaExpense } from './expenseUtils';
 
 // Formatters
 export const formatCurrency = (val: number): string => {
@@ -699,6 +700,11 @@ export const exportExpensesReport = (params: {
   const totalPaid = targetExpenses.filter(e => e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
   const totalPending = totalValue - totalPaid;
 
+  const totalJuridica = targetExpenses.filter(e => isJuridicaExpense(e)).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const totalFisica = targetExpenses.filter(e => !isJuridicaExpense(e)).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const countJuridica = targetExpenses.filter(e => isJuridicaExpense(e)).length;
+  const countFisica = targetExpenses.filter(e => !isJuridicaExpense(e)).length;
+
   // Header Extra Info
   const headerInfo: string[] = [];
   if (filtersSummary && filtersSummary.length > 0) {
@@ -712,7 +718,8 @@ export const exportExpensesReport = (params: {
     };
     headerInfo.push(`Mês de Referência: ${monthNames[monthStr] || monthStr} de ${yearStr}`);
   }
-  headerInfo.push(`Total: ${formatCurrency(totalValue)} • Pago: ${formatCurrency(totalPaid)} • Pendente: ${formatCurrency(totalPending)} • Total de Itens: ${targetExpenses.length}`);
+  headerInfo.push(`Total Geral: ${formatCurrency(totalValue)} • PJ (Empresa): ${formatCurrency(totalJuridica)} (${countJuridica}) • PF (Pessoal): ${formatCurrency(totalFisica)} (${countFisica})`);
+  headerInfo.push(`Status: Pago: ${formatCurrency(totalPaid)} • Pendente: ${formatCurrency(totalPending)} • Total de Lançamentos: ${targetExpenses.length}`);
 
   const reportTitle = title || 'Relatório de Contas a Pagar / Despesas Fixas';
   const startY = drawDocumentHeader(doc, reportTitle, storeName, headerInfo);
@@ -727,12 +734,16 @@ export const exportExpensesReport = (params: {
     const statusText = exp.paid ? 'PAGO' : 'PENDENTE';
     const statusColor = exp.paid ? [22, 163, 74] : [220, 38, 38];
     const installmentText = exp.installment ? `${exp.installment.current}/${exp.installment.total}` : '-';
+    const isPJ = isJuridicaExpense(exp);
+    const patText = isPJ ? 'PJ' : 'PF';
+    const patColor = isPJ ? [30, 64, 175] : [126, 34, 206];
 
     return [
       idx + 1,
       exp.description,
       exp.creditor || '-',
       getCatName(exp.category),
+      { content: patText, styles: { textColor: patColor as [number, number, number], fontStyle: 'bold' as const } },
       dueDateFormatted,
       installmentText,
       formatCurrency(Number(exp.value) || 0),
@@ -743,11 +754,11 @@ export const exportExpensesReport = (params: {
   autoTable(doc, {
     startY: startY,
     head: [[
-      '#', 'Descrição da Despesa', 'Credor / Origem', 'Categoria', 'Vencimento', 'Parcela', 'Valor (R$)', 'Status'
+      '#', 'Descrição da Despesa', 'Credor / Origem', 'Categoria', 'Patrimônio', 'Vencimento', 'Parcela', 'Valor (R$)', 'Status'
     ]],
     body: tableBody,
     foot: [[
-      { content: 'TOTAL GERAL', colSpan: 6, styles: { fontStyle: 'bold', halign: 'right' } },
+      { content: 'TOTAL GERAL', colSpan: 7, styles: { fontStyle: 'bold', halign: 'right' } },
       { content: formatCurrency(totalValue), styles: { fontStyle: 'bold', halign: 'center' } },
       { content: '', colSpan: 1 }
     ]],
@@ -777,13 +788,91 @@ export const exportExpensesReport = (params: {
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 70, halign: 'left', fontStyle: 'bold' },
-      2: { cellWidth: 45, halign: 'left' },
-      3: { cellWidth: 40, halign: 'left' },
-      4: { cellWidth: 26, halign: 'center' },
-      5: { cellWidth: 20, halign: 'center' },
-      6: { cellWidth: 32, halign: 'center', fontStyle: 'bold' },
-      7: { cellWidth: 26, halign: 'center' }
+      1: { cellWidth: 65, halign: 'left', fontStyle: 'bold' },
+      2: { cellWidth: 42, halign: 'left' },
+      3: { cellWidth: 38, halign: 'left' },
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 24, halign: 'center' },
+      6: { cellWidth: 18, halign: 'center' },
+      7: { cellWidth: 30, halign: 'center', fontStyle: 'bold' },
+      8: { cellWidth: 22, halign: 'center' }
+    },
+    margin: { left: 14, right: 14, bottom: 16 }
+  });
+
+  // Calculate Subtotals by Patrimony
+  const paidJuridica = targetExpenses.filter(e => isJuridicaExpense(e) && e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const pendJuridica = totalJuridica - paidJuridica;
+  const pctJuridica = totalValue > 0 ? (totalJuridica / totalValue) * 100 : 0;
+
+  const paidFisica = targetExpenses.filter(e => !isJuridicaExpense(e) && e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const pendFisica = totalFisica - paidFisica;
+  const pctFisica = totalValue > 0 ? (totalFisica / totalValue) * 100 : 0;
+
+  const patrimonyRows = [
+    [
+      'Pessoa Jurídica (Empresa - CFI & Equilíbrio)',
+      countJuridica.toString(),
+      formatCurrency(totalJuridica),
+      formatCurrency(paidJuridica),
+      formatCurrency(pendJuridica),
+      formatPct(pctJuridica)
+    ],
+    [
+      'Pessoa Física (Pessoal - Isolada do Negócio)',
+      countFisica.toString(),
+      formatCurrency(totalFisica),
+      formatCurrency(paidFisica),
+      formatCurrency(pendFisica),
+      formatPct(pctFisica)
+    ]
+  ];
+
+  const firstTableFinalY = (doc as any).lastAutoTable.finalY || startY + 50;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let currentY = firstTableFinalY + 10;
+  if (currentY + 35 > pageHeight) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(26, 26, 46);
+  doc.text('SUBTOTAIS POR SEPARAÇÃO PATRIMONIAL (PJ x PF)', 14, currentY - 2);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [[
+      'Classificação Patrimonial', 'Qtd. Despesas', 'Total (R$)', 'Total Pago (R$)', 'A Pagar (R$)', '% do Total'
+    ]],
+    body: patrimonyRows,
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+      textColor: [31, 41, 55],
+      lineColor: [229, 231, 235],
+      lineWidth: 0.3,
+      halign: 'center'
+    },
+    headStyles: {
+      fillColor: [30, 64, 175],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8.5,
+      halign: 'center'
+    },
+    alternateRowStyles: {
+      fillColor: [249, 250, 251]
+    },
+    columnStyles: {
+      0: { cellWidth: 80, halign: 'left', fontStyle: 'bold' },
+      1: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 40, halign: 'center' },
+      4: { cellWidth: 40, halign: 'center' },
+      5: { cellWidth: 30, halign: 'center' }
     },
     margin: { left: 14, right: 14, bottom: 16 }
   });
@@ -816,11 +905,8 @@ export const exportExpensesReport = (params: {
     });
 
   if (catRows.length > 0) {
-    const finalY = (doc as any).lastAutoTable.finalY || startY + 50;
-    
-    // Check if we need page break or have enough space
-    const pageHeight = doc.internal.pageSize.getHeight();
-    let subtotalStartY = finalY + 10;
+    const patTableFinalY = (doc as any).lastAutoTable.finalY || currentY + 30;
+    let subtotalStartY = patTableFinalY + 10;
     if (subtotalStartY + 40 > pageHeight) {
       doc.addPage();
       subtotalStartY = 20;

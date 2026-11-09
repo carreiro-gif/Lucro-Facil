@@ -7,7 +7,7 @@ import { TrialBlindagemWidget } from '../components/TrialBlindagemWidget';
 import { BrendiLogo, IFoodLogo, Food99Logo, KeetaLogo } from '../components/PlatformLogos';
 import { isCorruptedBrendiImportTransaction } from '../utils/brendiReportParser';
 import { calculateRealSalesPeriodCmv } from '../services/realSalesCmvService';
-import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
+import { getExpenseEffectiveMonth, isJuridicaExpense } from '../utils/expenseUtils';
 
 const formatMoney = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
   // 2. Costs & Profit Math for selected month
   const monthFixedCosts = useMemo(() => {
     return expenses
-      .filter(e => getExpenseEffectiveMonth(e) === selectedMonth)
+      .filter(e => getExpenseEffectiveMonth(e) === selectedMonth && isJuridicaExpense(e))
       .reduce((s, e) => s + (Number(e.value) || 0), 0);
   }, [expenses, selectedMonth]);
 

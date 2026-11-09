@@ -1,5 +1,12 @@
 
 /* Reset básico e garantia de altura total para a aplicação React */
+html {
+  font-size: 15px; /* Base font size: 15px */
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 html, body {
   height: 100%;
   width: 100%;
@@ -8,6 +15,23 @@ html, body {
   overflow-x: hidden; /* Evita rolagem horizontal indesejada */
   background-color: var(--app-bg, #111827); /* Fallback bg color */
   position: relative;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 400; /* Textos corridos e parágrafos: 400 Regular */
+}
+
+/* Hierarquia Tipográfica Visual Clara */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600; /* Títulos principais e cabeçalhos de seção: 600 SemiBold */
+}
+
+label, th {
+  font-weight: 500; /* Rótulos de campos e cabeçalhos de tabelas: 500 Medium */
+}
+
+/* Valores monetários e métricas principais: 700 Bold */
+.font-bold, .font-black, .font-extrabold, .metric-value, .currency-value {
+  font-weight: 700 !important;
 }
 
 body::before {

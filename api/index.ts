@@ -6,7 +6,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, updateDoc, setDoc } from "firebase/firestore";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Custom CORS middleware to allow cross-origin requests in development
 app.use((req, res, next) => {
@@ -414,14 +414,20 @@ app.get("/api/health", (req, res) => {
 });
 
 // Export app for Vercel Serverless Function support
+export { app, startServer };
 export default app;
 
+let serverStarted = false;
+
 async function startServer() {
+  if (serverStarted) return;
+  serverStarted = true;
+
   // Vite development middleware vs Static Production routes
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -444,3 +450,4 @@ async function startServer() {
 if (!process.env.VERCEL) {
   startServer();
 }
+

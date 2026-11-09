@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { 
   Plus, Settings, Calendar, Edit2, AlertTriangle, X, ChevronLeft, ChevronRight, 
   CheckCircle, Clock, HelpCircle, Trash, Search, RotateCcw, 
-  FileText, Building2, ChevronDown, DollarSign, Tag, Layers, Printer
+  FileText, Building2, ChevronDown, DollarSign, Tag, Layers, Printer, Link2
 } from 'lucide-react';
 import { Expense } from '../types';
 import { formatPercent } from '../constants';
@@ -25,8 +25,8 @@ const MONTHS = [
   { value: '12', label: 'Dezembro' },
 ];
 
-import { getExpenseEffectiveMonth } from '../utils/expenseUtils';
-export { getExpenseEffectiveMonth };
+import { getExpenseEffectiveMonth, isJuridicaExpense } from '../utils/expenseUtils';
+export { getExpenseEffectiveMonth, isJuridicaExpense };
 
 const Expenses: React.FC = () => {
   const { 
@@ -36,6 +36,7 @@ const Expenses: React.FC = () => {
     addExpenseWithInstallments, 
     updateExpense, 
     updateExpenseAndFutureInstallments,
+    associateInstallmentsToGroup,
     deleteExpense,
     fixedCostMode, 
     setFixedCostMode,
@@ -60,6 +61,7 @@ const Expenses: React.FC = () => {
 
   // Advanced filter states
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PAID' | 'DUE_SOON' | 'OVERDUE' | 'INSTALLMENTS'>('ALL');
+  const [patrimonioFilter, setPatrimonioFilter] = useState<'ALL' | 'JURIDICA' | 'FISICA'>('ALL');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -72,6 +74,9 @@ const Expenses: React.FC = () => {
   const [pendingEditData, setPendingEditData] = useState<any>(null);
   const [showOverdueModal, setShowOverdueModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showManualLinkModal, setShowManualLinkModal] = useState(false);
+  const [currentLinkingExpense, setCurrentLinkingExpense] = useState<Expense | null>(null);
+  const [selectedLinkExpenseIds, setSelectedLinkExpenseIds] = useState<string[]>([]);
 
   // Form States
   const [formMonthStr, setFormMonthStr] = useState(`${currentYear}-${currentMonthVal}`);
@@ -81,6 +86,7 @@ const Expenses: React.FC = () => {
   const [cat, setCat] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [isPaid, setIsPaid] = useState(false);
+  const [tipoPatrimonio, setTipoPatrimonio] = useState<'Jurídica' | 'Física'>('Jurídica');
   const [installmentType, setInstallmentType] = useState<'SINGLE' | 'INSTALLMENTS' | 'RECURRING'>('SINGLE');
   const [installmentsCount, setInstallmentsCount] = useState(1);
 
@@ -240,6 +246,13 @@ const Expenses: React.FC = () => {
       result = result.filter(e => Boolean(e.installment));
     }
 
+    // Patrimonio filter
+    if (patrimonioFilter === 'JURIDICA') {
+      result = result.filter(e => isJuridicaExpense(e));
+    } else if (patrimonioFilter === 'FISICA') {
+      result = result.filter(e => e.tipo_patrimonio === 'Física');
+    }
+
     // Categories filter
     if (selectedCategories.length > 0) {
       result = result.filter(e => selectedCategories.includes(e.category));
@@ -262,17 +275,18 @@ const Expenses: React.FC = () => {
       const dateB = b.dueDate || b.month;
       return dateA.localeCompare(dateB);
     });
-  }, [periodFilteredExpenses, statusFilter, selectedCategories, searchTerm]);
+  }, [periodFilteredExpenses, statusFilter, patrimonioFilter, selectedCategories, searchTerm]);
 
   // Check how many active filters are applied
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (periodMode !== 'MONTH' || viewYear !== currentYear || viewMonth !== currentMonthVal) count++;
     if (statusFilter !== 'ALL') count++;
+    if (patrimonioFilter !== 'ALL') count++;
     if (selectedCategories.length > 0) count++;
     if (searchTerm.trim() !== '') count++;
     return count;
-  }, [periodMode, viewYear, viewMonth, currentYear, currentMonthVal, statusFilter, selectedCategories, searchTerm]);
+  }, [periodMode, viewYear, viewMonth, currentYear, currentMonthVal, statusFilter, patrimonioFilter, selectedCategories, searchTerm]);
 
   // Reset all filters to default
   const handleClearFilters = () => {
@@ -282,6 +296,7 @@ const Expenses: React.FC = () => {
     setCustomStartDate(`${currentYear}-01-01`);
     setCustomEndDate(`${currentYear}-12-31`);
     setStatusFilter('ALL');
+    setPatrimonioFilter('ALL');
     setSelectedCategories([]);
     setSearchTerm('');
   };
@@ -307,7 +322,7 @@ const Expenses: React.FC = () => {
 
     last12.forEach(m => {
       const exp = expenses
-        .filter(e => getExpenseEffectiveMonth(e) === m.month)
+        .filter(e => getExpenseEffectiveMonth(e) === m.month && isJuridicaExpense(e))
         .reduce((s, e) => s + Number(e.value), 0);
       const rev = Number(m.revenue);
       
@@ -325,7 +340,7 @@ const Expenses: React.FC = () => {
   const summaryData = useMemo(() => {
     return MONTHS.map(m => {
       const monthKey = `${viewYear}-${m.value}`;
-      const monthExpenses = expenses.filter(e => getExpenseEffectiveMonth(e) === monthKey);
+      const monthExpenses = expenses.filter(e => getExpenseEffectiveMonth(e) === monthKey && isJuridicaExpense(e));
       const totalCost = monthExpenses.reduce((sum, e) => sum + Number(e.value), 0);
       const revenueObj = monthlyRevenue.find(r => r.month === monthKey);
       const revenue = revenueObj ? Number(revenueObj.revenue) : 0;
@@ -369,6 +384,7 @@ const Expenses: React.FC = () => {
     setCat(categories[0]?.name || '');
     setDueDate('');
     setIsPaid(false);
+    setTipoPatrimonio('Jurídica');
     setInstallmentType('SINGLE');
     setInstallmentsCount(1);
     setIsModalOpen(true);
@@ -383,9 +399,37 @@ const Expenses: React.FC = () => {
     setCat(exp.category);
     setDueDate(exp.dueDate || '');
     setIsPaid(!!exp.paid);
+    setTipoPatrimonio(exp.tipo_patrimonio || 'Jurídica');
     setInstallmentType('SINGLE');
     setInstallmentsCount(1);
     setIsModalOpen(true);
+  };
+
+  const candidateExpenses = useMemo(() => {
+    if (!currentLinkingExpense) return [];
+    return expenses.filter(e => {
+      if (!e.installment) return false;
+      if (currentLinkingExpense.installment?.id && e.installment.id && e.installment.id !== currentLinkingExpense.installment.id) {
+        return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      if (a.description !== b.description) {
+        if (a.description === currentLinkingExpense.description) return -1;
+        if (b.description === currentLinkingExpense.description) return 1;
+        return a.description.localeCompare(b.description);
+      }
+      return (a.installment?.current || 0) - (b.installment?.current || 0);
+    });
+  }, [expenses, currentLinkingExpense]);
+
+  const openManualLinkModal = (exp: Expense) => {
+    setCurrentLinkingExpense(exp);
+    const preselected = expenses
+      .filter(e => Boolean(e.installment) && e.description.trim().toLowerCase() === exp.description.trim().toLowerCase())
+      .map(e => e.id);
+    setSelectedLinkExpenseIds(preselected.length > 0 ? preselected : [exp.id]);
+    setShowManualLinkModal(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -404,7 +448,8 @@ const Expenses: React.FC = () => {
         category: cat,
         month: effectiveMonthStr,
         dueDate: dueDate,
-        paid: isPaid
+        paid: isPaid,
+        tipo_patrimonio: tipoPatrimonio
       };
       
       if (exp?.installment && exp.installment.current < exp.installment.total) {
@@ -415,7 +460,7 @@ const Expenses: React.FC = () => {
         setIsModalOpen(false);
       }
     } else {
-      const count = installmentType === 'SINGLE' ? 1 : installmentsCount;
+      const count = installmentType === 'SINGLE' ? 1 : Math.max(1, Math.floor(Number(installmentsCount) || 1));
       addExpenseWithInstallments({
         month: effectiveMonthStr,
         description: desc,
@@ -423,7 +468,8 @@ const Expenses: React.FC = () => {
         value: parseFloat(val),
         category: cat,
         dueDate: dueDate,
-        paid: isPaid
+        paid: isPaid,
+        tipo_patrimonio: tipoPatrimonio
       }, count);
       setIsModalOpen(false);
     }
@@ -446,6 +492,10 @@ const Expenses: React.FC = () => {
     else if (statusFilter === 'DUE_SOON') list.push('Status: A Vencer');
     else if (statusFilter === 'OVERDUE') list.push('Status: Vencidas');
     else if (statusFilter === 'INSTALLMENTS') list.push('Status: Parceladas');
+
+    if (patrimonioFilter === 'JURIDICA') list.push('Patrimônio: 🏢 Jurídica (Empresa)');
+    else if (patrimonioFilter === 'FISICA') list.push('Patrimônio: 👤 Física (Pessoal)');
+    else list.push('Patrimônio: Todos');
 
     if (selectedCategories.length > 0) {
       list.push(`Categorias: ${selectedCategories.join(', ')}`);
@@ -815,6 +865,35 @@ const Expenses: React.FC = () => {
           </button>
         </div>
 
+        {/* Row 2.5: Patrimônio Pills (PJ / PF) */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">Patrimônio:</span>
+          
+          <button
+            onClick={() => setPatrimonioFilter('ALL')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${patrimonioFilter === 'ALL' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'}`}
+          >
+            <span>Todos</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full opacity-80">{periodFilteredExpenses.length}</span>
+          </button>
+
+          <button
+            onClick={() => setPatrimonioFilter('JURIDICA')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${patrimonioFilter === 'JURIDICA' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100'}`}
+          >
+            <span>🏢 Jurídica (Empresa)</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full opacity-80">{periodFilteredExpenses.filter(e => isJuridicaExpense(e)).length}</span>
+          </button>
+
+          <button
+            onClick={() => setPatrimonioFilter('FISICA')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${patrimonioFilter === 'FISICA' ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-100'}`}
+          >
+            <span>👤 Física (Pessoal)</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full opacity-80">{periodFilteredExpenses.filter(e => e.tipo_patrimonio === 'Física').length}</span>
+          </button>
+        </div>
+
         {/* Row 3: Real-Time Text Search & Multi-Category Filter */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1 border-t border-gray-100 dark:border-gray-800">
           
@@ -999,6 +1078,15 @@ const Expenses: React.FC = () => {
                       {/* Despesa / Descrição */}
                       <td className="px-5 py-3.5 font-bold text-gray-900 dark:text-white">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {exp.tipo_patrimonio === 'Física' ? (
+                            <span className="text-[10px] bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-bold border border-purple-200 dark:border-purple-800 shrink-0" title="Despesa Pessoal (Pessoa Física)">
+                              👤 PF
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-bold border border-blue-200 dark:border-blue-800 shrink-0" title="Despesa Empresarial (Pessoa Jurídica)">
+                              🏢 PJ
+                            </span>
+                          )}
                           <span title={exp.description} className="text-sm">
                             {exp.description}
                           </span>
@@ -1220,20 +1308,89 @@ const Expenses: React.FC = () => {
 
       {/* 5ª MELHORIA: MODAL DE NOVA / EDITAR DESPESA COM CAMPO CREDOR */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl animate-fade-in overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/80 dark:bg-gray-950/40">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl animate-fade-in flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="sticky top-0 z-10 p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 {editingExpenseId ? <Edit2 size={18} className="text-brand-red" /> : <Plus size={18} className="text-brand-red" />}
                 {editingExpenseId ? 'Editar Despesa' : 'Nova Despesa / Conta a Pagar'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-1 rounded-lg">
                 <X size={20}/>
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <form id="expense-form" onSubmit={handleSubmit} className="space-y-4">
               
+              {/* Classificação Patrimonial: Jurídica (Empresa) vs Física (Pessoal) */}
+              <div className="space-y-1 bg-gray-50 dark:bg-gray-800/40 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700">
+                <label className="text-xs text-gray-700 dark:text-gray-300 font-bold uppercase flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span>Classificação Patrimonial *</span>
+                  <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400">
+                    {tipoPatrimonio === 'Jurídica' ? '🏢 Empresa — Participa do CFI e Ponto de Equilíbrio' : '👤 Pessoal — Não afeta o CFI da empresa'}
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setTipoPatrimonio('Jurídica')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                      tipoPatrimonio === 'Jurídica'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <span>🏢 Pessoa Jurídica (PJ)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoPatrimonio('Física')}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                      tipoPatrimonio === 'Física'
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <span>👤 Pessoa Física (PF)</span>
+                  </button>
+                </div>
+                {editingExpenseId && expenses.find(e => e.id === editingExpenseId)?.installment && (
+                  (() => {
+                    const currentExp = expenses.find(e => e.id === editingExpenseId);
+                    const hasGroupId = Boolean(currentExp?.installment?.id);
+                    if (hasGroupId) {
+                      return (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5 pt-1 font-medium">
+                          <AlertTriangle size={13} className="shrink-0" />
+                          <span>Esta despesa é parcelada. Ao alterar o patrimônio, todas as parcelas vinculadas a esta dívida serão atualizadas conjuntamente.</span>
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-2.5 mt-2 text-xs space-y-2">
+                        <div className="flex items-start gap-1.5 text-amber-800 dark:text-amber-300 font-semibold text-[11px]">
+                          <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-600" />
+                          <span>Parcela Legada (sem código de grupo): Por segurança, alterações serão feitas somente nesta parcela individual para não misturar com outras dívidas.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentExp) openManualLinkModal(currentExp);
+                          }}
+                          className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+                        >
+                          <Link2 size={13} />
+                          <span>Vincular Manualmente com Outras Parcelas Desta Dívida</span>
+                        </button>
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
+
               {/* Descrição */}
               <div className="space-y-1">
                 <label className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
@@ -1367,16 +1524,61 @@ const Expenses: React.FC = () => {
                   </div>
 
                   {installmentType !== 'SINGLE' && (
-                    <div className="space-y-2 pt-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-500">Quantidade de Meses/Parcelas:</span>
-                        <span className="font-bold text-brand-red">{installmentsCount}x de R$ {parseFloat(val || '0').toFixed(2)}</span>
+                    <div className="space-y-3 pt-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                        <span className="text-gray-500 font-bold uppercase">Quantidade de Parcelas:</span>
+                        <span className="font-bold text-brand-red font-mono text-sm">
+                          {installmentsCount}x de R$ {parseFloat(val || '0').toFixed(2)}
+                        </span>
                       </div>
+
+                      {/* Input Numérico Livre e Presets */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="relative w-full sm:w-36">
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="240" 
+                            step="1"
+                            required
+                            value={installmentsCount} 
+                            onChange={e => {
+                              const raw = parseInt(e.target.value, 10);
+                              if (isNaN(raw)) {
+                                setInstallmentsCount(1);
+                              } else {
+                                setInstallmentsCount(Math.max(1, Math.min(raw, 240)));
+                              }
+                            }}
+                            className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl py-2 px-3 text-center text-sm font-bold font-mono outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red"
+                          />
+                          <span className="absolute right-3 top-2.5 text-[10px] text-gray-400 font-bold">x</span>
+                        </div>
+
+                        {/* Presets rápidos */}
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {[2, 3, 6, 10, 12, 18, 24, 36, 48, 60].map(n => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => setInstallmentsCount(n)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition border ${
+                                installmentsCount === n
+                                  ? 'bg-brand-red text-white border-brand-red'
+                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {n}x
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <input 
                         type="range" 
                         min="2" 
-                        max="36" 
-                        value={installmentsCount} 
+                        max="60" 
+                        value={installmentsCount <= 60 ? installmentsCount : 60} 
                         onChange={e => setInstallmentsCount(parseInt(e.target.value))}
                         className="w-full h-2 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-brand-red"
                       />
@@ -1385,32 +1587,37 @@ const Expenses: React.FC = () => {
                         <span>12x</span>
                         <span>24x</span>
                         <span>36x</span>
+                        <span>48x</span>
+                        <span>60x</span>
                       </div>
                       <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        O sistema criará automaticamente {installmentsCount} lançamentos, um para cada mês subsequente, com a data de vencimento ajustada.
+                        O sistema criará automaticamente {installmentsCount} lançamentos vinculados ao mesmo grupo da dívida, com o patrimônio <strong>{tipoPatrimonio}</strong> replicado para todas as parcelas.
                       </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Botoes de Ação */}
-              <div className="pt-3 flex gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)} 
-                  className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 font-bold text-xs uppercase"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className="flex-1 py-3 bg-brand-red text-white rounded-xl hover:bg-red-700 font-extrabold text-xs uppercase shadow-md shadow-red-900/20"
-                >
-                  Salvar Lançamento
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
+              <button 
+                type="button" 
+                onClick={() => setIsModalOpen(false)} 
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-xs uppercase transition"
+              >
+                Cancelar
+              </button>
+              <button 
+                form="expense-form"
+                type="submit" 
+                className="px-6 py-2.5 bg-brand-red hover:bg-red-700 text-white rounded-xl font-bold text-xs uppercase shadow-md shadow-red-900/20 transition"
+              >
+                Salvar Lançamento
+              </button>
+            </div>
           </div>
         </div>
       )}

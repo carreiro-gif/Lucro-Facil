@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Printer, FileDown, CheckCircle, Clock, AlertTriangle, Building2, Calendar, Tag } from 'lucide-react';
 import { Expense, Category } from '../types';
+import { isJuridicaExpense } from '../utils/expenseUtils';
 
 interface ExpensesReportModalProps {
   isOpen: boolean;
@@ -55,6 +56,11 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
   const totalValue = expenses.reduce((acc, e) => acc + (Number(e.value) || 0), 0);
   const totalPaid = expenses.filter(e => e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
   
+  const totalJuridica = expenses.filter(e => isJuridicaExpense(e)).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const totalFisica = expenses.filter(e => !isJuridicaExpense(e)).reduce((acc, e) => acc + (Number(e.value) || 0), 0);
+  const countJuridica = expenses.filter(e => isJuridicaExpense(e)).length;
+  const countFisica = expenses.filter(e => !isJuridicaExpense(e)).length;
+
   let totalDueSoonOrFuture = 0;
   let totalOverdue = 0;
 
@@ -169,13 +175,37 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
           </div>
 
           {/* Quick Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3.5 sm:p-4 rounded-xl shadow-xs">
               <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase">Total Geral</p>
               <p className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mt-1">
                 {formatCurrency(totalValue)}
               </p>
               <p className="text-[10px] text-gray-400 mt-0.5">{expenses.length} despesas</p>
+            </div>
+
+            <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 p-3.5 sm:p-4 rounded-xl shadow-xs">
+              <p className="text-[11px] font-bold text-blue-800 dark:text-blue-400 uppercase flex items-center gap-1">
+                🏢 PJ (Empresa)
+              </p>
+              <p className="text-lg sm:text-xl font-bold text-blue-900 dark:text-blue-200 mt-1">
+                {formatCurrency(totalJuridica)}
+              </p>
+              <p className="text-[10px] text-blue-700 dark:text-blue-400 mt-0.5">
+                {countJuridica} despesas • CFI
+              </p>
+            </div>
+
+            <div className="bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 p-3.5 sm:p-4 rounded-xl shadow-xs">
+              <p className="text-[11px] font-bold text-purple-800 dark:text-purple-400 uppercase flex items-center gap-1">
+                👤 PF (Pessoal)
+              </p>
+              <p className="text-lg sm:text-xl font-bold text-purple-900 dark:text-purple-200 mt-1">
+                {formatCurrency(totalFisica)}
+              </p>
+              <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-0.5">
+                {countFisica} despesas • Isoladas
+              </p>
             </div>
 
             <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 p-3.5 sm:p-4 rounded-xl shadow-xs">
@@ -230,6 +260,7 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
                     <th className="px-3 py-2.5">Descrição</th>
                     <th className="px-3 py-2.5">Credor / Origem</th>
                     <th className="px-3 py-2.5">Categoria</th>
+                    <th className="px-3 py-2.5 text-center">Patrimônio</th>
                     <th className="px-3 py-2.5 text-center">Vencimento</th>
                     <th className="px-3 py-2.5 text-center">Parcela</th>
                     <th className="px-3 py-2.5 text-right font-mono">Valor (R$)</th>
@@ -239,7 +270,7 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium text-gray-800 dark:text-gray-200">
                   {expenses.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-10 text-center text-gray-500 text-sm">
+                      <td colSpan={9} className="px-6 py-10 text-center text-gray-500 text-sm">
                         Nenhuma despesa encontrada para os filtros selecionados.
                       </td>
                     </tr>
@@ -247,6 +278,7 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
                     expenses.map((exp, idx) => {
                       const st = getStatus(exp);
                       const dueFormatted = exp.dueDate ? exp.dueDate.split('-').reverse().join('/') : '-';
+                      const isPJ = isJuridicaExpense(exp);
                       return (
                         <tr key={exp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
                           <td className="px-3 py-2 text-center text-gray-400 text-[11px]">{idx + 1}</td>
@@ -265,6 +297,17 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
                             {getCatName(exp.category)}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {isPJ ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                                🏢 PJ
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                                👤 PF
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-center font-mono text-gray-600 dark:text-gray-300">
                             {dueFormatted}
@@ -293,7 +336,7 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
                 </tbody>
                 <tfoot className="bg-gray-50 dark:bg-gray-950 font-bold border-t-2 border-gray-200 dark:border-gray-800">
                   <tr>
-                    <td colSpan={6} className="px-4 py-3 text-right text-gray-600 dark:text-gray-400 uppercase text-[11px]">
+                    <td colSpan={7} className="px-4 py-3 text-right text-gray-600 dark:text-gray-400 uppercase text-[11px]">
                       Total Geral:
                     </td>
                     <td className="px-3 py-3 text-right font-mono text-sm text-gray-950 dark:text-white">
@@ -302,6 +345,82 @@ export const ExpensesReportModal: React.FC<ExpensesReportModalProps> = ({
                     <td></td>
                   </tr>
                 </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Subtotals by Patrimony Table */}
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <Building2 size={14} className="text-blue-600" /> Subtotais por Separação Patrimonial (PJ x PF)
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-100/70 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 uppercase font-bold border-b border-gray-200 dark:border-gray-700">
+                    <th className="px-4 py-2.5">Classificação Patrimonial</th>
+                    <th className="px-3 py-2.5 text-center">Qtd. Lançamentos</th>
+                    <th className="px-4 py-2.5 text-right font-mono">Total (R$)</th>
+                    <th className="px-4 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400">Total Pago</th>
+                    <th className="px-4 py-2.5 text-right font-mono text-amber-600 dark:text-amber-400">A Pagar</th>
+                    <th className="px-3 py-2.5 text-center font-mono">% do Total</th>
+                    <th className="px-4 py-2.5 text-center">Impacto no Sistema</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
+                    <td className="px-4 py-2.5 font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        🏢 Pessoa Jurídica (Empresa)
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-gray-600 dark:text-gray-400 font-medium">
+                      {countJuridica}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono font-bold text-gray-900 dark:text-white">
+                      {formatCurrency(totalJuridica)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(expenses.filter(e => isJuridicaExpense(e) && e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0))}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-amber-600 dark:text-amber-400">
+                      {formatCurrency(expenses.filter(e => isJuridicaExpense(e) && !e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0))}
+                    </td>
+                    <td className="px-3 py-2.5 text-center font-mono font-bold text-gray-600 dark:text-gray-300">
+                      {totalValue > 0 ? ((totalJuridica / totalValue) * 100).toFixed(1) : '0.0'}%
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-[11px] text-blue-700 dark:text-blue-400 font-semibold">
+                      Compõe CFI &amp; Ponto de Equilíbrio
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
+                    <td className="px-4 py-2.5 font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                        👤 Pessoa Física (Pessoal)
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-gray-600 dark:text-gray-400 font-medium">
+                      {countFisica}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono font-bold text-gray-900 dark:text-white">
+                      {formatCurrency(totalFisica)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(expenses.filter(e => !isJuridicaExpense(e) && e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0))}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-amber-600 dark:text-amber-400">
+                      {formatCurrency(expenses.filter(e => !isJuridicaExpense(e) && !e.paid).reduce((acc, e) => acc + (Number(e.value) || 0), 0))}
+                    </td>
+                    <td className="px-3 py-2.5 text-center font-mono font-bold text-gray-600 dark:text-gray-300">
+                      {totalValue > 0 ? ((totalFisica / totalValue) * 100).toFixed(1) : '0.0'}%
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-[11px] text-purple-700 dark:text-purple-400 font-semibold">
+                      Isolada (não altera custos da loja)
+                    </td>
+                  </tr>
+                </tbody>
               </table>
             </div>
           </div>

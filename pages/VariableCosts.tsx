@@ -742,141 +742,147 @@ export const VariableCosts: React.FC = () => {
 
       {/* Modal: Create or Edit Variable Cost */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-scale-up font-sans">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-scale-up font-sans">
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-brand-yellow/10 text-brand-yellow rounded-lg">
                   <TrendingDown size={18} />
                 </div>
-                <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">
+                <h3 className="text-base font-bold text-gray-900 dark:text-white uppercase tracking-tight">
                   {editingCost ? 'Editar Custo Variável' : 'Novo Custo Variável'}
                 </h3>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg transition"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded-lg transition"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCost} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Data */}
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <form id="variable-cost-form" onSubmit={handleSaveCost} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Data */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Data do Custo *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.date}
+                      onChange={e => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
+                    />
+                  </div>
+
+                  {/* Categoria */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Categoria *
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value as VariableCostCategory })}
+                      className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
+                    >
+                      {Object.entries(CATEGORY_LABELS).map(([catKey, catObj]) => (
+                        <option key={catKey} value={catKey}>{catObj.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Descrição */}
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-                    Data do Custo *
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                    Descrição do Custo *
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     required
-                    value={formData.date}
-                    onChange={e => setFormData({ ...formData, date: e.target.value })}
+                    placeholder="Ex: Taxas Tayan Motoboy, Desconto Brendi, Embalagens Hambúrguer"
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
                     className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
                   />
                 </div>
 
-                {/* Categoria */}
-                <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-                    Categoria *
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value as VariableCostCategory })}
-                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
-                  >
-                    {Object.entries(CATEGORY_LABELS).map(([catKey, catObj]) => (
-                      <option key={catKey} value={catKey}>{catObj.label}</option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Valor */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Valor (R$) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="0,00"
+                      value={formData.value}
+                      onChange={e => setFormData({ ...formData, value: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white font-mono font-bold outline-none focus:border-brand-yellow"
+                    />
+                  </div>
+
+                  {/* Origem */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Origem
+                    </label>
+                    <select
+                      value={formData.origin}
+                      onChange={e => setFormData({ ...formData, origin: e.target.value as VariableCostSource })}
+                      className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
+                    >
+                      <option value="Manual">Manual</option>
+                      <option value="Colaboradores">Colaboradores</option>
+                      <option value="Brendi">Brendi</option>
+                      <option value="Entrada de Compras">Entrada de Compras</option>
+                      <option value="Vendas">Vendas</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
 
-              {/* Descrição */}
-              <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-                  Descrição do Custo *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Taxas Tayan Motoboy, Desconto Brendi, Embalagens Hambúrguer"
-                  value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Valor */}
+                {/* Observações */}
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-                    Valor (R$) *
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                    Observações (Opcional)
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    placeholder="0,00"
-                    value={formData.value}
-                    onChange={e => setFormData({ ...formData, value: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white font-mono font-bold outline-none focus:border-brand-yellow"
+                  <textarea
+                    rows={2}
+                    placeholder="Informações adicionais para rastreabilidade..."
+                    value={formData.notes}
+                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl p-3 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow resize-none"
                   />
                 </div>
+              </form>
+            </div>
 
-                {/* Origem */}
-                <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-                    Origem
-                  </label>
-                  <select
-                    value={formData.origin}
-                    onChange={e => setFormData({ ...formData, origin: e.target.value as VariableCostSource })}
-                    className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow"
-                  >
-                    <option value="Manual">Manual</option>
-                    <option value="Colaboradores">Colaboradores</option>
-                    <option value="Brendi">Brendi</option>
-                    <option value="Entrada de Compras">Entrada de Compras</option>
-                    <option value="Vendas">Vendas</option>
-                    <option value="Outro">Outro</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Observações */}
-              <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
-                  Observações (Opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Informações adicionais para rastreabilidade..."
-                  value={formData.notes}
-                  onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl p-3 text-xs text-gray-900 dark:text-white outline-none focus:border-brand-yellow resize-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-gray-400 hover:text-white transition text-xs font-bold uppercase tracking-wider"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-brand-yellow hover:bg-yellow-400 text-slate-950 transition rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-brand-yellow/10"
-                >
-                  {editingCost ? 'Salvar Alterações' : 'Adicionar Custo'}
-                </button>
-              </div>
-            </form>
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition text-xs font-bold uppercase tracking-wider"
+              >
+                Cancelar
+              </button>
+              <button
+                form="variable-cost-form"
+                type="submit"
+                className="px-6 py-2.5 bg-brand-yellow hover:bg-yellow-400 text-slate-950 transition rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-brand-yellow/10"
+              >
+                {editingCost ? 'Salvar Alterações' : 'Adicionar Custo'}
+              </button>
+            </div>
           </div>
         </div>
       )}

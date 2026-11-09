@@ -675,31 +675,31 @@ const Products: React.FC = () => {
          })}
        </div>
 
-       {/* MODAL FICHA TÉCNICA (FIXED OVERLAY INDEPENDENT) */}
+       {/* MODAL FICHA TÉCNICA PADRONIZADO */}
        {isModalOpen && (
          <div 
-           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[9999] p-4"
+           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
            onClick={() => setIsModalOpen(false)}
          >
             <div 
-              className="bg-white dark:bg-[#111827] w-full max-w-3xl max-h-[90vh] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] flex flex-col relative overflow-hidden animate-fade-in"
+              className="bg-white dark:bg-gray-900 w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col relative overflow-hidden animate-fade-in"
               onClick={(e) => e.stopPropagation()}
             >
                {/* Header Fixado */}
-               <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50 dark:bg-[#0f111a]">
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase flex items-center gap-3 tracking-widest">
+               <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white uppercase flex items-center gap-3 tracking-wider">
                      <div className="bg-brand-red p-2 rounded-xl text-white shadow-lg shadow-red-900/20">
                        <ChefHat size={20} />
                      </div>
                      {editingProduct ? 'Ficha Técnica' : 'Novo Item'}
                   </h3>
-                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-brand-red transition-colors p-2" aria-label="Fechar">
-                     <X size={28} strokeWidth={2.5}/>
+                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors p-1 rounded-lg" aria-label="Fechar">
+                     <X size={20} />
                   </button>
                </div>
 
                {/* Corpo com Rolagem Interna */}
-               <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 scrollbar-thin">
+               <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white dark:bg-gray-900">
                   <form id="product-form" onSubmit={handleSaveProduct} className="space-y-8">
                      
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50/50 dark:bg-gray-800/30 p-6 rounded-2xl border border-gray-200 dark:border-gray-700">
@@ -814,27 +814,28 @@ const Products: React.FC = () => {
                </div>
 
                {/* Rodapé Fixado */}
-               <div className="p-5 sm:p-6 border-t border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-[#0f111a] flex flex-col sm:flex-row justify-between items-center gap-4">
+               <div className="sticky bottom-0 z-10 flex flex-col sm:flex-row justify-between items-center gap-4 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
                   {editingProduct ? (
                      <div className="flex flex-col items-center sm:items-start">
-                        <span className="text-[9px] text-gray-500 dark:text-gray-400 uppercase font-black tracking-widest">Custo Total (CMV)</span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Custo Total (CMV)</span>
                         <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black text-brand-red font-mono">R$ {getProductCMV(editingProduct).toFixed(2)}</span>
-                          <span className="text-[9px] text-gray-400 font-bold uppercase">/ Unid</span>
+                          <span className="text-xl font-bold text-brand-red font-mono">R$ {getProductCMV(editingProduct).toFixed(2)}</span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase">/ Unid</span>
                         </div>
                      </div>
                   ) : <div/>}
-                  <div className="flex gap-3 w-full sm:w-auto">
+                  <div className="flex gap-3 w-full sm:w-auto justify-end">
                      <button 
+                        type="button"
                         onClick={() => setIsModalOpen(false)} 
-                        className="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+                        className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs transition"
                      >
                         Descartar
                      </button>
                      <button 
                         form="product-form" 
                         type="submit" 
-                        className="flex-1 sm:flex-none px-8 py-3 rounded-xl bg-brand-red hover:bg-red-700 text-white font-black uppercase tracking-widest text-[10px] shadow-lg shadow-red-900/20 transition-all transform hover:scale-[1.03] active:scale-95"
+                        className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-xs shadow-lg transition"
                      >
                         {editingProduct ? 'Salvar Ficha' : 'Criar Item'}
                      </button>
@@ -846,18 +847,12 @@ const Products: React.FC = () => {
 
        {/* MODAL DE GERENCIAMENTO CENTRAL / RENOMEAR PRODUTOS */}
        {isRenameModalOpen && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in font-sans">
-            {/* Backdrop */}
-            <div 
-              className="absolute inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
-              onClick={handleRequestCloseRename}
-            />
-
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in font-sans">
             {/* Modal Container */}
-            <div className="relative bg-white dark:bg-[#0f111a] border border-gray-200 dark:border-gray-800 rounded-3xl w-full max-w-3xl max-h-[90vh] shadow-2xl flex flex-col z-10 overflow-hidden">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] shadow-2xl flex flex-col z-10 overflow-hidden">
                
                {/* Modal Header */}
-               <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50/50 dark:bg-black/20">
+               <div className="sticky top-0 z-10 p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0 bg-white dark:bg-gray-800">
                   <div className="flex items-center gap-3">
                      <div className="w-10 h-10 rounded-2xl bg-amber-400 text-gray-950 flex items-center justify-center shadow-md shadow-amber-400/20 shrink-0">
                         <Edit3 size={20} />
@@ -1030,7 +1025,7 @@ const Products: React.FC = () => {
                </div>
 
                {/* Modal Footer */}
-               <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+               <div className="sticky bottom-0 z-10 p-4 sm:p-5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0 shadow-sm">
                   <div className="text-xs text-gray-500 dark:text-gray-400 text-center sm:text-left">
                      {modifiedProductsList.length > 0 ? (
                         <span className="font-bold text-amber-600 dark:text-amber-400">

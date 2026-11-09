@@ -12,6 +12,10 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#D90429" />
+    <!-- Google Fonts: Inter (300, 400, 500, 600, 700) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <!-- Tailwind CDN mantido conforme solicitado, mas recomenda-se migração futura para build nativo -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -19,6 +23,9 @@
         darkMode: 'class',
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            },
             colors: {
               brand: {
                 red: '#D90429',

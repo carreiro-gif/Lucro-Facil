@@ -453,33 +453,32 @@ const Ingredients: React.FC = () => {
         </div>
       </div>
 
-      {/* Editor Modal - AJUSTADO PARA ALINHAMENTO AO TOPO (items-start) E RESPIRO VERTICAL */}
+      {/* Editor Modal Padronizado */}
       {isModalOpen && (
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9991] animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
           onClick={closeModal}
         >
            <div 
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-[#111827] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.6)] border border-gray-200 dark:border-gray-800 animate-slide-up m-auto"
-              style={{ width: 'calc(100% - 32px)' }}
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] flex flex-col overflow-hidden rounded-2xl shadow-2xl animate-fade-in"
               onClick={(e) => e.stopPropagation()}
            >
               
-              {/* Header Fixado - shrink-0 garante que não encolha */}
-              <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50 dark:bg-[#0f111a]">
-                 <h3 className="text-sm font-black text-gray-950 dark:text-white uppercase flex items-center gap-3 tracking-widest">
+              {/* Header Fixado */}
+              <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                 <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase flex items-center gap-3 tracking-wider">
                     <div className="bg-brand-red p-2 rounded-xl text-white shadow-lg shadow-red-900/20">
                       <Beef size={20} />
                     </div>
                     {editingId ? 'Editar Insumo / Preparo' : 'Novo Insumo / Preparo'}
                  </h3>
-                 <button onClick={closeModal} className="text-gray-400 hover:text-brand-red transition-colors p-2" aria-label="Fechar">
-                    <X size={26} strokeWidth={2.5}/>
+                 <button onClick={closeModal} className="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors p-1 rounded-lg" aria-label="Fechar">
+                    <X size={20} />
                  </button>
               </div>
 
-              {/* Corpo com Rolagem Interna - flex-1 overflow-y-auto faz a mágica */}
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 bg-white dark:bg-gray-900 scrollbar-thin">
+              {/* Corpo com Rolagem Interna */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white dark:bg-gray-900">
                  <form id="ingredient-form" onSubmit={handleSubmit} className="space-y-6">
                     
                     <div className="space-y-4">
@@ -716,19 +715,19 @@ const Ingredients: React.FC = () => {
                  </form>
               </div>
 
-              {/* Rodapé Fixado - shrink-0 e bg sólido para não transparecer conteúdo do scroll */}
-              <div className="sticky bottom-0 p-4 sm:p-5 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 shrink-0 bg-white dark:bg-[#0f111a] z-10 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)]">
+              {/* Rodapé Fixado */}
+              <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
                  <button 
                     type="button"
                     onClick={closeModal} 
-                    className="px-5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-extrabold uppercase tracking-widest text-[9px] transition-all active:scale-95"
+                    className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs transition"
                  >
                     Cancelar
                  </button>
                  <button 
                     form="ingredient-form" 
                     type="submit" 
-                    className={`px-8 py-2.5 rounded-xl text-white font-extrabold uppercase tracking-widest text-[9px] shadow-lg transition-all transform hover:scale-[1.03] active:scale-95 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-900/15' : 'bg-brand-red hover:bg-red-700 shadow-red-900/15'}`}
+                    className={`px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-red hover:bg-red-700'}`}
                  >
                     {editingId ? 'Salvar Alterações' : 'Salvar Insumo'}
                  </button>

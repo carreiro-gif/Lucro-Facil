@@ -22,6 +22,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { GoogleGenAI } from '@google/genai';
 import { formatMoney, formatPercent } from '../constants';
 import { Product } from '../types';
+import { isJuridicaExpense } from '../utils/expenseUtils';
 
 const ConsultingReport: React.FC = () => {
   const { 
@@ -134,7 +135,7 @@ const ConsultingReport: React.FC = () => {
 
       // Fixed cost percent for this exact month
       const monthExpensesSum = (expenses || [])
-        .filter(e => e.month === monthKey)
+        .filter(e => e.month === monthKey && isJuridicaExpense(e))
         .reduce((sum, e) => sum + (e.value || 0), 0);
       
       const cfiPercentCalculated = monthRevVal > 0 
@@ -418,27 +419,27 @@ const ConsultingReport: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* Main Opinion Card */}
-          <div className="col-span-1 md:col-span-2 bg-slate-900 text-white p-6 rounded-2xl border border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="col-span-1 md:col-span-2 bg-white dark:bg-slate-900 text-gray-900 dark:text-white p-6 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full bg-brand-red flex items-center justify-center text-[10px] font-black shrink-0">L</div>
-                <span className="text-xs font-extrabold text-brand-yellow uppercase tracking-widest block">O veredicto do Xande:</span>
+                <div className="h-6 w-6 rounded-full bg-brand-red text-white flex items-center justify-center text-[10px] font-bold shrink-0">L</div>
+                <span className="text-xs font-bold text-amber-600 dark:text-brand-yellow uppercase tracking-wider block">O veredicto do Xande:</span>
               </div>
               
               {isGenerating ? (
                 <div className="space-y-2 py-4 animate-pulse">
-                  <div className="h-3.5 bg-slate-700 rounded w-11/12" />
-                  <div className="h-3.5 bg-slate-700 rounded w-full" />
-                  <div className="h-3.5 bg-slate-700 rounded w-4/5" />
+                  <div className="h-3.5 bg-gray-200 dark:bg-slate-700 rounded w-11/12" />
+                  <div className="h-3.5 bg-gray-200 dark:bg-slate-700 rounded w-full" />
+                  <div className="h-3.5 bg-gray-200 dark:bg-slate-700 rounded w-4/5" />
                 </div>
               ) : (
-                <div className="text-xs font-medium dark:text-gray-200 leading-relaxed whitespace-pre-line space-y-2">
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line space-y-2">
                   {xandeBriefing}
                 </div>
               )}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-800 text-[10px] text-slate-400 no-print">
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-800 text-[10px] text-gray-500 dark:text-slate-400 no-print">
               * Relatório gerado dinamicamente cruzando dados cadastrados de despesas, faturamento e fichas técnicas vigentes.
             </div>
           </div>

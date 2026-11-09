@@ -34,3 +34,18 @@ export const getExpenseEffectiveMonth = (
   // PRIORIDADE 3: Se nenhum dos dois existir
   return null;
 };
+
+/**
+ * Classificação Canônica Patrimonial (Física x Jurídica):
+ * 
+ * Regras:
+ * - 'Física': despesa pessoal, NÃO participa de CFI, Ponto de Equilíbrio ou custos operacionais empresariais.
+ * - 'Jurídica': despesa empresarial, participa de todos os cálculos corporativos.
+ * - Sem classificação (undefined/null): tratada como 'Jurídica' para preservação irrestrita dos dados históricos.
+ */
+export const isJuridicaExpense = (
+  e: Partial<Expense> | null | undefined
+): boolean => {
+  if (!e) return false;
+  return e.tipo_patrimonio !== 'Física';
+};

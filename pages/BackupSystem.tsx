@@ -137,14 +137,14 @@ const BackupSystem: React.FC = () => {
   return (
     <div className="space-y-8 pb-20 relative z-10 font-sans max-w-4xl mx-auto px-4">
       {/* HEADER CARD - GLASS DESIGN */}
-      <div className="glass-card border border-gray-200 dark:border-white/10 p-10 rounded-3xl relative overflow-hidden shadow-xl bg-slate-900/40 backdrop-blur-md">
+      <div className="glass-card border border-gray-200 dark:border-white/10 p-10 rounded-3xl relative overflow-hidden shadow-xl bg-white dark:bg-slate-900/40 backdrop-blur-md">
         <div className="absolute top-0 right-0 w-80 h-80 bg-brand-yellow/5 rounded-full blur-[100px] -mr-20 -mt-20 pointer-events-none opacity-40"></div>
         
         <div className="relative z-10 max-w-3xl mx-auto text-center space-y-4">
           <div className="inline-flex p-3 bg-brand-yellow/10 text-brand-yellow rounded-2xl border border-brand-yellow/20 mb-2">
             <Database size={32} />
           </div>
-          <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight uppercase">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white tracking-tight uppercase">
             Backup Manual do Sistema
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-base font-medium leading-relaxed max-w-2xl mx-auto">
@@ -156,7 +156,7 @@ const BackupSystem: React.FC = () => {
       {/* CORE CONTROLS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* ACTION PANEL */}
-        <div className="md:col-span-2 glass-card border border-gray-200 dark:border-white/10 rounded-2xl p-6 bg-slate-900/20 backdrop-blur-sm flex flex-col justify-between space-y-6">
+        <div className="md:col-span-2 glass-card border border-gray-200 dark:border-white/10 rounded-2xl p-6 bg-white dark:bg-slate-900/20 backdrop-blur-sm flex flex-col justify-between space-y-6">
           <div className="space-y-3">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
               <ShieldCheck size={20} className="text-emerald-500" />
@@ -203,23 +203,23 @@ const BackupSystem: React.FC = () => {
         </div>
 
         {/* METRICS & SECURITY RULES */}
-        <div className="glass-card border border-gray-200 dark:border-white/10 rounded-2xl p-6 bg-slate-900/20 backdrop-blur-sm space-y-6">
+        <div className="glass-card border border-gray-200 dark:border-white/10 rounded-2xl p-6 bg-white dark:bg-slate-900/20 backdrop-blur-sm space-y-6">
           <div className="space-y-2 border-b border-gray-200 dark:border-white/10 pb-4">
-            <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider">Metadados Última Leitura</h4>
+            <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider">Metadados Última Leitura</h4>
             {stats ? (
               <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-black/25 p-3 rounded-lg border border-white/5">
+                <div className="bg-gray-50 dark:bg-black/25 p-3 rounded-lg border border-gray-200 dark:border-white/5">
                   <span className="text-[10px] uppercase text-gray-500 block font-bold">Usuários</span>
                   <div className="flex items-center gap-1.5 mt-1">
                     <Users size={14} className="text-brand-yellow" />
-                    <span className="text-xl font-black text-white">{stats.usersCount}</span>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.usersCount}</span>
                   </div>
                 </div>
-                <div className="bg-black/25 p-3 rounded-lg border border-white/5">
+                <div className="bg-gray-50 dark:bg-black/25 p-3 rounded-lg border border-gray-200 dark:border-white/5">
                   <span className="text-[10px] uppercase text-gray-500 block font-bold">Lojas / Perfis</span>
                   <div className="flex items-center gap-1.5 mt-1">
                     <Store size={14} className="text-brand-yellow" />
-                    <span className="text-xl font-black text-white">{stats.storesCount}</span>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.storesCount}</span>
                   </div>
                 </div>
               </div>

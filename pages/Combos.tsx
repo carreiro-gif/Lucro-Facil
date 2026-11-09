@@ -1019,24 +1019,24 @@ const Combos: React.FC = () => {
       {/* Editor Modal - GLOBAL LEVEL / TRUE FULL SCREEN */}
       {isModalOpen && (
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-md flex justify-center items-center z-[9999]"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
           onClick={() => setIsModalOpen(false)}
         >
            <div 
-              className="bg-white dark:bg-[#111827] w-full h-full flex flex-col relative overflow-hidden"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] flex flex-col rounded-2xl shadow-2xl relative overflow-hidden animate-fade-in"
               onClick={(e) => e.stopPropagation()}
            >
               
               {/* Header Fixado */}
-              <div className="p-5 sm:p-8 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shrink-0 bg-gray-50 dark:bg-[#0f111a]">
-                 <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase flex items-center gap-3">
+              <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                 <h3 className="text-base font-bold text-gray-900 dark:text-white uppercase flex items-center gap-3">
                     <div className="bg-brand-red p-2 rounded-lg text-white">
-                      <ShoppingBag size={24} />
+                      <ShoppingBag size={20} />
                     </div>
                     {editingId ? 'Editar Combo' : 'Montar Novo Combo'}
                  </h3>
-                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-brand-red transition-colors p-2" aria-label="Fechar modal">
-                    <X size={40} strokeWidth={2.5}/>
+                 <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors p-1 rounded-lg" aria-label="Fechar modal">
+                    <X size={20}/>
                  </button>
               </div>
 
@@ -1475,11 +1475,11 @@ const Combos: React.FC = () => {
               </div>
               )}
               
-              {/* Rodapé Fixado com Botões Gigantes */}
+              {/* Rodapé Fixado */}
               {selectedComboType && (
-              <div className="p-6 sm:p-10 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-6 shrink-0 bg-white dark:bg-[#0f111a]">
-                 <button onClick={() => setIsModalOpen(false)} className="px-12 py-5 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-black uppercase tracking-widest text-sm transition-all transform active:scale-95">Descartar</button>
-                 <button onClick={handleSave} className="px-16 py-5 rounded-2xl bg-brand-red hover:bg-red-700 text-white font-black uppercase tracking-widest text-sm shadow-2xl shadow-red-900/40 transition-all transform hover:scale-[1.03] active:scale-95">Salvar Combo e Preços</button>
+              <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
+                 <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold text-xs uppercase transition">Descartar</button>
+                 <button onClick={handleSave} className="px-6 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-xs uppercase shadow-lg shadow-red-900/20 transition">Salvar Combo e Preços</button>
               </div>
               )}
 
@@ -1489,23 +1489,23 @@ const Combos: React.FC = () => {
 
       {/* Modal de Gerenciamento de Categorias de Combos */}
       {isManageCategoriesOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-[90%] md:w-full md:max-w-[800px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Cabeçalho */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-800/60 flex items-center justify-between bg-gray-50 dark:bg-[#0f111a]">
+            <div className="sticky top-0 z-10 p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xl">📁</span>
-                <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-wider">Gerenciar Categorias</h3>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white uppercase tracking-wider">Gerenciar Categorias</h3>
               </div>
               <button 
                 onClick={() => {
                   setIsManageCategoriesOpen(false);
                   setEditingCategoryIndex(null);
                 }} 
-                className="text-gray-400 hover:text-brand-red transition-colors p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors p-1 rounded-lg"
                 aria-label="Fechar modal"
               >
-                <X size={20} strokeWidth={2.5}/>
+                <X size={20}/>
               </button>
             </div>
 
@@ -1597,13 +1597,13 @@ const Combos: React.FC = () => {
             </div>
 
             {/* Rodapé */}
-            <div className="p-5 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#0f111a] flex justify-end">
+            <div className="sticky bottom-0 z-10 p-4 sm:p-5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-end shrink-0 shadow-sm">
               <button
                 onClick={() => {
                   setIsManageCategoriesOpen(false);
                   setEditingCategoryIndex(null);
                 }}
-                className="px-6 py-2.5 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl text-xs uppercase tracking-wider transition active:scale-95"
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-xl text-xs uppercase tracking-wider transition"
               >
                 Fechar
               </button>

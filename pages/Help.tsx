@@ -951,29 +951,29 @@ const Help: React.FC = () => {
   }, [filteredSections]);
 
   return (
-    <div id="main-help-view" className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-8 bg-transparent text-gray-100 font-sans">
+    <div id="main-help-view" className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-8 bg-transparent text-gray-900 dark:text-gray-100 font-sans">
       
       {/* HEADER SECTION */}
-      <div className="text-center md:text-left flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-gray-800 pb-8">
+      <div className="text-center md:text-left flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-gray-200 dark:border-gray-800 pb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black uppercase text-white flex items-center justify-center md:justify-start gap-2.5">
-            Central de Ajuda <span className="text-amber-500 font-black">Xande</span>
+          <h1 className="text-2xl md:text-3xl font-bold uppercase text-gray-900 dark:text-white flex items-center justify-center md:justify-start gap-2.5">
+            Central de Ajuda <span className="text-amber-500 font-bold">Xande</span>
           </h1>
-          <p className="text-gray-450 text-xs md:text-sm font-medium mt-1">
+          <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm font-medium mt-1">
             Manual prático e didático para proprietários de comida e bebida dominarem o CMV, CFI e precificação.
           </p>
         </div>
         <button 
           onClick={handleOpenXandeChat}
-          className="mx-auto md:mx-0 shrink-0 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-black tracking-wider uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition duration-300 hover:scale-[1.03] active:scale-95 shadow-md shadow-amber-500/10"
+          className="mx-auto md:mx-0 shrink-0 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-bold tracking-wider uppercase px-5 py-3 rounded-xl flex items-center gap-2 transition duration-300 hover:scale-[1.03] active:scale-95 shadow-md shadow-amber-500/10"
         >
           <Sparkles size={16} /> Falar com o Xande
         </button>
       </div>
 
       {/* SEARCH AND CONTROL BAR */}
-      <div className="relative w-full max-w-2xl mx-auto bg-slate-900 border border-gray-800 p-1.5 rounded-2xl flex items-center shadow-lg">
-        <div className="pl-3.5 pr-2.5 text-gray-500">
+      <div className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1.5 rounded-2xl flex items-center shadow-lg">
+        <div className="pl-3.5 pr-2.5 text-gray-400">
           <Search size={18} />
         </div>
         <input 
@@ -981,12 +981,12 @@ const Help: React.FC = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Busque ajuda por assunto, CFI, CMV, iFood, engrenagem..."
-          className="w-full bg-transparent text-sm text-gray-100 focus:outline-none placeholder-gray-500 py-2.5 pr-4"
+          className="w-full bg-transparent text-sm text-gray-900 dark:text-gray-100 focus:outline-none placeholder-gray-400 py-2.5 pr-4"
         />
         {searchTerm && (
           <button 
             onClick={() => setSearchTerm('')}
-            className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1 font-bold font-mono transition-colors"
+            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-3 py-1 font-bold font-mono transition-colors"
           >
             Limpar
           </button>
@@ -1002,15 +1002,15 @@ const Help: React.FC = () => {
             return (
               <div key={section.id} className="space-y-4">
                 {/* SECTION HEADER */}
-                <div className="flex items-center gap-3 border-b border-gray-800 pb-2">
+                <div className="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 pb-2">
                   <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
                     <SectionIcon size={20} />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black uppercase text-white tracking-wide">
+                    <h2 className="text-lg font-bold uppercase text-gray-900 dark:text-white tracking-wide">
                       {section.title}
                     </h2>
-                    <p className="text-gray-450 text-[11px] font-sans">
+                    <p className="text-gray-500 dark:text-gray-400 text-xs font-sans">
                       {section.description}
                     </p>
                   </div>
@@ -1024,17 +1024,17 @@ const Help: React.FC = () => {
                     return (
                       <div 
                         key={article.id}
-                        className="bg-slate-900 border border-gray-800 rounded-2xl overflow-hidden shadow-sm hover:border-gray-700 transition duration-300"
+                        className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm hover:border-gray-300 dark:hover:border-gray-700 transition duration-300"
                       >
                         {/* ACCORDION HOVER BAR TRIGGER */}
                         <button
                           onClick={() => toggleAccordion(article.id)}
-                          className="w-full flex items-center justify-between p-5 text-left focus:outline-none hover:bg-slate-800/40 transition duration-300"
+                          className="w-full flex items-center justify-between p-5 text-left focus:outline-none hover:bg-gray-50 dark:hover:bg-slate-800/40 transition duration-300"
                         >
-                          <span className="text-sm font-bold text-gray-100 hover:text-white pr-4">
+                          <span className="text-sm font-bold text-gray-800 dark:text-gray-100 hover:text-amber-600 dark:hover:text-white pr-4">
                             {article.title}
                           </span>
-                          <div className={`p-1.5 rounded-full bg-slate-800 text-gray-400 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180 text-amber-500' : 'rotate-0'}`}>
+                          <div className={`p-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180 text-amber-500' : 'rotate-0'}`}>
                             <ChevronDown size={16} />
                           </div>
                         </button>
@@ -1044,25 +1044,25 @@ const Help: React.FC = () => {
                           className={`grid transition-all duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
                         >
                           <div className="overflow-hidden">
-                            <div className="px-6 pb-6 pt-1 border-t border-gray-800/60 mt-1 space-y-6">
+                            <div className="px-6 pb-6 pt-1 border-t border-gray-100 dark:border-gray-800/60 mt-1 space-y-6">
                               {/* ARTICLE WRAPPED TEXT */}
-                              <div className="article-body leading-relaxed">
+                              <div className="article-body leading-relaxed text-gray-700 dark:text-gray-300">
                                 {article.content}
                               </div>
 
                               {/* STYLISH CTAs BOX */}
-                              <div className="p-4 rounded-xl bg-slate-950 border border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                              <div className="p-4 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
                                 <div className="flex items-center gap-2.5">
                                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
                                     <Info size={16} className="animate-pulse" />
                                   </div>
-                                  <span className="text-xs text-gray-300 font-semibold text-center sm:text-left">
+                                  <span className="text-xs text-gray-700 dark:text-gray-300 font-medium text-center sm:text-left">
                                     Ainda tem dúvidas? Pergunte ao Xande
                                   </span>
                                 </div>
                                 <button
                                   onClick={handleOpenXandeChat}
-                                  className="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-500 text-slate-950 text-xs font-black uppercase hover:bg-amber-400 active:scale-95 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                                  className="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold uppercase hover:bg-amber-400 active:scale-95 transition-all flex items-center justify-center gap-1.5 shrink-0"
                                 >
                                   <Sparkles size={14} /> Abrir Chat do Xande
                                 </button>
@@ -1079,8 +1079,8 @@ const Help: React.FC = () => {
           })}
         </div>
       ) : (
-        <div className="text-center py-16 bg-slate-900 border border-gray-800 rounded-3xl space-y-4">
-          <p className="text-gray-400 text-sm italic">
+        <div className="text-center py-16 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl space-y-4">
+          <p className="text-gray-500 dark:text-gray-400 text-sm italic">
             Nenhum artigo ou ajuda encontrada para "{searchTerm}".
           </p>
           <button

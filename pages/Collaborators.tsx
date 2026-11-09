@@ -2134,256 +2134,264 @@ export const Collaborators: React.FC = () => {
 
       {/* MODAL: CADASTRO / EDIÇÃO DE COLABORADOR */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full space-y-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <Users size={20} className="text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Users size={20} className="text-emerald-500 dark:text-emerald-400" />
                 {editingCollaborator ? 'Editar Colaborador' : 'Novo Colaborador'}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCollaborator} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Nome Completo *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Ex: Carlos Silva"
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-slate-300 font-bold">Função *</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingNewRole(!isAddingNewRole)}
-                      className="text-[10px] text-emerald-400 hover:underline font-bold"
-                    >
-                      + Nova função
-                    </button>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <form id="collaborator-form" onSubmit={handleSaveCollaborator} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Nome Completo *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="Ex: Carlos Silva"
+                      className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    />
                   </div>
 
-                  {isAddingNewRole ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={newRoleInput}
-                        onChange={(e) => setNewRoleInput(e.target.value)}
-                        placeholder="Ex: Auxiliar de Cozinha"
-                        className="w-full bg-slate-800 text-white px-3 py-2 rounded-xl border border-emerald-500 text-xs focus:outline-none"
-                      />
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-gray-700 dark:text-gray-300 font-bold">Função *</label>
                       <button
                         type="button"
-                        onClick={handleAddNewCustomRole}
-                        className="px-3 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs"
+                        onClick={() => setIsAddingNewRole(!isAddingNewRole)}
+                        className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
                       >
-                        Salvar
+                        + Nova função
                       </button>
                     </div>
-                  ) : (
+
+                    {isAddingNewRole ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newRoleInput}
+                          onChange={(e) => setNewRoleInput(e.target.value)}
+                          placeholder="Ex: Auxiliar de Cozinha"
+                          className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 rounded-xl border border-emerald-500 text-xs focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddNewCustomRole}
+                          className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                        >
+                          Salvar
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value={formRole}
+                        onChange={(e) => setFormRole(e.target.value)}
+                        className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none"
+                      >
+                        {(Object.entries(allRolesByCategory) as [string, string[]][]).map(([catTitle, roles]) => (
+                          <optgroup key={catTitle} label={catTitle}>
+                            {roles.map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Tipo de Remuneração *</label>
                     <select
-                      value={formRole}
-                      onChange={(e) => setFormRole(e.target.value)}
-                      className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none"
+                      value={formRemunerationType}
+                      onChange={(e) => setFormRemunerationType(e.target.value as RemunerationType)}
+                      className="w-full bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none font-bold"
                     >
-                      {(Object.entries(allRolesByCategory) as [string, string[]][]).map(([catTitle, roles]) => (
-                        <optgroup key={catTitle} label={catTitle}>
-                          {roles.map((r) => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </optgroup>
-                      ))}
+                      <option value="diaria">Diária</option>
+                      <option value="salario">Salário Mensal</option>
+                      <option value="diaria_mais_taxas">Diária + Taxas de Entrega</option>
+                      <option value="por_entrega">Por Entrega</option>
+                      <option value="pro_labore">Pró-labore (Proprietário / Sócio)</option>
+                      <option value="outro">Outro / Personalizado</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Frequência de Pagamento</label>
+                    <select
+                      value={formPaymentFrequency}
+                      onChange={(e) => setFormPaymentFrequency(e.target.value as PaymentFrequency)}
+                      className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none font-bold"
+                    >
+                      <option value="no_dia">Diário (No dia do trabalho)</option>
+                      <option value="semanal">Semanal (Acerto no fim de semana)</option>
+                      <option value="quinzenal">Quinzenal</option>
+                      <option value="mensal">Mensal</option>
+                      <option value="personalizado">Personalizado</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Valor Padrão (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formDefaultAmount}
+                      onChange={(e) => setFormDefaultAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="Ex: 60.00"
+                      className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none font-bold"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      Sugestão inicial. Ajustável livremente no fechamento.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Chave PIX (Opcional)</label>
+                    <input
+                      type="text"
+                      value={formPixKey}
+                      onChange={(e) => setFormPixKey(e.target.value)}
+                      placeholder="CPF, Telefone ou E-mail"
+                      className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Telefone / WhatsApp</label>
+                    <input
+                      type="text"
+                      value={formPhone}
+                      onChange={(e) => setFormPhone(e.target.value)}
+                      placeholder="(11) 99999-9999"
+                      className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Status</label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as 'active' | 'inactive')}
+                      className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="active">Ativo (aparece no fechamento)</option>
+                      <option value="inactive">Inativo</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* REGRAS POR DIA DA SEMANA */}
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-600 dark:text-amber-400">
+                      <input
+                        type="checkbox"
+                        checked={enableWeeklyRules}
+                        onChange={(e) => setEnableWeeklyRules(e.target.checked)}
+                        className="rounded accent-emerald-500"
+                      />
+                      Configurar valores diferentes por dia da semana (opcional)
+                    </label>
+                  </div>
+
+                  {enableWeeklyRules && (
+                    <div className="bg-gray-50 dark:bg-gray-950/60 p-3 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-2 text-xs">
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        Defina valores padrão para cada dia (ex: R$ 60 de terça a quinta, R$ 80 na sexta/sábado).
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                        {weeklyRules.map((r, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-800">
+                            <span className="font-bold text-gray-800 dark:text-gray-200 w-28">{DAYS_OF_WEEK[r.dayOfWeek]}</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={r.baseValue}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setWeeklyRules(prev => prev.map((item, i) => i === idx ? { ...item, baseValue: val } : item));
+                              }}
+                              className="w-24 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 text-xs text-right font-bold"
+                              placeholder="R$ 0,00"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Tipo de Remuneração *</label>
-                  <select
-                    value={formRemunerationType}
-                    onChange={(e) => setFormRemunerationType(e.target.value as RemunerationType)}
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none font-bold text-emerald-400"
-                  >
-                    <option value="diaria">Diária</option>
-                    <option value="salario">Salário Mensal</option>
-                    <option value="diaria_mais_taxas">Diária + Taxas de Entrega</option>
-                    <option value="por_entrega">Por Entrega</option>
-                    <option value="pro_labore">Pró-labore (Proprietário / Sócio)</option>
-                    <option value="outro">Outro / Personalizado</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Frequência de Pagamento</label>
-                  <select
-                    value={formPaymentFrequency}
-                    onChange={(e) => setFormPaymentFrequency(e.target.value as PaymentFrequency)}
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none font-bold"
-                  >
-                    <option value="no_dia">Diário (No dia do trabalho)</option>
-                    <option value="semanal">Semanal (Acerto no fim de semana)</option>
-                    <option value="quinzenal">Quinzenal</option>
-                    <option value="mensal">Mensal</option>
-                    <option value="personalizado">Personalizado</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Valor Padrão (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formDefaultAmount}
-                    onChange={(e) => setFormDefaultAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="Ex: 60.00"
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none font-bold"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    Sugestão inicial. Ajustável livremente no fechamento.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Chave PIX (Opcional)</label>
-                  <input
-                    type="text"
-                    value={formPixKey}
-                    onChange={(e) => setFormPixKey(e.target.value)}
-                    placeholder="CPF, Telefone ou E-mail"
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none"
+                  <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1 text-xs">Observações (Opcional)</label>
+                  <textarea
+                    rows={2}
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    placeholder="Anotações internas..."
+                    className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-3 rounded-xl border border-gray-300 dark:border-gray-700 text-xs focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
+              </form>
+            </div>
 
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Telefone / WhatsApp</label>
-                  <input
-                    type="text"
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="(11) 99999-9999"
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-bold rounded-xl transition"
+              >
+                Cancelar
+              </button>
 
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Status</label>
-                  <select
-                    value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as 'active' | 'inactive')}
-                    className="w-full bg-slate-800 text-white px-3 py-2.5 rounded-xl border border-white/10 focus:border-emerald-500 focus:outline-none"
-                  >
-                    <option value="active">Ativo (aparece no fechamento)</option>
-                    <option value="inactive">Inativo</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* REGRAS POR DIA DA SEMANA */}
-              <div className="pt-2 border-t border-white/10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-400">
-                    <input
-                      type="checkbox"
-                      checked={enableWeeklyRules}
-                      onChange={(e) => setEnableWeeklyRules(e.target.checked)}
-                      className="rounded accent-emerald-500"
-                    />
-                    Configurar valores diferentes por dia da semana (opcional)
-                  </label>
-                </div>
-
-                {enableWeeklyRules && (
-                  <div className="bg-slate-950/60 p-3 rounded-2xl border border-white/10 space-y-2 text-xs">
-                    <p className="text-[11px] text-slate-400">
-                      Defina valores padrão para cada dia (ex: R$ 60 de terça a quinta, R$ 80 na sexta/sábado).
-                    </p>
-
-                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {weeklyRules.map((r, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2 bg-slate-900 p-2 rounded-xl border border-white/5">
-                          <span className="font-bold text-slate-200 w-28">{DAYS_OF_WEEK[r.dayOfWeek]}</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={r.baseValue}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setWeeklyRules(prev => prev.map((item, i) => i === idx ? { ...item, baseValue: val } : item));
-                            }}
-                            className="w-24 bg-slate-800 text-white px-2 py-1 rounded-lg border border-white/10 text-xs text-right font-bold"
-                            placeholder="R$ 0,00"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1 text-xs">Observações (Opcional)</label>
-                <textarea
-                  rows={2}
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  placeholder="Anotações internas..."
-                  className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/10 text-xs focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition shadow-lg shadow-emerald-500/20"
-                >
-                  Salvar Colaborador
-                </button>
-              </div>
-            </form>
+              <button
+                form="collaborator-form"
+                type="submit"
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-600/20"
+              >
+                Salvar Colaborador
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* MODAL: QUITAÇÃO / ACERTO EM LOTE */}
       {isSettlementModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full space-y-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <CheckCircle2 size={20} className="text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <CheckCircle2 size={20} className="text-emerald-500 dark:text-emerald-400" />
                 Quitar Pagamentos em Lote
               </h3>
               <button
                 onClick={() => setIsSettlementModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
-              <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/10 space-y-2">
-                <span className="text-slate-400 block font-bold">Resumo da Quitação</span>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+              <div className="p-4 bg-gray-50 dark:bg-gray-950/60 rounded-2xl border border-gray-200 dark:border-gray-800 space-y-2">
+                <span className="text-gray-500 dark:text-gray-400 block font-bold">Resumo da Quitação</span>
                 {(() => {
                   const targetList = collaboratorPayments.filter(p => selectedSettlementPaymentIds.includes(p.id));
                   const totalBase = targetList.reduce((sum, p) => sum + (Number(p.baseAmount) || 0), 0);
@@ -2393,20 +2401,20 @@ export const Collaborators: React.FC = () => {
                   return (
                     <div className="space-y-1">
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Qtd de Lançamentos:</span>
-                        <span className="font-bold text-white">{targetList.length}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Qtd de Lançamentos:</span>
+                        <span className="font-bold text-gray-900 dark:text-white">{targetList.length}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Mão de Obra Fixa (CFI):</span>
-                        <span className="font-bold text-emerald-400">{formatMoney(totalBase)}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Mão de Obra Fixa (CFI):</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(totalBase)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Taxas de Entrega:</span>
-                        <span className="font-bold text-orange-400">{formatMoney(totalFees)}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Taxas de Entrega:</span>
+                        <span className="font-bold text-orange-600 dark:text-orange-400">{formatMoney(totalFees)}</span>
                       </div>
-                      <div className="flex justify-between pt-2 border-t border-white/10 text-sm">
-                        <span className="font-black text-white">Total a Liquidar:</span>
-                        <span className="font-black text-emerald-300">{formatMoney(grandTotal)}</span>
+                      <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-800 text-sm">
+                        <span className="font-bold text-gray-900 dark:text-white">Total a Liquidar:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(grandTotal)}</span>
                       </div>
                     </div>
                   );
@@ -2414,21 +2422,21 @@ export const Collaborators: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Data do Pagamento</label>
+                <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Data do Pagamento</label>
                 <input
                   type="date"
                   value={settlementDate}
                   onChange={(e) => setSettlementDate(e.target.value)}
-                  className="w-full bg-slate-800 text-white px-3 py-2 rounded-xl border border-white/10 font-bold focus:outline-none"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 font-bold focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Forma de Pagamento</label>
+                <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Forma de Pagamento</label>
                 <select
                   value={settlementMethod}
                   onChange={(e) => setSettlementMethod(e.target.value as PaymentMethod)}
-                  className="w-full bg-slate-800 text-white px-3 py-2 rounded-xl border border-white/10 font-bold focus:outline-none"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 font-bold focus:outline-none"
                 >
                   <option value="pix">PIX</option>
                   <option value="dinheiro">Dinheiro / Caixa</option>
@@ -2437,7 +2445,7 @@ export const Collaborators: React.FC = () => {
                 </select>
               </div>
 
-              <div className="p-3 bg-emerald-950/20 rounded-xl border border-emerald-500/30">
+              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-500/30">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -2445,39 +2453,40 @@ export const Collaborators: React.FC = () => {
                     onChange={(e) => setSettlementConsolidate(e.target.checked)}
                     className="rounded accent-emerald-500"
                   />
-                  <span className="text-emerald-300 font-bold">
+                  <span className="text-emerald-700 dark:text-emerald-300 font-bold">
                     Consolidar em um único registro pago no Contas a Pagar
                   </span>
                 </label>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Observações (Opcional)</label>
+                <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">Observações (Opcional)</label>
                 <input
                   type="text"
                   value={settlementNotes}
                   onChange={(e) => setSettlementNotes(e.target.value)}
                   placeholder="Ex: Acerto semanal fechado no PIX"
-                  className="w-full bg-slate-800 text-white px-3 py-2 rounded-xl border border-white/10 focus:outline-none"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 focus:outline-none"
                 />
               </div>
+            </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsSettlementModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmSettlement}
-                  className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl shadow-lg"
-                >
-                  Confirmar Quitação
-                </button>
-              </div>
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setIsSettlementModalOpen(false)}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-xs transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSettlement}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg transition"
+              >
+                Confirmar Quitação
+              </button>
             </div>
           </div>
         </div>
@@ -2485,27 +2494,30 @@ export const Collaborators: React.FC = () => {
 
       {/* MODAL: LANÇAR ALIMENTAÇÃO / BENEFÍCIO (MÚLTIPLOS ITENS DO CARDÁPIO OU EXTERNOS) */}
       {isMealModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full space-y-5 shadow-2xl my-8">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-[90%] md:w-full md:max-w-[800px] max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div>
-                <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <Utensils size={20} className="text-purple-400" />
+                <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Utensils size={20} className="text-purple-500 dark:text-purple-400" />
                   {editingMealId ? 'Editar Alimentação / Consumo' : 'Lançar Alimentação da Equipe'}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Adicione quantos produtos do cardápio precisar. O sistema soma tudo pelo <span className="text-purple-300 font-bold">Custo Real (CMV)</span>.
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Adicione quantos produtos do cardápio precisar. O sistema soma tudo pelo <span className="text-purple-600 dark:text-purple-300 font-bold">Custo Real (CMV)</span>.
                 </p>
               </div>
               <button
                 onClick={() => setIsMealModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveMeal} className="space-y-4 text-xs">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+              <form id="meal-form" onSubmit={handleSaveMeal} className="space-y-4">
               {/* CABEÇALHO: DATA E COLABORADOR */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-slate-950/60 rounded-2xl border border-white/10">
                 <div>
@@ -2811,23 +2823,26 @@ export const Collaborators: React.FC = () => {
                 />
               </div>
 
-              {/* BOTÕES FINAIS */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setIsMealModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-slate-950 font-black rounded-xl shadow-xl shadow-purple-500/20 transition transform active:scale-95"
-                >
-                  {editingMealId ? 'Salvar Alterações' : 'Salvar Refeição Completa'}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 p-4 sm:p-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shrink-0 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setIsMealModalOpen(false)}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-xs transition"
+              >
+                Cancelar
+              </button>
+              <button
+                form="meal-form"
+                type="submit"
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-purple-600/20 transition"
+              >
+                {editingMealId ? 'Salvar Alterações' : 'Salvar Refeição Completa'}
+              </button>
+            </div>
           </div>
         </div>
       )}
